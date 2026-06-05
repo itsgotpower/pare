@@ -39,3 +39,12 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# financial data — NEVER commit
+data/
+*.db
+*.pdf
+transactions.csv
+*.xlsx
+*.xls
+report.html

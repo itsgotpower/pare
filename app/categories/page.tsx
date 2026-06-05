@@ -1,0 +1,289 @@
+"use client";
+
+import { useState, useEffect, useCallback } from "react";
+import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { categoryColor } from "@/lib/colors";
+
+interface Rule {
+  id: number;
+  category: string;
+  keyword: string;
+  sort_order: number;
+}
+
+interface Suggestion {
+  keyword: string;
+  category: string;
+  count: number;
+}
+
+export default function CategoriesPage() {
+  const [rules, setRules] = useState<Rule[]>([]);
+  const [uncategorizedCount, setUncategorizedCount] = useState(0);
+  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [newKeyword, setNewKeyword] = useState("");
+  const [newCategory, setNewCategory] = useState("");
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [filter, setFilter] = useState("");
+
+  const fetchRules = useCallback(async () => {
+    const res = await fetch("/api/categories");
+    const data = await res.json();
+    setRules(data.rules);
+    setUncategorizedCount(data.uncategorized_count);
+    setSuggestions(data.suggestions || []);
+    setLoading(false);
+  }, []);
+
+  useEffect(() => {
+    fetchRules();
+  }, [fetchRules]);
+
+  const handleAdd = async () => {
+    if (!newKeyword || !newCategory) return;
+    await fetch("/api/categories", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        keyword: newKeyword,
+        category: newCategory,
+        apply_existing: true,
+      }),
+    });
+    setNewKeyword("");
+    setNewCategory("");
+    setDialogOpen(false);
+    fetchRules();
+  };
+
+  const handleDelete = async (id: number) => {
+    await fetch(`/api/categories?id=${id}`, { method: "DELETE" });
+    fetchRules();
+  };
+
+  const handleAcceptSuggestion = async (s: Suggestion) => {
+    await fetch("/api/categories", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        keyword: s.keyword,
+        category: s.category,
+        apply_existing: true,
+      }),
+    });
+    fetchRules();
+  };
+
+  const [recategorizing, setRecategorizing] = useState(false);
+
+  const handleRecategorizeAll = async () => {
+    setRecategorizing(true);
+    await fetch("/api/categories", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "recategorize_all" }),
+    });
+    setRecategorizing(false);
+    fetchRules();
+  };
+
+  const categories = [...new Set(rules.map((r) => r.category))];
+  const filteredRules = filter
+    ? rules.filter(
+        (r) =>
+          r.keyword.toLowerCase().includes(filter.toLowerCase()) ||
+          r.category.toLowerCase().includes(filter.toLowerCase())
+      )
+    : rules;
+
+  const groupedByCategory = categories.map((cat) => ({
+    category: cat,
+    rules: filteredRules.filter((r) => r.category === cat),
+  })).filter((g) => g.rules.length > 0);
+
+  if (loading) {
+    return (
+      <div className="p-6">
+        <h1 className="font-mono text-2xl font-bold tracking-tight uppercase mb-6">
+          CATEGORIES
+        </h1>
+        <p className="text-muted-foreground font-mono text-sm">LOADING...</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-6">
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="font-mono text-2xl font-bold tracking-tight uppercase">
+            CATEGORIES
+          </h1>
+          <p className="text-xs text-muted-foreground mt-1">
+            {rules.length} rules · {categories.length} categories
+            {uncategorizedCount > 0 && (
+              <span className="ml-2 text-foreground font-medium">
+                · {uncategorizedCount} uncategorized transactions
+              </span>
+            )}
+          </p>
+        </div>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handleRecategorizeAll}
+            disabled={recategorizing}
+            className="inline-flex items-center justify-center border border-input bg-background px-4 py-2 font-mono text-xs tracking-widest uppercase hover:bg-accent hover:text-accent-foreground disabled:opacity-50"
+          >
+            {recategorizing ? "WORKING..." : "RECATEGORIZE ALL"}
+          </button>
+          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+            <DialogTrigger className="inline-flex items-center justify-center border border-input bg-background px-4 py-2 font-mono text-xs tracking-widest uppercase hover:bg-accent hover:text-accent-foreground">
+              ADD RULE
+            </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle className="font-mono tracking-widest uppercase">
+                ADD CATEGORY RULE
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 mt-4">
+              <div>
+                <label className="font-mono text-xs tracking-widest text-muted-foreground">
+                  KEYWORD
+                </label>
+                <Input
+                  value={newKeyword}
+                  onChange={(e) => setNewKeyword(e.target.value)}
+                  placeholder="e.g. STARBUCKS"
+                  className="mt-1 font-mono"
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Case-insensitive substring match on merchant descriptions
+                </p>
+              </div>
+              <div>
+                <label className="font-mono text-xs tracking-widest text-muted-foreground">
+                  CATEGORY
+                </label>
+                <Input
+                  value={newCategory}
+                  onChange={(e) => setNewCategory(e.target.value)}
+                  placeholder="e.g. Coffee"
+                  className="mt-1 font-mono"
+                  list="category-suggestions"
+                />
+                <datalist id="category-suggestions">
+                  {categories.map((c) => (
+                    <option key={c} value={c} />
+                  ))}
+                </datalist>
+              </div>
+              <Button
+                onClick={handleAdd}
+                className="w-full font-mono text-xs tracking-widest uppercase"
+              >
+                ADD RULE & RECATEGORIZE
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+        </div>
+      </div>
+
+      {suggestions.length > 0 && (
+        <Card className="mb-6 border-foreground">
+          <CardContent className="py-4">
+            <h2 className="font-mono text-xs tracking-widest uppercase text-muted-foreground mb-3">
+              SUGGESTED RULES (FROM YOUR OVERRIDES)
+            </h2>
+            {suggestions.map((s, i) => (
+              <div
+                key={i}
+                className="flex items-center justify-between py-2 border-t first:border-t-0"
+              >
+                <div>
+                  <span className="font-mono text-sm font-medium">"{s.keyword}"</span>
+                  <span className="text-muted-foreground text-sm"> → {s.category}</span>
+                  <span className="text-xs text-muted-foreground ml-2">
+                    (would match {s.count} more)
+                  </span>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleAcceptSuggestion(s)}
+                  className="font-mono text-xs"
+                >
+                  ACCEPT
+                </Button>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
+      <div className="mb-4">
+        <Input
+          placeholder="Filter rules..."
+          value={filter}
+          onChange={(e) => setFilter(e.target.value)}
+          className="font-mono text-sm max-w-xs"
+        />
+      </div>
+
+      <div className="space-y-6">
+        {groupedByCategory.map(({ category, rules: catRules }) => (
+          <Card key={category}>
+            <CardContent className="py-4">
+              <h3 className="font-mono text-xs tracking-widest uppercase text-muted-foreground mb-3 flex items-center gap-2">
+                <span
+                  className="inline-block w-2.5 h-2.5"
+                  style={{ backgroundColor: categoryColor(category) }}
+                />
+                {category}
+                <Badge variant="secondary" className="ml-1 font-mono">
+                  {catRules.length}
+                </Badge>
+              </h3>
+              <div className="flex flex-wrap gap-2">
+                {catRules.map((rule) => (
+                  <span
+                    key={rule.id}
+                    className="inline-flex items-center gap-1 px-2 py-1 border text-xs font-mono group"
+                  >
+                    {rule.keyword}
+                    <button
+                      onClick={() => handleDelete(rule.id)}
+                      className="opacity-0 group-hover:opacity-100 ml-1 text-muted-foreground hover:text-foreground transition-opacity"
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    </div>
+  );
+}
