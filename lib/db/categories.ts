@@ -1,0 +1,185 @@
+import { getDb } from "../db";
+import { loadUserRules, loadSeedRules, saveUserRule, removeUserRule } from "./user-rules";
+
+export interface CategoryRule {
+  id: number;
+  category: string;
+  keyword: string;
+  sort_order: number;
+  created_at: string;
+}
+
+// Generic starter taxonomy shipped in source — universal merchants/patterns only,
+// so tracked code reveals nothing personal. The user's real, tuned keyword list
+// lives in the gitignored data/seed-rules.json (loadSeedRules) and is used as the
+// seed source when present. Category NAMES here are the canonical set used
+// everywhere (colours, fixed-cost detection, chequing-transfer gating).
+const STARTER_RULES: [string, string[]][] = [
+  ["Cash advance / fees", ["CASH ADVANCE", "CASH ADV/BT", "CONV CHQ FEE", "BALANCE TRANSFER", "NSF", "OVERDRAFT", "INTEREST CHARGE"]],
+  ["Groceries", ["SAFEWAY", "WHOLE FOODS", "REAL CDN", "SUPERSTORE", "COSTCO", "LOBLAW", "SOBEYS", "METRO ", "NO FRILLS", "SAVE-ON-FOODS", "IGA "]],
+  ["Coffee", ["STARBUCKS", "TIM HORTON", "SECOND CUP", "BLENZ", "ESPRESSO", "COFFEE", "CAFE", "BAKEHOUSE"]],
+  ["Restaurants & takeout", ["MCDONALD", "SUBWAY", "PIZZA", "CHIPOTLE", "UBER EATS", "DOORDASH", "SKIPTHEDISHES", "A&W", "WENDY", "BURGER", "RAMEN", "SUSHI", "PHO ", "TACO", "DONAIR", "SHAWARMA", "RESTAURANT", "DINER", "TST-", "TST*"]],
+  ["Subscriptions", ["NETFLIX", "SPOTIFY", "YOUTUBEPREMIUM", "GOOGLE ONE", "GOOGLE*GOOGLE", "AMAZONPRIME", "AMAZON.CA PRIME", "PRIME MEMBER", "APPLE.COM/BILL", "DISNEY", "AUDIBLE", "CLASSPASS", "STRAVA", "DASHPASS"]],
+  ["Phone / utilities", ["ROGERS", "TELUS", "FIDO", "SHAW", "HYDRO", "FORTIS", "ENBRIDGE"]],
+  ["Gym / fitness / recovery", ["GYM", "FITNESS", "YOGA", "YMCA", "GOODLIFE", "CLIMBING", "PILATES", "CROSSFIT"]],
+  ["Running / cycling gear", ["SPORT CHEK", "ARCTERYX", "ADIDAS", "NIKE", "NEW BALANCE", "RUNNING ROOM", "DECATHLON"]],
+  ["Transport / gas / parking", ["ESSO", "SHELL", "CHEVRON", "PETRO", "UBER TRIP", "LYFT", "PAYBYPHONE", "IMPARK", "EASYPARK", "PARKING", "COMPASS", "TRANSIT", "7-ELEVEN"]],
+  ["Travel (air/hotel)", ["AIR CANADA", "AIRCANADA", "WESTJET", "DELTA AIR", "UNITED AIRLINES", "AIRLINES", "AIRBNB", "EXPEDIA", "HOTEL", "MARRIOTT", "AIRPORT"]],
+  ["Health / pharmacy", ["SHOPPERS DRUG", "PHARMACY", "DENTAL", "CVS", "REXALL", "CLINIC", "MEDICAL", "OPTICAL"]],
+  ["Shopping / retail", ["AMAZON.CA*", "AMZN MKTP", "WAL-MART", "WALMART", "WINNERS", "TARGET", "INDIGO", "APPLE STORE", "BEST BUY", "HOMESENSE", "TEMU", "LULULEMON"]],
+  ["Gambling", ["CASINO", "LOTTERY", "POKER"]],
+];
+
+export function seedCategoryRules() {
+  const db = getDb();
+  const existing = db
+    .prepare("SELECT COUNT(*) as count FROM category_rules")
+    .get() as { count: number };
+
+  if (existing.count > 0) return;
+
+  const insert = db.prepare(
+    "INSERT OR IGNORE INTO category_rules (category, keyword, sort_order) VALUES (?, ?, ?)"
+  );
+
+  // Seed from the gitignored personal taxonomy if present, else the generic starter.
+  const seed =
+    loadSeedRules() ??
+    STARTER_RULES.flatMap(([category, kws]) => kws.map((keyword) => ({ category, keyword })));
+
+  let order = 0;
+  const tx = db.transaction(() => {
+    for (const r of seed) {
+      insert.run(r.category, r.keyword, order++);
+    }
+    // Restore user-defined rules (persisted outside the DB so they survive wipes).
+    for (const r of loadUserRules()) {
+      insert.run(r.category, r.keyword, order++);
+    }
+  });
+  tx();
+}
+
+export function listRules(): CategoryRule[] {
+  const db = getDb();
+  return db
+    .prepare("SELECT * FROM category_rules ORDER BY sort_order ASC")
+    .all() as CategoryRule[];
+}
+
+export function addRule(category: string, keyword: string): void {
+  const db = getDb();
+  const maxOrder = (
+    db.prepare("SELECT MAX(sort_order) as max FROM category_rules").get() as {
+      max: number | null;
+    }
+  ).max;
+  db.prepare(
+    "INSERT INTO category_rules (category, keyword, sort_order) VALUES (?, ?, ?)"
+  ).run(category, keyword, (maxOrder ?? 0) + 1);
+  // Persist outside the DB so it survives a wipe + re-ingest.
+  saveUserRule(category, keyword);
+}
+
+export function deleteRule(id: number): void {
+  const db = getDb();
+  const row = db
+    .prepare("SELECT keyword FROM category_rules WHERE id = ?")
+    .get(id) as { keyword: string } | undefined;
+  db.prepare("DELETE FROM category_rules WHERE id = ?").run(id);
+  if (row) removeUserRule(row.keyword);
+}
+
+export function addOverride(transactionId: number, originalCategory: string, newCategory: string): void {
+  const db = getDb();
+  db.prepare(
+    `INSERT OR REPLACE INTO category_overrides (transaction_id, original_category, new_category)
+     VALUES (?, ?, ?)`
+  ).run(transactionId, originalCategory, newCategory);
+}
+
+/**
+ * Apply the current category_rules (first-match-wins by sort_order) to a single
+ * description. Mirrors the Python categorize() so DB rows and parser agree.
+ * cibc_chequing rows keep their 'Banking' category (they are not card spend).
+ */
+export function categorizeByRules(description: string, rules: CategoryRule[]): string {
+  const d = description.toUpperCase();
+  for (const rule of rules) {
+    if (d.includes(rule.keyword.toUpperCase())) return rule.category;
+  }
+  return "Other / uncategorized";
+}
+
+// The built-in spend categories. Used to keep seeded card-merchant rules from
+// tagging chequing TRANSFER rows (e.g. "TELUS Garden Banking Ctr" is a branch
+// location, not a phone bill). Only user-defined categories — like Rent — may
+// tag transfers.
+const SEED_CATEGORY_NAMES = new Set(STARTER_RULES.map(([category]) => category));
+
+/**
+ * Re-run category rules against every transaction, skipping manual overrides.
+ *
+ * Card rows (amex/cibc_visa): full re-categorization, falling back to
+ * 'Other / uncategorized'.
+ *
+ * Chequing rows: rules are applied ONLY to transfer/spend rows and ONLY when a
+ * rule matches (no 'Other' fallback) — so an in-app rule on a private e-transfer
+ * handle can tag rent as 'Rent / housing' while leaving everything else as
+ * 'Banking'. income/payment/fee_interest rows are never touched, so payroll and
+ * card-payment classification can't be clobbered.
+ *
+ * Returns the number of transactions whose category changed.
+ */
+export function recategorizeAll(): number {
+  const db = getDb();
+  const rules = listRules();
+
+  const overridden = new Set(
+    db
+      .prepare("SELECT transaction_id FROM category_overrides")
+      .all()
+      .map((r) => (r as { transaction_id: number }).transaction_id)
+  );
+
+  const rows = db
+    .prepare("SELECT id, description, category, source, flow FROM transactions")
+    .all() as { id: number; description: string; category: string; source: string; flow: string }[];
+
+  const update = db.prepare("UPDATE transactions SET category = ? WHERE id = ?");
+  let changed = 0;
+
+  const tx = db.transaction(() => {
+    for (const row of rows) {
+      if (overridden.has(row.id)) continue;
+
+      let next: string | null;
+      if (row.source === "cibc_chequing") {
+        const matched = categorizeByRules(row.description, rules);
+        if (row.flow === "spend") {
+          // Debit-card purchases: any rule applies; fall back to 'Banking'.
+          next = matched === "Other / uncategorized" ? "Banking" : matched;
+        } else if (row.flow === "transfer") {
+          // Transfers: only user-defined categories (e.g. Rent) may tag them;
+          // seeded card-merchant rules must not (avoids location false matches).
+          next =
+            matched !== "Other / uncategorized" && !SEED_CATEGORY_NAMES.has(matched)
+              ? matched
+              : "Banking";
+        } else {
+          continue; // income/payment/fee — never reclassify
+        }
+      } else {
+        next = categorizeByRules(row.description, rules);
+      }
+
+      if (next && next !== row.category) {
+        update.run(next, row.id);
+        changed++;
+      }
+    }
+  });
+  tx();
+
+  return changed;
+}

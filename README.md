@@ -1,36 +1,60 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Parse
 
-## Getting Started
+Local-first personal finance app. Parses bank and credit-card PDF statements, categorizes transactions by keyword rules, and shows spending trends with budget goals — all on your machine, no cloud sync or telemetry.
 
-First, run the development server:
+> **Privacy:** All financial data stays local. See [SECURITY.md](SECURITY.md) for the privacy model and pre-publish checklist.
+
+## Features
+
+- **PDF ingestion** — drag-and-drop Amex, CIBC Visa, and CIBC chequing statements; Python parser extracts transactions automatically
+- **Smart categorization** — first-match keyword rules with a seed dictionary; add your own rules via the UI and they persist across DB rebuilds
+- **Dashboard** — monthly spending bars, category donut, top merchants, budget goal progress, income vs. spend breakdown, net cashflow
+- **Transactions** — searchable, filterable table with spend/all views and pagination
+- **Budget goals** — set monthly limits per category with progress bars (green / yellow / red)
+- **Deduplication** — SHA-256 hash per transaction prevents double-imports
+
+## Stack
+
+- Next.js 15 (App Router, TypeScript)
+- SQLite via better-sqlite3
+- Recharts
+- Tailwind CSS 4 + shadcn/ui (brutalist bento theme)
+- Python 3 + pdftotext (poppler) for PDF parsing
+
+## Prerequisites
+
+- Node.js 18+
+- Python 3.10+
+- poppler (`pdftotext`) — `brew install poppler` on macOS
+
+## Getting started
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000). Upload a PDF statement on the `/upload` page to get started.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## PDF parser (standalone)
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+python3 lib/parser/parse_statements.py <pdf-directory> --json
+```
 
-## Learn More
+## Project structure
 
-To learn more about Next.js, take a look at the following resources:
+```
+app/              Next.js App Router pages + API routes
+lib/
+  db.ts           SQLite singleton (WAL mode)
+  db/             Query layers — categories, income, goals, migrations
+  parser/         Python PDF parser (Amex, CIBC Visa, CIBC chequing)
+  colors.ts       Earth-tone category colour palette
+components/       UI components (shadcn/ui + custom)
+data/             Runtime data — DB, user rules (gitignored)
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## License
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+MIT
