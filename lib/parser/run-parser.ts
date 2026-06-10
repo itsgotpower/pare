@@ -14,9 +14,23 @@ export interface ParsedTransaction {
   flow: string;
 }
 
+export interface ParsedStatementMeta {
+  filename: string;
+  source: string;
+  account: string;
+  period: string;
+  closing_balance: number | null;
+  closing_date: string | null;
+}
+
+export interface ParseResult {
+  transactions: ParsedTransaction[];
+  statements: ParsedStatementMeta[];
+}
+
 const PARSER_PATH = path.join(process.cwd(), "lib", "parser", "parse_statements.py");
 
-export function parsePdf(pdfPath: string): ParsedTransaction[] {
+export function parsePdf(pdfPath: string): ParseResult {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "parse-"));
   const tmpPdf = path.join(tmpDir, path.basename(pdfPath));
   fs.copyFileSync(pdfPath, tmpPdf);
@@ -27,7 +41,7 @@ export function parsePdf(pdfPath: string): ParsedTransaction[] {
       timeout: 30000,
     });
 
-    return JSON.parse(stdout) as ParsedTransaction[];
+    return JSON.parse(stdout) as ParseResult;
   } finally {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   }

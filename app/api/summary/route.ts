@@ -4,8 +4,11 @@ import { getCurrentProgress } from "@/lib/db/goals";
 import { getMonthlyIncome, getIncomeByType, getIncomeVsSpend } from "@/lib/db/income";
 import { getBaseline } from "@/lib/db/baseline";
 import { getCashflow } from "@/lib/db/cashflow";
+import { getDailySpend } from "@/lib/db/heatmap";
 import { getForecast } from "@/lib/db/forecast";
 import { getInsights } from "@/lib/db/insights";
+import { getNetWorth } from "@/lib/db/networth";
+import { getCashflowForecast } from "@/lib/db/cashflowForecast";
 import { seedCategoryRules } from "@/lib/db/categories";
 
 export async function GET(request: NextRequest) {
@@ -61,6 +64,18 @@ export async function GET(request: NextRequest) {
     return Response.json(getForecast());
   }
 
+  if (type === "heatmap") {
+    return Response.json(getDailySpend());
+  }
+
+  if (type === "net_worth") {
+    return Response.json(getNetWorth());
+  }
+
+  if (type === "cashflow_forecast") {
+    return Response.json(getCashflowForecast());
+  }
+
   return Response.json({
     monthly_totals: getMonthlyTotals(),
     category_breakdown: getCategoryBreakdown(month),
@@ -72,5 +87,8 @@ export async function GET(request: NextRequest) {
     insights: getInsights(),
     cashflow: getCashflow(),
     forecast: getForecast(),
+    daily_spend: getDailySpend(),
+    net_worth: getNetWorth(),
+    cashflow_forecast: getCashflowForecast(),
   });
 }

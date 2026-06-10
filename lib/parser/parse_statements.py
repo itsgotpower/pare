@@ -51,16 +51,35 @@ def extract_year(period_str):
     return int(m.group(1)) if m else 2026
 
 
-def parse_amex(path):
-    rows, t = [], text(path)
+def period_end(period_str):
+    """Closing date 'YYYY-MM-DD' from a period string. Works on all three shapes:
+    'Jan 02, 2026' (Amex), 'Apr 1 to Apr 30, 2026' (chequing, abbreviated months),
+    'January 28 to February 27, 2026' (Visa, full months) — the month immediately
+    before the year is always the closing month; full names map via their first
+    three letters (September -> Sep)."""
+    m = re.search(r'([A-Z][a-z]+)\s+(\d{1,2}),\s*(\d{4})\s*$', period_str.strip())
+    if not m:
+        return None
+    month_num = MONTHS.get(m.group(1)[:3])
+    if not month_num:
+        return None
+    return f"{m.group(3)}-{month_num:02d}-{int(m.group(2)):02d}"
+
+
+def _amex_period(t):
     # The header value line carries BOTH dates: "... Opening Date  Closing Date"
     # then "... Feb 03, 2026   Mar 02, 2026". Grab the CLOSING date (the second);
     # the older regex grabbed the opening date, which threw off year inference.
     cm = re.search(
         r'Opening Date\s+Closing Date\s*\n[^\n]*?(' + DATE + r',\s*\d{4})\s+(' + DATE + r',\s*\d{4})',
         t)
-    period = cm.group(2) if cm else (
+    return cm.group(2) if cm else (
         "".join(re.findall(r'Closing Date\s*\n?.*?(' + DATE + r',\s*\d{4})', t)[:1]) or "amex")
+
+
+def parse_amex(path):
+    rows, t = [], text(path)
+    period = _amex_period(t)
     ref_year = extract_year(period)
     cmonth_m = re.match(r'([A-Z][a-z]{2})', period)
     closing_month = MONTHS.get(cmonth_m.group(1), 1) if cmonth_m else 1
@@ -99,9 +118,13 @@ CIBC_CATS = (
     r'Hotel and Travel|Home and Office|Transportation|Entertainment|Restaurants)'
 )
 
+def _visa_period(t):
+    return "".join(re.findall(r'period\s*\n?.*?(\w+ \d+ to \w+ \d+, \d{4})', t)[:1]) or "cibc_visa"
+
+
 def parse_cibc_visa(path):
     rows, t = [], text(path)
-    period = "".join(re.findall(r'period\s*\n?.*?(\w+ \d+ to \w+ \d+, \d{4})', t)[:1]) or "cibc_visa"
+    period = _visa_period(t)
     ref_year = extract_year(period)
     rx = re.compile(rf'^({DATE})\s+({DATE})\s+(?:Q\s+)?(.*?)\s+({CIBC_CATS})\s+({MONEY})\s*$')
     cap = False
@@ -325,8 +348,45 @@ def chequing_report(path):
     }
 
 
+def statement_meta(path):
+    """Statement-level metadata: closing balance + closing date per source.
+
+    Balances are stored AS PRINTED — positive means money in the account for
+    chequing and amount owed for cards; the app's net-worth layer applies the
+    liability sign. Returns None for unrecognized PDFs.
+    """
+    t = text(path)
+    money_rx = r'(-?\$?-?[\d,]+\.\d{2})'
+    if 'Aeroplan' in t and 'Visa' in t:
+        period = _visa_period(t)
+        # Account summary box: "Total balance   =   $167.93"
+        m = re.search(r'Total balance\s*=?\s*' + money_rx, t)
+        source, account = 'cibc_visa', 'CIBC Aeroplan Visa'
+        closing = _money(m.group(1)) if m else None
+    elif 'CIBC Account Statement' in t:
+        period, txns = _walk_chequing(path)
+        # Prefer the Account-summary box ("= $2,766.00"); fall back to the last
+        # reconciled running balance (same fallback chain as chequing_report).
+        m = re.search(r'=\s+\$(-?[\d,]+\.\d{2})', t)
+        reconciled = [x for x in txns if x['direction'] != 'unreconciled']
+        source, account = 'cibc_chequing', 'CIBC Chequing'
+        closing = _money(m.group(1)) if m else (
+            reconciled[-1]['balance'] if reconciled else None)
+    elif 'American Express' in t:
+        period = _amex_period(t)
+        # "Equals New Balance   $1,853.01" (summary box); plain "New Balance" fallback.
+        m = re.search(r'Equals New Balance\s+' + money_rx, t) or \
+            re.search(r'New Balance\s+' + money_rx, t)
+        source, account = 'amex', 'Amex Gold'
+        closing = _money(m.group(1)) if m else None
+    else:
+        return None
+    return {'source': source, 'account': account, 'period': period,
+            'closing_balance': closing, 'closing_date': period_end(period)}
+
+
 def main(src_dir, out_csv):
-    rows = []
+    rows, metas = [], []
     for f in sorted(glob.glob(os.path.join(src_dir, '*.pdf'))):
         t = text(f)
         # Order matters: chequing statements contain "American Express" (Amex card
@@ -334,13 +394,21 @@ def main(src_dir, out_csv):
         if 'Aeroplan' in t and 'Visa' in t:    rows += parse_cibc_visa(f)
         elif 'CIBC Account Statement' in t:    rows += parse_cibc_chequing(f)
         elif 'American Express' in t:          rows += parse_amex(f)
+        else:                                  continue
+        meta = statement_meta(f)
+        if meta:
+            meta['filename'] = os.path.basename(f)
+            metas.append(meta)
 
     if out_csv == '--json':
-        print(json.dumps([
-            {'source': r[0], 'account': r[1], 'period': r[2], 'txn_date': r[3],
-             'description': r[4], 'amount': r[5], 'category': r[6], 'flow': r[7]}
-            for r in rows
-        ]))
+        print(json.dumps({
+            'transactions': [
+                {'source': r[0], 'account': r[1], 'period': r[2], 'txn_date': r[3],
+                 'description': r[4], 'amount': r[5], 'category': r[6], 'flow': r[7]}
+                for r in rows
+            ],
+            'statements': metas,
+        }))
     else:
         with open(out_csv, 'w', newline='') as fh:
             w = csv.writer(fh)
