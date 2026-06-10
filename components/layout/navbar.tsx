@@ -10,10 +10,12 @@ import {
   Tag,
   Target,
   Repeat,
+  Plug,
   PanelLeftClose,
   PanelLeft,
   Sun,
   Moon,
+  User,
 } from "lucide-react";
 
 const NAV_ITEMS = [
@@ -23,6 +25,7 @@ const NAV_ITEMS = [
   { href: "/upload", label: "UPLOAD", icon: Upload },
   { href: "/categories", label: "CATEGORIES", icon: Tag },
   { href: "/goals", label: "GOALS", icon: Target },
+  { href: "/connect", label: "CONNECT", icon: Plug },
 ];
 
 export function Sidebar() {
@@ -54,6 +57,9 @@ export function Sidebar() {
     setCollapsed(next);
     localStorage.setItem("parse-sidebar-collapsed", String(next));
   };
+
+  // The login page is a full-screen gate — no chrome.
+  if (pathname === "/login") return null;
 
   return (
     <aside
@@ -98,6 +104,18 @@ export function Sidebar() {
       </nav>
 
       <div className="border-t border-border py-2">
+        <Link
+          href="/profile"
+          title={collapsed ? "PROFILE" : undefined}
+          className={`flex items-center gap-3 px-4 py-2.5 font-mono text-xs tracking-widest transition-colors ${
+            pathname.startsWith("/profile")
+              ? "text-foreground bg-accent border-l-2 border-foreground"
+              : "text-muted-foreground hover:text-foreground hover:bg-accent/50 border-l-2 border-transparent"
+          }`}
+        >
+          <User className="size-4 shrink-0" />
+          {!collapsed && <span>PROFILE</span>}
+        </Link>
         <button
           onClick={toggleDark}
           title={dark ? "Switch to light mode" : "Switch to dark mode"}

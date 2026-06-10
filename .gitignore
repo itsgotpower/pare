@@ -48,3 +48,6 @@ transactions.csv
 *.xlsx
 *.xls
 report.html
+
+# local agent config (absolute machine paths)
+.claude/

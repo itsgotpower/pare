@@ -4,6 +4,29 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { DashboardSkeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupText,
+  InputGroupInput,
+} from "@/components/ui/input-group";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { CalendarHeatmap, type DailySpend } from "@/components/dashboard/calendar-heatmap";
 import { categoryColor, PALETTE } from "@/lib/colors";
 import {
   BarChart,
@@ -18,6 +41,9 @@ import {
   LineChart,
   Line,
   Sankey,
+  Area,
+  ComposedChart,
+  ReferenceLine,
 } from "recharts";
 
 interface MonthlyTotal {
@@ -115,6 +141,84 @@ interface Forecast {
   categories: CategoryPace[];
 }
 
+interface CFPoint {
+  date: string;
+  balance: number;
+  low: number;
+  high: number;
+}
+
+interface CFEvent {
+  date: string;
+  label: string;
+  amount: number; // signed: + inflow, − outflow
+}
+
+interface CFHorizon {
+  days: number;
+  endBalance: number;
+  endLow: number;
+  endHigh: number;
+  minBalance: number;
+  minDate: string;
+}
+
+interface CashflowForecast {
+  anchor: { date: string; balance: number; period: string };
+  staleDays: number;
+  points: CFPoint[];
+  events: CFEvent[];
+  horizons: CFHorizon[];
+  assumptions: {
+    payrollAmount: number;
+    payrollEveryDays: number;
+    fixedMonthly: number;
+    fixedDayOfMonth: number;
+    recurringMonthly: number;
+    discretionaryMonthly: number;
+    sigmaMonthly: number;
+    basisMonths: string[];
+  };
+}
+
+interface ManualEntry {
+  id: number;
+  name: string;
+  kind: "asset" | "liability";
+  amount: number;
+  effective_date: string;
+  note: string | null;
+}
+
+interface NetWorthAccount {
+  name: string;
+  type: "statement" | "manual";
+  kind: "asset" | "liability";
+  current: number;
+  asOf: string;
+}
+
+interface NetWorthPoint {
+  month: string;
+  net: number;
+  assets: number;
+  liabilities: number;
+  balances: Record<string, number>;
+}
+
+interface NetWorth {
+  series: NetWorthPoint[];
+  accounts: NetWorthAccount[];
+  entries: ManualEntry[];
+  current: {
+    month: string;
+    net: number;
+    assets: number;
+    liabilities: number;
+    delta: number | null;
+  } | null;
+}
+
 const MONTH_NAMES = [
   "January", "February", "March", "April", "May", "June",
   "July", "August", "September", "October", "November", "December",
@@ -131,6 +235,14 @@ const formatMonthFull = (ym: string | number) => {
 };
 
 const THRESHOLDS = [200, 300, 500];
+
+const HORIZONS = [30, 60, 90];
+
+const formatDayShort = (iso: string) => {
+  const [, m, d] = iso.split("-");
+  if (!d) return iso;
+  return `${MONTH_NAMES[parseInt(m, 10) - 1]?.slice(0, 3)} ${parseInt(d, 10)}`;
+};
 
 const SEVERITY_COLORS: Record<Insight["severity"], string> = {
   alert: PALETTE.terracotta,
@@ -281,6 +393,17 @@ export default function Dashboard() {
   const [cashflow, setCashflow] = useState<Cashflow | null>(null);
   const [cashflowMonth, setCashflowMonth] = useState<string | null>(null);
   const [forecast, setForecast] = useState<Forecast | null>(null);
+  const [dailySpend, setDailySpend] = useState<DailySpend[]>([]);
+  const [netWorth, setNetWorth] = useState<NetWorth | null>(null);
+  const [cashForecast, setCashForecast] = useState<CashflowForecast | null>(null);
+  const [horizon, setHorizon] = useState(30);
+  const [entryDialogOpen, setEntryDialogOpen] = useState(false);
+  const [editingEntry, setEditingEntry] = useState<ManualEntry | null>(null);
+  const [entryName, setEntryName] = useState("");
+  const [entryKind, setEntryKind] = useState<"asset" | "liability">("asset");
+  const [entryAmount, setEntryAmount] = useState("");
+  const [entryDate, setEntryDate] = useState("");
+  const [entryNote, setEntryNote] = useState("");
   const allMerchantsRef = useRef<TopMerchant[]>([]);
   const allCashflowRef = useRef<Cashflow | null>(null);
 
@@ -301,9 +424,62 @@ export default function Dashboard() {
         setCashflow(data.cashflow || null);
         allCashflowRef.current = data.cashflow || null;
         setForecast(data.forecast || null);
+        setDailySpend(data.daily_spend || []);
+        setNetWorth(data.net_worth || null);
+        setCashForecast(data.cashflow_forecast || null);
         setLoading(false);
       });
   }, []);
+
+  const refetchNetWorth = useCallback(() => {
+    fetch("/api/summary?type=net_worth")
+      .then((r) => r.json())
+      .then(setNetWorth);
+  }, []);
+
+  const resetEntryForm = () => {
+    setEditingEntry(null);
+    setEntryName("");
+    setEntryKind("asset");
+    setEntryAmount("");
+    setEntryDate("");
+    setEntryNote("");
+  };
+
+  const handleEditEntry = (entry: ManualEntry) => {
+    setEditingEntry(entry);
+    setEntryName(entry.name);
+    setEntryKind(entry.kind);
+    setEntryAmount(String(entry.amount));
+    setEntryDate(entry.effective_date);
+    setEntryNote(entry.note || "");
+    setEntryDialogOpen(true);
+  };
+
+  const handleSaveEntry = async () => {
+    if (!entryName.trim() || !entryAmount || !entryDate) return;
+    const payload = {
+      id: editingEntry?.id,
+      name: entryName,
+      kind: entryKind,
+      amount: parseFloat(entryAmount),
+      effective_date: entryDate,
+      note: entryNote || null,
+    };
+    await fetch("/api/networth", {
+      method: editingEntry ? "PUT" : "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    setEntryDialogOpen(false);
+    resetEntryForm();
+    refetchNetWorth();
+  };
+
+  const handleDeleteEntry = async (id: number) => {
+    await fetch(`/api/networth?id=${id}`, { method: "DELETE" });
+    refetchNetWorth();
+  };
 
   useEffect(() => {
     fetch(`/api/summary?type=baseline&threshold=${threshold}`)
@@ -417,6 +593,46 @@ export default function Dashboard() {
     ? forecast.projectedFixed + forecast.projectedVariable
     : 0;
 
+  // --- cash-flow forecast (FORECAST tab) ---
+  const fcHorizon = cashForecast
+    ? cashForecast.horizons.find((h) => h.days === horizon) ?? null
+    : null;
+  const fcEndDate = cashForecast
+    ? cashForecast.points[Math.min(horizon, cashForecast.points.length) - 1]?.date ?? null
+    : null;
+  const fcChartData = cashForecast
+    ? [
+        {
+          date: cashForecast.anchor.date,
+          balance: cashForecast.anchor.balance,
+          band: [cashForecast.anchor.balance, cashForecast.anchor.balance],
+        },
+        ...cashForecast.points.slice(0, horizon).map((p) => ({
+          date: p.date,
+          balance: p.balance,
+          band: [p.low, p.high],
+        })),
+      ]
+    : [];
+  const fcEvents =
+    cashForecast && fcEndDate
+      ? cashForecast.events.filter((e) => e.date <= fcEndDate)
+      : [];
+  const fcLowestLow = fcChartData.length
+    ? Math.min(...fcChartData.map((p) => p.band[0]))
+    : 0;
+  const fcToday = (() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
+      d.getDate()
+    ).padStart(2, "0")}`;
+  })();
+  const fcShowToday =
+    !!cashForecast &&
+    !!fcEndDate &&
+    fcToday > cashForecast.anchor.date &&
+    fcToday <= fcEndDate;
+
   if (loading) {
     return <DashboardSkeleton />;
   }
@@ -496,6 +712,12 @@ export default function Dashboard() {
             </TabsTrigger>
             <TabsTrigger value="cashflow" className="font-mono text-xs tracking-widest">
               CASHFLOW
+            </TabsTrigger>
+            <TabsTrigger value="forecast" className="font-mono text-xs tracking-widest">
+              FORECAST
+            </TabsTrigger>
+            <TabsTrigger value="networth" className="font-mono text-xs tracking-widest">
+              NET WORTH
             </TabsTrigger>
             <TabsTrigger value="baseline" className="font-mono text-xs tracking-widest">
               BASELINE
@@ -1030,13 +1252,20 @@ export default function Dashboard() {
 
           <TabsContent value="cashflow">
             {!cashflow || cashflow.months.length === 0 ? (
-              <Card>
-                <CardContent className="py-16 text-center">
-                  <p className="font-mono text-sm text-muted-foreground">
-                    NO CHEQUING DATA — UPLOAD A CHEQUING STATEMENT
-                  </p>
-                </CardContent>
-              </Card>
+              <>
+                <Card>
+                  <CardContent className="py-16 text-center">
+                    <p className="font-mono text-sm text-muted-foreground">
+                      NO CHEQUING DATA — UPLOAD A CHEQUING STATEMENT
+                    </p>
+                  </CardContent>
+                </Card>
+                {dailySpend.length > 0 && (
+                  <div className="mt-6">
+                    <CalendarHeatmap days={dailySpend} />
+                  </div>
+                )}
+              </>
             ) : (
               <>
                 <div className="flex flex-wrap items-center justify-between mb-4 gap-3">
@@ -1149,6 +1378,12 @@ export default function Dashboard() {
                   </div>
                 </div>
 
+                {dailySpend.length > 0 && (
+                  <div className="mt-6">
+                    <CalendarHeatmap days={dailySpend} syncMonth={cashflowMonth} />
+                  </div>
+                )}
+
                 {forecast && (
                   <>
                     <h2 className="font-mono text-xs tracking-widest uppercase text-muted-foreground mt-6 mb-3">
@@ -1256,6 +1491,672 @@ export default function Dashboard() {
                   </>
                 )}
               </>
+            )}
+          </TabsContent>
+
+          <TabsContent value="forecast">
+            {!cashForecast ? (
+              <Card>
+                <CardContent className="py-16 text-center">
+                  <p className="font-mono text-sm text-muted-foreground">
+                    NO BALANCE ANCHOR — RE-UPLOAD YOUR LATEST CHEQUING STATEMENT
+                    TO CAPTURE ITS CLOSING BALANCE
+                  </p>
+                </CardContent>
+              </Card>
+            ) : (
+              <>
+                <div className="flex flex-wrap items-center justify-between mb-4 gap-3">
+                  <p className="text-xs text-muted-foreground max-w-xl min-w-[220px] flex-1">
+                    Estimate, not a promise — the last reconciled chequing closing
+                    balance projected forward with detected payroll, rent + fixed
+                    bills, subscription schedules, and average discretionary spend.
+                    Statements lag the calendar: anchored{" "}
+                    {formatDayShort(cashForecast.anchor.date)}
+                    {cashForecast.staleDays > 0
+                      ? ` — ${cashForecast.staleDays} days ago`
+                      : ""}
+                    .
+                  </p>
+                  <div className="flex border border-border">
+                    {HORIZONS.map((h) => (
+                      <button
+                        key={h}
+                        onClick={() => setHorizon(h)}
+                        className={`font-mono text-[10px] tracking-widest px-2.5 py-1 transition-colors ${
+                          horizon === h
+                            ? "bg-foreground text-background"
+                            : "text-muted-foreground hover:text-foreground"
+                        }`}
+                      >
+                        {h}D
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-[1px] bg-border border border-border">
+                  {/* Balance projection — 2 cols */}
+                  <div className="col-span-1 md:col-span-2 bg-card p-6">
+                    <h2 className="font-mono text-xs tracking-widest uppercase text-muted-foreground mb-4">
+                      PROJECTED BALANCE — NEXT {horizon} DAYS
+                    </h2>
+                    <ResponsiveContainer width="100%" height={260}>
+                      <ComposedChart data={fcChartData}>
+                        <XAxis
+                          dataKey="date"
+                          tickFormatter={formatDayShort}
+                          tick={{ fontSize: 10, fontFamily: "var(--font-mono)" }}
+                          axisLine={false}
+                          tickLine={false}
+                          minTickGap={32}
+                        />
+                        <YAxis
+                          tick={{ fontSize: 10, fontFamily: "var(--font-mono)" }}
+                          axisLine={false}
+                          tickLine={false}
+                          tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`}
+                          domain={["auto", "auto"]}
+                        />
+                        <Tooltip
+                          formatter={(value, name) => {
+                            if (Array.isArray(value)) {
+                              return [
+                                `${formatCurrency(Number(value[0]))} – ${formatCurrency(Number(value[1]))}`,
+                                "±1σ range",
+                              ];
+                            }
+                            return [formatCurrency(Number(value)), "Projected"];
+                          }}
+                          labelFormatter={(v) => formatDayShort(String(v))}
+                          contentStyle={{
+                            fontFamily: "var(--font-mono)",
+                            fontSize: 12,
+                            border: "1px solid #000",
+                            borderRadius: 0,
+                          }}
+                        />
+                        <Area
+                          type="monotone"
+                          dataKey="band"
+                          stroke="none"
+                          fill={PALETTE.dustyblue}
+                          fillOpacity={0.3}
+                          isAnimationActive={false}
+                        />
+                        <Line
+                          type="monotone"
+                          dataKey="balance"
+                          stroke={PALETTE.slate}
+                          strokeWidth={2}
+                          dot={false}
+                          isAnimationActive={false}
+                        />
+                        {fcLowestLow < 0 && (
+                          <ReferenceLine
+                            y={0}
+                            stroke={PALETTE.terracotta}
+                            strokeDasharray="4 4"
+                          />
+                        )}
+                        {fcShowToday && (
+                          <ReferenceLine
+                            x={fcToday}
+                            stroke="currentColor"
+                            strokeOpacity={0.35}
+                            strokeDasharray="2 4"
+                            label={{
+                              value: "TODAY",
+                              fontSize: 9,
+                              fontFamily: "var(--font-mono)",
+                              position: "top",
+                            }}
+                          />
+                        )}
+                      </ComposedChart>
+                    </ResponsiveContainer>
+                    <div className="flex gap-4 mt-2">
+                      <span className="flex items-center gap-1.5 text-xs font-mono">
+                        <span
+                          className="w-4 h-0.5 inline-block"
+                          style={{ backgroundColor: PALETTE.slate }}
+                        />
+                        PROJECTED
+                      </span>
+                      <span className="flex items-center gap-1.5 text-xs font-mono">
+                        <span
+                          className="w-2 h-2 inline-block"
+                          style={{ backgroundColor: PALETTE.dustyblue, opacity: 0.5 }}
+                        />
+                        ±1σ RANGE
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* End / lowest / anchor summary */}
+                  <div className="bg-card p-6 flex flex-col justify-between gap-4">
+                    <div>
+                      <h2 className="font-mono text-xs tracking-widest uppercase text-muted-foreground mb-2">
+                        END OF {horizon} DAYS
+                      </h2>
+                      <p
+                        className="font-mono text-3xl font-bold"
+                        style={{
+                          color:
+                            fcHorizon && fcHorizon.endBalance < 0
+                              ? PALETTE.terracotta
+                              : undefined,
+                        }}
+                      >
+                        {fcHorizon ? formatCurrency(fcHorizon.endBalance) : "—"}
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {fcHorizon
+                          ? `${formatCurrency(fcHorizon.endLow)} – ${formatCurrency(fcHorizon.endHigh)} (±1σ)`
+                          : ""}
+                      </p>
+                    </div>
+                    <div className="pt-4 border-t border-border">
+                      <h2 className="font-mono text-xs tracking-widest uppercase text-muted-foreground mb-2">
+                        LOWEST POINT
+                      </h2>
+                      <p
+                        className="font-mono text-3xl font-bold"
+                        style={{
+                          color:
+                            fcHorizon && fcHorizon.minBalance < 0
+                              ? PALETTE.terracotta
+                              : PALETTE.sage,
+                        }}
+                      >
+                        {fcHorizon ? formatCurrency(fcHorizon.minBalance) : "—"}
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {fcHorizon ? `around ${formatDayShort(fcHorizon.minDate)}` : ""}
+                      </p>
+                    </div>
+                    <div className="pt-4 border-t border-border">
+                      <h2 className="font-mono text-xs tracking-widest uppercase text-muted-foreground mb-2">
+                        ANCHOR
+                      </h2>
+                      <p className="font-mono text-3xl font-bold">
+                        {formatCurrency(cashForecast.anchor.balance)}
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        chequing closing · {formatDayShort(cashForecast.anchor.date)}
+                        {cashForecast.staleDays > 0
+                          ? ` · ${cashForecast.staleDays}d old`
+                          : ""}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Estimate inputs — full width */}
+                  <div className="col-span-1 md:col-span-3 bg-card p-6">
+                    <h2 className="font-mono text-xs tracking-widest uppercase text-muted-foreground mb-4">
+                      ESTIMATE INPUTS
+                    </h2>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      <div>
+                        <p className="font-mono text-[10px] tracking-widest uppercase text-muted-foreground">
+                          PAYROLL
+                        </p>
+                        <p
+                          className="font-mono text-lg font-bold"
+                          style={{ color: PALETTE.sage }}
+                        >
+                          +{formatCurrency(cashForecast.assumptions.payrollAmount)}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          every {cashForecast.assumptions.payrollEveryDays} days
+                        </p>
+                      </div>
+                      <div>
+                        <p className="font-mono text-[10px] tracking-widest uppercase text-muted-foreground">
+                          RENT + FIXED
+                        </p>
+                        <p className="font-mono text-lg font-bold">
+                          −{formatCurrency(cashForecast.assumptions.fixedMonthly)}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          monthly, day {cashForecast.assumptions.fixedDayOfMonth}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="font-mono text-[10px] tracking-widest uppercase text-muted-foreground">
+                          SUBSCRIPTIONS
+                        </p>
+                        <p className="font-mono text-lg font-bold">
+                          −{formatCurrency(cashForecast.assumptions.recurringMonthly)}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          per month, on their own cadence
+                        </p>
+                      </div>
+                      <div>
+                        <p className="font-mono text-[10px] tracking-widest uppercase text-muted-foreground">
+                          DISCRETIONARY
+                        </p>
+                        <p className="font-mono text-lg font-bold">
+                          −{formatCurrency(cashForecast.assumptions.discretionaryMonthly)}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          per month, drained daily
+                        </p>
+                      </div>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-4">
+                      Band is ±1σ of monthly variable spend (
+                      {formatCurrency(cashForecast.assumptions.sigmaMonthly)}),
+                      widening with √time. Card spend is modelled the day it
+                      happens, not when the card payment clears; one-off income
+                      (refunds, winnings) is excluded. Medians from{" "}
+                      {cashForecast.assumptions.basisMonths
+                        .map(formatMonthShort)
+                        .join(", ")}
+                      .
+                    </p>
+                  </div>
+
+                  {/* Scheduled events — full width */}
+                  <div className="col-span-1 md:col-span-3 bg-card p-6">
+                    <h2 className="font-mono text-xs tracking-widest uppercase text-muted-foreground mb-4">
+                      SCHEDULED IN WINDOW ({fcEvents.length})
+                    </h2>
+                    {fcEvents.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">
+                        Nothing scheduled in this window.
+                      </p>
+                    ) : (
+                      <div className="space-y-2">
+                        {fcEvents.slice(0, 12).map((e, i) => (
+                          <div
+                            key={i}
+                            className="flex items-center justify-between text-xs"
+                          >
+                            <div className="flex items-center gap-3 min-w-0">
+                              <span className="font-mono text-muted-foreground w-20 shrink-0">
+                                {formatDayShort(e.date)}
+                              </span>
+                              <span className="truncate">{e.label}</span>
+                            </div>
+                            <span
+                              className="font-mono font-medium w-24 text-right shrink-0"
+                              style={{
+                                color: e.amount >= 0 ? PALETTE.sage : undefined,
+                              }}
+                            >
+                              {e.amount >= 0 ? "+" : "−"}
+                              {formatCurrency(Math.abs(e.amount))}
+                            </span>
+                          </div>
+                        ))}
+                        {fcEvents.length > 12 && (
+                          <p className="text-xs text-muted-foreground">
+                            + {fcEvents.length - 12} more
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </>
+            )}
+          </TabsContent>
+
+          <TabsContent value="networth">
+            <div className="flex flex-wrap items-center justify-between mb-4 gap-3">
+              <p className="text-xs text-muted-foreground max-w-xl min-w-[220px] flex-1">
+                Statement-cadence net worth — closing balances from each statement
+                (chequing positive, card balances as debt) plus manual entries.
+                Balances carry forward between statements; point-in-time by design.
+              </p>
+              <Dialog
+                open={entryDialogOpen}
+                onOpenChange={(open) => {
+                  setEntryDialogOpen(open);
+                  if (!open) resetEntryForm();
+                }}
+              >
+                <DialogTrigger className="inline-flex items-center justify-center border border-input bg-background px-4 py-2 font-mono text-xs tracking-widest uppercase hover:bg-accent hover:text-accent-foreground">
+                  ADD ENTRY
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle className="font-mono tracking-widest uppercase">
+                      {editingEntry ? "EDIT ENTRY" : "ADD ASSET / LIABILITY"}
+                    </DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-4 mt-4">
+                    <div>
+                      <label className="font-mono text-xs tracking-widest text-muted-foreground">
+                        NAME
+                      </label>
+                      <Input
+                        value={entryName}
+                        onChange={(e) => setEntryName(e.target.value)}
+                        placeholder="Questrade TFSA"
+                        className="mt-1 font-mono text-sm"
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="font-mono text-xs tracking-widest text-muted-foreground">
+                          KIND
+                        </label>
+                        <Select
+                          value={entryKind}
+                          onValueChange={(v) => setEntryKind((v as "asset" | "liability") ?? "asset")}
+                        >
+                          <SelectTrigger className="mt-1 font-mono text-sm">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="asset" className="font-mono text-xs">
+                              ASSET
+                            </SelectItem>
+                            <SelectItem value="liability" className="font-mono text-xs">
+                              LIABILITY
+                            </SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <label className="font-mono text-xs tracking-widest text-muted-foreground">
+                          AMOUNT
+                        </label>
+                        <InputGroup className="mt-1">
+                          <InputGroupAddon align="inline-start">
+                            <InputGroupText>$</InputGroupText>
+                          </InputGroupAddon>
+                          <InputGroupInput
+                            type="number"
+                            min="0"
+                            value={entryAmount}
+                            onChange={(e) => setEntryAmount(e.target.value)}
+                            placeholder="25000"
+                            className="font-mono"
+                          />
+                        </InputGroup>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="font-mono text-xs tracking-widest text-muted-foreground">
+                        EFFECTIVE DATE
+                      </label>
+                      <Input
+                        type="date"
+                        value={entryDate}
+                        onChange={(e) => setEntryDate(e.target.value)}
+                        className="mt-1 font-mono text-sm"
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Re-add the same name with a newer date to update its value —
+                        history builds the trend.
+                      </p>
+                    </div>
+                    <div>
+                      <label className="font-mono text-xs tracking-widest text-muted-foreground">
+                        NOTE (OPTIONAL)
+                      </label>
+                      <Input
+                        value={entryNote}
+                        onChange={(e) => setEntryNote(e.target.value)}
+                        placeholder="vehicle, est. resale"
+                        className="mt-1 font-mono text-sm"
+                      />
+                    </div>
+                    <Button
+                      onClick={handleSaveEntry}
+                      disabled={!entryName.trim() || !entryAmount || !entryDate}
+                      className="w-full font-mono text-xs tracking-widest uppercase"
+                    >
+                      {editingEntry ? "UPDATE ENTRY" : "ADD ENTRY"}
+                    </Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
+            </div>
+
+            {!netWorth || netWorth.series.length === 0 ? (
+              <Card>
+                <CardContent className="py-16 text-center">
+                  <p className="font-mono text-sm text-muted-foreground mb-4">
+                    NO BALANCE DATA
+                  </p>
+                  <p className="text-xs text-muted-foreground max-w-md mx-auto">
+                    Closing balances are captured on upload. Re-upload your statements
+                    to backfill them, or add a manual asset/liability entry.
+                  </p>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-[1px] bg-border border border-border">
+                {/* Net worth trend — 2 cols */}
+                <div className="col-span-1 md:col-span-2 bg-card p-6">
+                  <h2 className="font-mono text-xs tracking-widest uppercase text-muted-foreground mb-4">
+                    NET WORTH TREND
+                  </h2>
+                  <ResponsiveContainer width="100%" height={260}>
+                    <LineChart data={netWorth.series}>
+                      <XAxis
+                        dataKey="month"
+                        tickFormatter={formatMonthShort}
+                        tick={{ fontSize: 10, fontFamily: "var(--font-mono)" }}
+                        axisLine={false}
+                        tickLine={false}
+                      />
+                      <YAxis
+                        tick={{ fontSize: 10, fontFamily: "var(--font-mono)" }}
+                        axisLine={false}
+                        tickLine={false}
+                        tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`}
+                      />
+                      <Tooltip
+                        formatter={(value, name) => {
+                          const labels: Record<string, string> = {
+                            net: "Net worth",
+                            assets: "Assets",
+                            liabilities: "Liabilities",
+                          };
+                          return [formatCurrency(Number(value)), labels[String(name)] || String(name)];
+                        }}
+                        labelFormatter={(v) => formatMonthFull(String(v))}
+                        contentStyle={{
+                          fontFamily: "var(--font-mono)",
+                          fontSize: 12,
+                          border: "1px solid #000",
+                          borderRadius: 0,
+                        }}
+                      />
+                      <Line
+                        type="stepAfter"
+                        dataKey="assets"
+                        stroke={PALETTE.sage}
+                        strokeWidth={1}
+                        dot={false}
+                        strokeDasharray="4 3"
+                      />
+                      <Line
+                        type="stepAfter"
+                        dataKey="liabilities"
+                        stroke={PALETTE.terracotta}
+                        strokeWidth={1}
+                        dot={false}
+                        strokeDasharray="4 3"
+                      />
+                      <Line
+                        type="stepAfter"
+                        dataKey="net"
+                        stroke="currentColor"
+                        strokeWidth={2}
+                        dot={{ r: 2.5, fill: "currentColor" }}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                  <div className="flex gap-4 mt-2">
+                    <span className="flex items-center gap-1.5 text-xs font-mono">
+                      <span className="w-2 h-0.5 inline-block bg-foreground" />
+                      NET
+                    </span>
+                    <span className="flex items-center gap-1.5 text-xs font-mono">
+                      <span className="w-2 h-0.5 inline-block" style={{ backgroundColor: PALETTE.sage }} />
+                      ASSETS
+                    </span>
+                    <span className="flex items-center gap-1.5 text-xs font-mono">
+                      <span className="w-2 h-0.5 inline-block" style={{ backgroundColor: PALETTE.terracotta }} />
+                      LIABILITIES
+                    </span>
+                  </div>
+                </div>
+
+                {/* Balance breakdown */}
+                <div className="row-span-2 bg-card p-6">
+                  <h2 className="font-mono text-xs tracking-widest uppercase text-muted-foreground mb-4">
+                    BALANCES
+                  </h2>
+                  <div className="space-y-3">
+                    {netWorth.accounts.map((a) => (
+                      <div key={a.name} className="flex items-start justify-between text-xs gap-2">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span
+                            className="w-2 h-2 inline-block shrink-0"
+                            style={{
+                              backgroundColor:
+                                a.kind === "asset" ? PALETTE.sage : PALETTE.terracotta,
+                            }}
+                          />
+                          <div className="min-w-0">
+                            <p className="font-mono truncate">{a.name}</p>
+                            <p className="text-muted-foreground">
+                              {a.type === "manual" ? "manual · " : ""}as of {a.asOf}
+                            </p>
+                          </div>
+                        </div>
+                        <span className="font-mono tabular-nums font-medium shrink-0">
+                          {a.current < 0 ? "−" : ""}
+                          {formatCurrency(Math.abs(a.current))}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                  {netWorth.current && (
+                    <div className="mt-4 pt-4 border-t border-border flex items-center justify-between">
+                      <span className="font-mono text-xs tracking-widest uppercase text-muted-foreground">
+                        NET
+                      </span>
+                      <span className="font-mono text-sm font-bold tabular-nums">
+                        {netWorth.current.net < 0 ? "−" : ""}
+                        {formatCurrency(Math.abs(netWorth.current.net))}
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Stat cards */}
+                {netWorth.current && (
+                  <>
+                    <div className="bg-card p-6">
+                      <h2 className="font-mono text-xs tracking-widest uppercase text-muted-foreground mb-2">
+                        NET WORTH
+                      </h2>
+                      <p
+                        className="font-mono text-3xl font-bold"
+                        style={{
+                          color: netWorth.current.net >= 0 ? PALETTE.sage : PALETTE.terracotta,
+                        }}
+                      >
+                        {netWorth.current.net >= 0 ? "" : "−"}
+                        {formatCurrency(Math.abs(netWorth.current.net))}
+                      </p>
+                      {netWorth.current.delta !== null && (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {netWorth.current.delta >= 0 ? "▲" : "▼"}{" "}
+                          {formatCurrency(Math.abs(netWorth.current.delta))} vs last month
+                        </p>
+                      )}
+                    </div>
+                    <div className="bg-card p-6">
+                      <h2 className="font-mono text-xs tracking-widest uppercase text-muted-foreground mb-2">
+                        ASSETS
+                      </h2>
+                      <p className="font-mono text-3xl font-bold">
+                        {formatCurrency(netWorth.current.assets)}
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        as of {formatMonthFull(netWorth.current.month)}
+                      </p>
+                    </div>
+                    <div className="bg-card p-6">
+                      <h2 className="font-mono text-xs tracking-widest uppercase text-muted-foreground mb-2">
+                        LIABILITIES
+                      </h2>
+                      <p className="font-mono text-3xl font-bold">
+                        {formatCurrency(netWorth.current.liabilities)}
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        card balances{netWorth.entries.some((e) => e.kind === "liability") ? " + manual" : ""}
+                      </p>
+                    </div>
+                  </>
+                )}
+
+                {/* Manual entries — full width */}
+                <div className="col-span-1 md:col-span-3 bg-card p-6">
+                  <h2 className="font-mono text-xs tracking-widest uppercase text-muted-foreground mb-4">
+                    MANUAL ENTRIES
+                  </h2>
+                  {netWorth.entries.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">
+                      None yet — add investments, a vehicle, or other balances that
+                      don&apos;t come from statements.
+                    </p>
+                  ) : (
+                    <div className="space-y-2">
+                      {netWorth.entries.map((e) => (
+                        <div key={e.id} className="flex items-center justify-between text-xs gap-3">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <span className="font-mono text-muted-foreground w-20 shrink-0">
+                              {e.effective_date}
+                            </span>
+                            <span
+                              className="inline-block w-2 h-2 shrink-0"
+                              style={{
+                                backgroundColor:
+                                  e.kind === "asset" ? PALETTE.sage : PALETTE.terracotta,
+                              }}
+                            />
+                            <span className="font-mono truncate">{e.name}</span>
+                            {e.note && (
+                              <span className="text-muted-foreground truncate hidden sm:inline">
+                                {e.note}
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-3 shrink-0">
+                            <span className="font-mono font-medium tabular-nums w-24 text-right">
+                              {e.kind === "liability" ? "−" : ""}
+                              {formatCurrency(e.amount)}
+                            </span>
+                            <button
+                              onClick={() => handleEditEntry(e)}
+                              className="text-muted-foreground hover:text-foreground font-mono"
+                            >
+                              EDIT
+                            </button>
+                            <button
+                              onClick={() => handleDeleteEntry(e.id)}
+                              className="text-muted-foreground hover:text-foreground font-mono"
+                            >
+                              REMOVE
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
             )}
           </TabsContent>
 
