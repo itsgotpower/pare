@@ -30,6 +30,8 @@ AMEX = """\
 American Express
 Prepared For              Account Number        Opening Date          Closing Date
 TEST USER                 XXXX X1003            Dec 03, 2025          Jan 02, 2026
+       Previous Balance                                      $100.00
+Equals New Balance                                            $169.12
 New Transactions for TEST USER
 Dec 15        Dec 16        TEST MERCHANT VANCOUVER          12.34
 Jan 01        Jan 02        ANOTHER STORE TORONTO          56.78
@@ -46,6 +48,9 @@ Mar 02         Mar 03        Q REAL CDN SUPERSTORE    VANCOUVER  BC     Retail a
 Mar 05         Mar 06        BALANCE TRANSFER                           Retail and Grocery       8,000.00
 Mar 06         Mar 06        CASH ADV/BT/CONV CHQ FEE                   Professional and Financial Services    200.00
 Total for 4500 XXXX XXXX 1003
+Previous balance                                                                 $163.24
+Total balance                                                       =            $8,401.31
+Amount Due1                                                                      $8,401.31
 """
 
 CIBC_CHEQUING = """\
@@ -161,6 +166,44 @@ class TestCibcChequing(unittest.TestCase):
         self.assertAlmostEqual(rep["parsed_closing"], 2766.00)
         self.assertAlmostEqual(rep["summary"]["withdrawals"], 1234.00)
         self.assertAlmostEqual(rep["summary"]["deposits"], 3000.00)
+
+
+class TestStatementMeta(unittest.TestCase):
+    """Closing balance + closing date extraction (statement-cadence net worth)."""
+
+    def _meta(self, fixture):
+        with mock.patch.object(P, "text", return_value=fixture):
+            return P.statement_meta("dummy.pdf")
+
+    def test_amex_new_balance(self):
+        m = self._meta(AMEX)
+        self.assertEqual(m["source"], "amex")
+        self.assertAlmostEqual(m["closing_balance"], 169.12)
+        self.assertEqual(m["closing_date"], "2026-01-02")
+
+    def test_visa_total_balance(self):
+        m = self._meta(CIBC_VISA)
+        self.assertEqual(m["source"], "cibc_visa")
+        self.assertAlmostEqual(m["closing_balance"], 8401.31)
+        # period "February 28 to March 27, 2026" -> full month names
+        self.assertEqual(m["closing_date"], "2026-03-27")
+
+    def test_chequing_closing_balance(self):
+        m = self._meta(CIBC_CHEQUING)
+        self.assertEqual(m["source"], "cibc_chequing")
+        self.assertAlmostEqual(m["closing_balance"], 2766.00)
+        self.assertEqual(m["closing_date"], "2026-03-31")
+
+    def test_unrecognized_returns_none(self):
+        self.assertIsNone(self._meta("Some random unrelated PDF text"))
+
+    def test_period_end_shapes(self):
+        self.assertEqual(P.period_end("Jan 02, 2026"), "2026-01-02")
+        self.assertEqual(P.period_end("Apr 1 to Apr 30, 2026"), "2026-04-30")
+        self.assertEqual(
+            P.period_end("January 28 to September 27, 2026"), "2026-09-27"
+        )
+        self.assertIsNone(P.period_end("cibc_visa"))
 
 
 class TestCategorizer(unittest.TestCase):
