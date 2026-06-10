@@ -3,6 +3,8 @@ import { getMonthlyTotals, getCategoryBreakdown, getTrends, getTopMerchants } fr
 import { getCurrentProgress } from "@/lib/db/goals";
 import { getMonthlyIncome, getIncomeByType, getIncomeVsSpend } from "@/lib/db/income";
 import { getBaseline } from "@/lib/db/baseline";
+import { getCashflow } from "@/lib/db/cashflow";
+import { getForecast } from "@/lib/db/forecast";
 import { getInsights } from "@/lib/db/insights";
 import { seedCategoryRules } from "@/lib/db/categories";
 
@@ -51,6 +53,14 @@ export async function GET(request: NextRequest) {
     return Response.json(getInsights());
   }
 
+  if (type === "cashflow") {
+    return Response.json(getCashflow(month));
+  }
+
+  if (type === "forecast") {
+    return Response.json(getForecast());
+  }
+
   return Response.json({
     monthly_totals: getMonthlyTotals(),
     category_breakdown: getCategoryBreakdown(month),
@@ -60,5 +70,7 @@ export async function GET(request: NextRequest) {
     income_by_type: getIncomeByType(),
     income_vs_spend: getIncomeVsSpend(),
     insights: getInsights(),
+    cashflow: getCashflow(),
+    forecast: getForecast(),
   });
 }

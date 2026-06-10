@@ -17,6 +17,7 @@ import {
   Cell,
   LineChart,
   Line,
+  Sankey,
 } from "recharts";
 
 interface MonthlyTotal {
@@ -83,6 +84,37 @@ interface TrendPoint {
   total: number;
 }
 
+interface Cashflow {
+  months: string[];
+  month: string | null;
+  income: { type: string; total: number }[];
+  expenses: { category: string; total: number }[];
+  totalIncome: number;
+  totalExpenses: number;
+  net: number;
+}
+
+interface CategoryPace {
+  category: string;
+  soFar: number;
+  projected: number;
+  typical: number;
+}
+
+interface Forecast {
+  targetMonth: string;
+  mode: "pace" | "average";
+  daysOfData: number;
+  daysInMonth: number;
+  projectedIncome: number;
+  projectedFixed: number;
+  projectedVariable: number;
+  projectedNet: number;
+  recurringMonthly: number;
+  basisMonths: string[];
+  categories: CategoryPace[];
+}
+
 const MONTH_NAMES = [
   "January", "February", "March", "April", "May", "June",
   "July", "August", "September", "October", "November", "December",
@@ -122,6 +154,114 @@ const formatCurrency = (value: number) =>
     maximumFractionDigits: 0,
   }).format(value);
 
+// --- CASHFLOW sankey ---
+// Income types (left) → INCOME hub → spend categories + SAVED (right).
+// In a deficit month the balancing node is FROM SAVINGS on the income side.
+type FlowSide = "in" | "hub" | "out";
+
+const SANKEY_TOP_CATEGORIES = 8;
+
+function buildSankeyData(cf: Cashflow) {
+  const nodes: { name: string; color: string; side: FlowSide }[] = [];
+  const links: { source: number; target: number; value: number }[] = [];
+  const add = (name: string, color: string, side: FlowSide) => {
+    // Keep labels inside the chart's side margins.
+    nodes.push({
+      name: name.length > 22 ? `${name.slice(0, 21).trimEnd()}…` : name,
+      color,
+      side,
+    });
+    return nodes.length - 1;
+  };
+
+  const hub = add("INCOME", PALETTE.espresso, "hub");
+  for (const i of cf.income) {
+    if (i.total < 1) continue;
+    links.push({
+      source: add(i.type.toUpperCase(), INCOME_TYPE_COLORS[i.type] || PALETTE.greige, "in"),
+      target: hub,
+      value: Math.round(i.total),
+    });
+  }
+  if (cf.net < -1) {
+    links.push({
+      source: add("FROM SAVINGS", PALETTE.terracotta, "in"),
+      target: hub,
+      value: Math.round(-cf.net),
+    });
+  }
+  for (const e of cf.expenses.slice(0, SANKEY_TOP_CATEGORIES)) {
+    if (e.total < 1) continue;
+    links.push({
+      source: hub,
+      target: add(e.category.toUpperCase(), categoryColor(e.category), "out"),
+      value: Math.round(e.total),
+    });
+  }
+  const rest = cf.expenses
+    .slice(SANKEY_TOP_CATEGORIES)
+    .reduce((s, e) => s + e.total, 0);
+  if (rest > 1) {
+    links.push({ source: hub, target: add("EVERYTHING ELSE", PALETTE.lightgrey, "out"), value: Math.round(rest) });
+  }
+  if (cf.net > 1) {
+    links.push({ source: hub, target: add("SAVED", PALETTE.sage, "out"), value: Math.round(cf.net) });
+  }
+  return { nodes, links };
+}
+
+const renderFlowNode = (props: any) => {
+  const { x, y, width, height, payload } = props;
+  if (!payload || Number.isNaN(x) || Number.isNaN(y)) return <g />;
+  const side: FlowSide = payload.side;
+  // Halo so labels stay readable where links cross them.
+  const halo = {
+    paintOrder: "stroke" as const,
+    stroke: "var(--card)",
+    strokeWidth: 3,
+  };
+  if (side === "hub") {
+    return (
+      <g>
+        <rect x={x} y={y} width={width} height={height} fill={payload.color} />
+        <text
+          x={x + width / 2}
+          y={y - 8}
+          textAnchor="middle"
+          fontSize={9}
+          fontFamily="var(--font-mono)"
+          letterSpacing="0.1em"
+          fill="currentColor"
+          {...halo}
+        >
+          {`${payload.name} ${formatCurrency(payload.value || 0)}`}
+        </text>
+      </g>
+    );
+  }
+  const tx = side === "out" ? x + width + 8 : x - 8;
+  return (
+    <g>
+      <rect x={x} y={y} width={width} height={height} fill={payload.color} />
+      <text
+        x={tx}
+        y={y + height / 2}
+        textAnchor={side === "out" ? "start" : "end"}
+        fontSize={9}
+        fontFamily="var(--font-mono)"
+        letterSpacing="0.05em"
+        fill="currentColor"
+        {...halo}
+      >
+        <tspan x={tx} dy={-1}>{payload.name}</tspan>
+        <tspan x={tx} dy={10} fillOpacity={0.6}>
+          {formatCurrency(payload.value || 0)}
+        </tspan>
+      </text>
+    </g>
+  );
+};
+
 export default function Dashboard() {
   const [monthly, setMonthly] = useState<MonthlyTotal[]>([]);
   const [categories, setCategories] = useState<CategoryBreakdown[]>([]);
@@ -138,7 +278,11 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [selectedMonth, setSelectedMonth] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [cashflow, setCashflow] = useState<Cashflow | null>(null);
+  const [cashflowMonth, setCashflowMonth] = useState<string | null>(null);
+  const [forecast, setForecast] = useState<Forecast | null>(null);
   const allMerchantsRef = useRef<TopMerchant[]>([]);
+  const allCashflowRef = useRef<Cashflow | null>(null);
 
   useEffect(() => {
     fetch("/api/summary?type=all")
@@ -154,6 +298,9 @@ export default function Dashboard() {
         setIncomeByType(data.income_by_type || []);
         setIncomeVsSpend(data.income_vs_spend || []);
         setInsights(data.insights || []);
+        setCashflow(data.cashflow || null);
+        allCashflowRef.current = data.cashflow || null;
+        setForecast(data.forecast || null);
         setLoading(false);
       });
   }, []);
@@ -184,6 +331,17 @@ export default function Dashboard() {
     if (loading) return;
     fetchFilteredMerchants();
   }, [fetchFilteredMerchants, loading]);
+
+  useEffect(() => {
+    if (loading) return;
+    if (!cashflowMonth) {
+      setCashflow(allCashflowRef.current);
+      return;
+    }
+    fetch(`/api/summary?type=cashflow&month=${cashflowMonth}`)
+      .then((r) => r.json())
+      .then(setCashflow);
+  }, [cashflowMonth, loading]);
 
   const displayMonthly = selectedCategory
     ? monthly.map((m) => {
@@ -248,6 +406,16 @@ export default function Dashboard() {
 
   const totalSpend = monthly.reduce((sum, m) => sum + m.total, 0);
   const hasData = monthly.length > 0;
+
+  const sankey =
+    cashflow && cashflow.totalIncome > 0 ? buildSankeyData(cashflow) : null;
+  const savingsRate =
+    cashflow && cashflow.totalIncome > 0
+      ? (cashflow.net / cashflow.totalIncome) * 100
+      : 0;
+  const forecastSpend = forecast
+    ? forecast.projectedFixed + forecast.projectedVariable
+    : 0;
 
   if (loading) {
     return <DashboardSkeleton />;
@@ -325,6 +493,9 @@ export default function Dashboard() {
             </TabsTrigger>
             <TabsTrigger value="income" className="font-mono text-xs tracking-widest">
               INCOME
+            </TabsTrigger>
+            <TabsTrigger value="cashflow" className="font-mono text-xs tracking-widest">
+              CASHFLOW
             </TabsTrigger>
             <TabsTrigger value="baseline" className="font-mono text-xs tracking-widest">
               BASELINE
@@ -850,10 +1021,241 @@ export default function Dashboard() {
                     {formatCurrency(Math.abs(totalNet))}
                   </p>
                   <p className="text-xs text-muted-foreground mt-1">
-                    fixed {formatCurrency(totalFixed)} · variable {formatCurrency(totalVariable)}
+                    fixed {formatCurrency(totalFixed)} (incl. rent) · variable {formatCurrency(totalVariable)}
                   </p>
                 </div>
               </div>
+            )}
+          </TabsContent>
+
+          <TabsContent value="cashflow">
+            {!cashflow || cashflow.months.length === 0 ? (
+              <Card>
+                <CardContent className="py-16 text-center">
+                  <p className="font-mono text-sm text-muted-foreground">
+                    NO CHEQUING DATA — UPLOAD A CHEQUING STATEMENT
+                  </p>
+                </CardContent>
+              </Card>
+            ) : (
+              <>
+                <div className="flex flex-wrap items-center justify-between mb-4 gap-3">
+                  <p className="text-xs text-muted-foreground max-w-xl min-w-[220px] flex-1">
+                    Where the money went — income in, spending by category out,
+                    the remainder saved. Only months with chequing data count.
+                  </p>
+                  <div className="flex flex-wrap border border-border">
+                    <button
+                      onClick={() => setCashflowMonth(null)}
+                      className={`font-mono text-[10px] tracking-widest px-2.5 py-1 transition-colors ${
+                        !cashflowMonth
+                          ? "bg-foreground text-background"
+                          : "text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      ALL
+                    </button>
+                    {(allCashflowRef.current?.months || cashflow.months).map((m) => (
+                      <button
+                        key={m}
+                        onClick={() => setCashflowMonth((prev) => (prev === m ? null : m))}
+                        className={`font-mono text-[10px] tracking-widest px-2.5 py-1 transition-colors ${
+                          cashflowMonth === m
+                            ? "bg-foreground text-background"
+                            : "text-muted-foreground hover:text-foreground"
+                        }`}
+                      >
+                        {formatMonthShort(m).toUpperCase()}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-[1px] bg-border border border-border">
+                  {/* Money flow sankey — 2 cols */}
+                  <div className="col-span-1 md:col-span-2 bg-card p-6">
+                    <h2 className="font-mono text-xs tracking-widest uppercase text-muted-foreground mb-4">
+                      MONEY FLOW{" "}
+                      {cashflowMonth
+                        ? `— ${formatMonthFull(cashflowMonth).toUpperCase()}`
+                        : `— ALL ${cashflow.months.length} MONTHS`}
+                    </h2>
+                    {sankey && sankey.links.length > 0 ? (
+                      <ResponsiveContainer width="100%" height={360}>
+                        <Sankey
+                          data={sankey}
+                          node={renderFlowNode}
+                          nodePadding={22}
+                          nodeWidth={10}
+                          link={{ stroke: PALETTE.slate, strokeOpacity: 0.18 }}
+                          margin={{ top: 24, right: 135, bottom: 12, left: 135 }}
+                        >
+                          <Tooltip
+                            formatter={(value) => [formatCurrency(Number(value))]}
+                            contentStyle={{
+                              fontFamily: "var(--font-mono)",
+                              fontSize: 11,
+                              border: "1px solid #000",
+                              borderRadius: 0,
+                            }}
+                          />
+                        </Sankey>
+                      </ResponsiveContainer>
+                    ) : (
+                      <p className="text-sm text-muted-foreground py-12 text-center">
+                        No income recorded for this period.
+                      </p>
+                    )}
+                  </div>
+
+                  {/* In / out / net summary */}
+                  <div className="bg-card p-6 flex flex-col justify-between gap-4">
+                    <div>
+                      <h2 className="font-mono text-xs tracking-widest uppercase text-muted-foreground mb-2">
+                        MONEY IN
+                      </h2>
+                      <p className="font-mono text-3xl font-bold">
+                        {formatCurrency(cashflow.totalIncome)}
+                      </p>
+                    </div>
+                    <div className="pt-4 border-t border-border">
+                      <h2 className="font-mono text-xs tracking-widest uppercase text-muted-foreground mb-2">
+                        MONEY OUT
+                      </h2>
+                      <p className="font-mono text-3xl font-bold">
+                        {formatCurrency(cashflow.totalExpenses)}
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        incl. rent and bank fees
+                      </p>
+                    </div>
+                    <div className="pt-4 border-t border-border">
+                      <h2 className="font-mono text-xs tracking-widest uppercase text-muted-foreground mb-2">
+                        {cashflow.net >= 0 ? "SAVED" : "DRAWN FROM SAVINGS"}
+                      </h2>
+                      <p
+                        className="font-mono text-3xl font-bold"
+                        style={{
+                          color: cashflow.net >= 0 ? PALETTE.sage : PALETTE.terracotta,
+                        }}
+                      >
+                        {cashflow.net >= 0 ? "+" : "−"}
+                        {formatCurrency(Math.abs(cashflow.net))}
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {savingsRate.toFixed(0)}% of income
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {forecast && (
+                  <>
+                    <h2 className="font-mono text-xs tracking-widest uppercase text-muted-foreground mt-6 mb-3">
+                      FORECAST — {formatMonthFull(forecast.targetMonth).toUpperCase()}
+                    </h2>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-[1px] bg-border border border-border">
+                      <div className="bg-card p-6">
+                        <h2 className="font-mono text-xs tracking-widest uppercase text-muted-foreground mb-2">
+                          PROJECTED SPEND
+                        </h2>
+                        <p className="font-mono text-3xl font-bold">
+                          {formatCurrency(forecastSpend)}
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          fixed {formatCurrency(forecast.projectedFixed)} · variable{" "}
+                          {formatCurrency(forecast.projectedVariable)}
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {forecast.mode === "pace"
+                            ? `paced from day ${forecast.daysOfData} of ${forecast.daysInMonth}`
+                            : `median of last ${forecast.basisMonths.length} complete months`}
+                        </p>
+                      </div>
+                      <div className="bg-card p-6">
+                        <h2 className="font-mono text-xs tracking-widest uppercase text-muted-foreground mb-2">
+                          PROJECTED NET
+                        </h2>
+                        <p
+                          className="font-mono text-3xl font-bold"
+                          style={{
+                            color:
+                              forecast.projectedNet >= 0
+                                ? PALETTE.sage
+                                : PALETTE.terracotta,
+                          }}
+                        >
+                          {forecast.projectedNet >= 0 ? "+" : "−"}
+                          {formatCurrency(Math.abs(forecast.projectedNet))}
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          payroll {formatCurrency(forecast.projectedIncome)} expected
+                          · one-off income excluded
+                        </p>
+                      </div>
+                      <div className="bg-card p-6">
+                        <h2 className="font-mono text-xs tracking-widest uppercase text-muted-foreground mb-2">
+                          RECURRING COMMITTED
+                        </h2>
+                        <p className="font-mono text-3xl font-bold">
+                          {formatCurrency(forecast.recurringMonthly)}
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          subscriptions / month, already inside projected spend
+                        </p>
+                      </div>
+
+                      {forecast.mode === "pace" && forecast.categories.length > 0 && (
+                        <div className="col-span-1 md:col-span-3 bg-card p-6">
+                          <h2 className="font-mono text-xs tracking-widest uppercase text-muted-foreground mb-4">
+                            CATEGORY PACE (DAY {forecast.daysOfData} OF {forecast.daysInMonth})
+                          </h2>
+                          <div className="space-y-2">
+                            {forecast.categories.slice(0, 6).map((c) => {
+                              const over = c.projected - c.typical;
+                              return (
+                                <div
+                                  key={c.category}
+                                  className="flex items-center justify-between text-xs"
+                                >
+                                  <span className="flex items-center gap-2 min-w-0">
+                                    <span
+                                      className="w-2 h-2 inline-block shrink-0"
+                                      style={{ backgroundColor: categoryColor(c.category) }}
+                                    />
+                                    <span className="font-mono truncate">{c.category}</span>
+                                  </span>
+                                  <span className="font-mono tabular-nums flex items-center gap-3 shrink-0">
+                                    <span className="text-muted-foreground hidden sm:inline">
+                                      {formatCurrency(c.soFar)} so far
+                                    </span>
+                                    <span className="w-24 text-right">
+                                      → {formatCurrency(c.projected)}
+                                    </span>
+                                    <span
+                                      className="w-28 text-right"
+                                      style={{
+                                        color:
+                                          c.typical > 0 && over > 0
+                                            ? PALETTE.terracotta
+                                            : PALETTE.sage,
+                                      }}
+                                    >
+                                      {c.typical > 0
+                                        ? `${over >= 0 ? "+" : "−"}${formatCurrency(Math.abs(over))} vs usual`
+                                        : "new"}
+                                    </span>
+                                  </span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
+              </>
             )}
           </TabsContent>
 
