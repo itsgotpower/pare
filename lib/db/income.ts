@@ -28,7 +28,8 @@ export const TYPE_CASE = `
   END
 `;
 
-export const FIXED_CATEGORIES = `('Rent / housing', 'Phone / utilities')`;
+export const FIXED_CATEGORY_LIST = ["Rent / housing", "Phone / utilities"];
+export const FIXED_CATEGORIES = `('${FIXED_CATEGORY_LIST.join("', '")}')`;
 
 export function getMonthlyIncome(months: number = 12): MonthlyIncome[] {
   const db = getDb();
