@@ -1,0 +1,502 @@
+"use client";
+
+import { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { PALETTE } from "@/lib/colors";
+import { LogOut, Pencil, Download, Database, FileJson } from "lucide-react";
+
+interface SourceHealth {
+  source: string;
+  label: string;
+  statement_count: number;
+  last_period: string | null;
+  last_txn_date: string | null;
+  days_since_last: number | null;
+  coverage: boolean[];
+}
+
+interface Profile {
+  display_name: string;
+  created_at: string;
+  password_changed_at: string;
+  health: {
+    transactions: number;
+    statements: number;
+    coverage_months: number;
+    db_bytes: number;
+    first_date: string | null;
+    last_date: string | null;
+    categorized_pct: number;
+    rule_count: number;
+    coverage_window: string[];
+    sources: SourceHealth[];
+  };
+}
+
+const STALE_AFTER_DAYS = 40;
+
+const formatDate = (iso: string | null) =>
+  iso
+    ? new Date(iso.slice(0, 10) + "T00:00:00").toLocaleDateString("en-CA", {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+      })
+    : "—";
+
+const formatMonth = (period: string | null) =>
+  period
+    ? new Date(period + "-01T00:00:00").toLocaleDateString("en-CA", {
+        year: "numeric",
+        month: "short",
+      })
+    : "—";
+
+const formatBytes = (bytes: number) => {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+};
+
+const labelClass = "font-mono text-[10px] tracking-widest uppercase text-muted-foreground";
+
+export default function ProfilePage() {
+  const router = useRouter();
+  const [profile, setProfile] = useState<Profile | null>(null);
+
+  const [editingName, setEditingName] = useState(false);
+  const [name, setName] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const [pwOpen, setPwOpen] = useState(false);
+  const [currentPw, setCurrentPw] = useState("");
+  const [newPw, setNewPw] = useState("");
+  const [confirmPw, setConfirmPw] = useState("");
+  const [pwStatus, setPwStatus] = useState<{ ok: boolean; msg: string } | null>(null);
+
+  const [wipeOpen, setWipeOpen] = useState(false);
+  const [wipeConfirm, setWipeConfirm] = useState("");
+  const [wipeError, setWipeError] = useState<string | null>(null);
+
+  const fetchProfile = useCallback(async () => {
+    const res = await fetch("/api/auth");
+    const data = await res.json();
+    if (data.authenticated) {
+      setProfile(data.profile);
+      setName(data.profile.display_name);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchProfile();
+  }, [fetchProfile]);
+
+  const post = (body: Record<string, unknown>) =>
+    fetch("/api/auth", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+
+  const handleSaveName = async () => {
+    setBusy(true);
+    const res = await post({ action: "update_profile", display_name: name });
+    setBusy(false);
+    if (res.ok) {
+      setEditingName(false);
+      fetchProfile();
+    }
+  };
+
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPwStatus(null);
+    if (newPw !== confirmPw) {
+      setPwStatus({ ok: false, msg: "New passwords do not match" });
+      return;
+    }
+    setBusy(true);
+    const res = await post({
+      action: "change_password",
+      current_password: currentPw,
+      new_password: newPw,
+    });
+    const data = await res.json();
+    setBusy(false);
+    if (res.ok) {
+      setCurrentPw("");
+      setNewPw("");
+      setConfirmPw("");
+      setPwOpen(false);
+      fetchProfile();
+    } else {
+      setPwStatus({ ok: false, msg: data.error || "Failed to change password" });
+    }
+  };
+
+  const handleWipe = async () => {
+    setWipeError(null);
+    setBusy(true);
+    const res = await fetch("/api/data", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ confirm: wipeConfirm }),
+    });
+    const data = await res.json();
+    setBusy(false);
+    if (res.ok) {
+      setWipeOpen(false);
+      setWipeConfirm("");
+      fetchProfile();
+    } else {
+      setWipeError(data.error || "Wipe failed");
+    }
+  };
+
+  const handleSignOut = async () => {
+    await post({ action: "logout" });
+    router.replace("/login");
+    router.refresh();
+  };
+
+  if (!profile) {
+    return (
+      <div className="p-6">
+        <p className="font-mono text-xs tracking-widest uppercase text-muted-foreground">
+          Loading…
+        </p>
+      </div>
+    );
+  }
+
+  const initials =
+    (profile.display_name || "P")
+      .split(/\s+/)
+      .map((w) => w[0])
+      .join("")
+      .slice(0, 2)
+      .toUpperCase() || "P";
+
+  const { health } = profile;
+
+  const stats: [string, string][] = [
+    ["Transactions", health.transactions.toLocaleString()],
+    ["Statements", String(health.statements)],
+    ["Coverage", `${health.coverage_months} MO`],
+    ["Database", formatBytes(health.db_bytes)],
+  ];
+
+  return (
+    <div className="p-6 max-w-5xl">
+      <h1 className="font-mono text-2xl font-bold tracking-tight uppercase mb-6">
+        Profile
+      </h1>
+
+      <div className="grid gap-3 md:grid-cols-3 mb-3">
+        <Card className="rounded-none ring-0 border border-border md:col-span-2">
+          <CardContent className="flex items-center gap-4">
+            <div className="size-12 shrink-0 border border-foreground flex items-center justify-center font-mono text-lg font-bold">
+              {initials}
+            </div>
+            <div className="min-w-0">
+              {editingName ? (
+                <div className="flex items-center gap-2">
+                  <Input
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && handleSaveName()}
+                    autoFocus
+                    className="h-7 max-w-48 rounded-none font-mono text-sm"
+                  />
+                  <Button
+                    size="sm"
+                    disabled={busy}
+                    onClick={handleSaveName}
+                    className="rounded-none font-mono text-[10px] tracking-widest uppercase"
+                  >
+                    Save
+                  </Button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <p className="font-mono text-sm font-bold uppercase truncate">
+                    {profile.display_name || "Unnamed"}
+                  </p>
+                  <button
+                    onClick={() => setEditingName(true)}
+                    aria-label="Edit display name"
+                    className="text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    <Pencil className="size-3.5" />
+                  </button>
+                </div>
+              )}
+              <p className="text-xs text-muted-foreground">
+                Member since {formatDate(profile.created_at)}
+              </p>
+            </div>
+            <div className="ml-auto flex items-center gap-3 shrink-0">
+              <span className="hidden sm:inline font-mono text-[10px] tracking-widest uppercase border border-border px-2 py-1 text-muted-foreground">
+                All data local
+              </span>
+              <Button
+                variant="outline"
+                onClick={handleSignOut}
+                className="rounded-none font-mono text-xs tracking-widest uppercase"
+              >
+                <LogOut data-icon="inline-start" />
+                Sign out
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="rounded-none ring-0 border border-border">
+          <CardContent>
+            <p className={`${labelClass} mb-2`}>Security</p>
+            <p className="text-xs mb-0.5">
+              Password changed {formatDate(profile.password_changed_at)}
+            </p>
+            <p className="text-[11px] text-muted-foreground mb-3">
+              Changing it signs out every session.
+            </p>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setPwStatus(null);
+                setPwOpen(true);
+              }}
+              className="rounded-none font-mono text-xs tracking-widest uppercase"
+            >
+              Change password
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+
+      <Card className="rounded-none ring-0 border border-border py-0 gap-0 mb-3">
+        <div className="flex items-center justify-between border-b border-border px-4 py-3">
+          <span className={labelClass}>Data health</span>
+          <Link
+            href="/categories"
+            className="font-mono text-[10px] tracking-widest uppercase text-muted-foreground hover:text-foreground transition-colors"
+          >
+            {health.categorized_pct}% categorized · {health.rule_count} rules →
+          </Link>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-4 border-b border-border">
+          {stats.map(([label, value], i) => (
+            <div
+              key={label}
+              className={`px-4 py-3 ${i > 0 ? "border-l border-border/50" : ""}`}
+            >
+              <p className="font-mono text-xl font-bold">{value}</p>
+              <p className={labelClass}>{label}</p>
+            </div>
+          ))}
+        </div>
+        <div>
+          {health.sources.map((s, i) => {
+            const stale =
+              s.days_since_last !== null && s.days_since_last > STALE_AFTER_DAYS;
+            return (
+              <div
+                key={s.source}
+                className={`flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-2.5 ${
+                  i > 0 ? "border-t border-border/50" : ""
+                }`}
+              >
+                <span className="font-mono text-xs tracking-widest w-24 shrink-0">
+                  {s.label}
+                </span>
+                <span className="text-xs text-muted-foreground flex-1 min-w-40">
+                  Last statement {formatMonth(s.last_period)} · {s.statement_count}{" "}
+                  statements · txns to {formatDate(s.last_txn_date)}
+                </span>
+                <span className="flex gap-0.5" aria-hidden>
+                  {s.coverage.map((covered, j) => (
+                    <span
+                      key={j}
+                      title={health.coverage_window[j]}
+                      className={`size-2 ${covered ? "bg-foreground/60" : "bg-border"}`}
+                    />
+                  ))}
+                </span>
+                {stale ? (
+                  <Link
+                    href="/upload"
+                    className="font-mono text-[10px] tracking-widest uppercase border px-1.5 py-0.5"
+                    style={{ color: PALETTE.terracotta, borderColor: PALETTE.terracotta }}
+                  >
+                    {s.days_since_last}d — upload
+                  </Link>
+                ) : (
+                  <span
+                    className="font-mono text-[10px] tracking-widest uppercase border px-1.5 py-0.5"
+                    style={{ color: PALETTE.sage, borderColor: PALETTE.sage }}
+                  >
+                    Current
+                  </span>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </Card>
+
+      <div className="grid gap-3 md:grid-cols-3">
+        <Card className="rounded-none ring-0 border border-border md:col-span-2">
+          <CardHeader>
+            <CardTitle className={labelClass}>Your data, your files</CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-wrap gap-2">
+            <a href="/api/data?format=csv" download>
+              <Button variant="outline" className="rounded-none font-mono text-xs tracking-widest uppercase">
+                <Download data-icon="inline-start" />
+                Export CSV
+              </Button>
+            </a>
+            <a href="/api/data?format=json" download>
+              <Button variant="outline" className="rounded-none font-mono text-xs tracking-widest uppercase">
+                <FileJson data-icon="inline-start" />
+                Export JSON
+              </Button>
+            </a>
+            <a href="/api/data?format=backup" download>
+              <Button variant="outline" className="rounded-none font-mono text-xs tracking-widest uppercase">
+                <Database data-icon="inline-start" />
+                Backup DB
+              </Button>
+            </a>
+          </CardContent>
+        </Card>
+
+        <Card className="rounded-none ring-0 border border-destructive/50">
+          <CardHeader>
+            <CardTitle className="font-mono text-[10px] tracking-widest uppercase text-destructive">
+              Danger zone
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                setWipeError(null);
+                setWipeConfirm("");
+                setWipeOpen(true);
+              }}
+              className="rounded-none font-mono text-xs tracking-widest uppercase"
+            >
+              Wipe all data…
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+
+      <Dialog open={pwOpen} onOpenChange={setPwOpen}>
+        <DialogContent className="rounded-none">
+          <DialogHeader>
+            <DialogTitle className="font-mono text-sm tracking-widest uppercase">
+              Change password
+            </DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleChangePassword} className="space-y-3">
+            <div className="space-y-1.5">
+              <label className={labelClass}>Current password</label>
+              <Input
+                type="password"
+                value={currentPw}
+                onChange={(e) => setCurrentPw(e.target.value)}
+                autoComplete="current-password"
+                required
+                className="rounded-none"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className={labelClass}>New password</label>
+              <Input
+                type="password"
+                value={newPw}
+                onChange={(e) => setNewPw(e.target.value)}
+                autoComplete="new-password"
+                required
+                minLength={8}
+                className="rounded-none"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className={labelClass}>Confirm new password</label>
+              <Input
+                type="password"
+                value={confirmPw}
+                onChange={(e) => setConfirmPw(e.target.value)}
+                autoComplete="new-password"
+                required
+                className="rounded-none"
+              />
+            </div>
+            {pwStatus && !pwStatus.ok && (
+              <p className="font-mono text-xs text-destructive">{pwStatus.msg}</p>
+            )}
+            <Button
+              type="submit"
+              disabled={busy}
+              className="rounded-none font-mono text-xs tracking-widest uppercase"
+            >
+              Update password
+            </Button>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={wipeOpen} onOpenChange={setWipeOpen}>
+        <DialogContent className="rounded-none">
+          <DialogHeader>
+            <DialogTitle className="font-mono text-sm tracking-widest uppercase text-destructive">
+              Wipe all data
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 text-sm">
+            <p>
+              Deletes all {health.transactions.toLocaleString()} transactions,{" "}
+              {health.statements} statement records, and manual category overrides.
+            </p>
+            <p className="text-muted-foreground text-xs">
+              Kept: your password, category rules (custom rules are also persisted
+              to user-rules.json), and goals. Re-upload your PDFs to re-ingest.
+            </p>
+            <div className="space-y-1.5">
+              <label className={labelClass}>Type WIPE to confirm</label>
+              <Input
+                value={wipeConfirm}
+                onChange={(e) => setWipeConfirm(e.target.value)}
+                className="rounded-none font-mono"
+              />
+            </div>
+            {wipeError && (
+              <p className="font-mono text-xs text-destructive">{wipeError}</p>
+            )}
+            <Button
+              variant="destructive"
+              disabled={busy || wipeConfirm !== "WIPE"}
+              onClick={handleWipe}
+              className="rounded-none font-mono text-xs tracking-widest uppercase"
+            >
+              Wipe all data
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}

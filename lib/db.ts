@@ -5,7 +5,7 @@ import { runMigrations } from "./db/migrate";
 
 // PARSE_DB_PATH lets the MCP server (launched with an unknown cwd) point at the
 // real DB; the Next app falls back to <cwd>/data/parse.db.
-const DB_PATH = process.env.PARSE_DB_PATH || path.join(process.cwd(), "data", "parse.db");
+export const DB_PATH = process.env.PARSE_DB_PATH || path.join(process.cwd(), "data", "parse.db");
 const DB_DIR = path.dirname(DB_PATH);
 
 let _db: Database.Database | null = null;
