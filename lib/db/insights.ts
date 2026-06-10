@@ -1,4 +1,5 @@
 import { getDb } from "../db";
+import { getForecast } from "./forecast";
 import { listGoals } from "./goals";
 import { getIncomeVsSpend } from "./income";
 
@@ -139,7 +140,36 @@ export function getInsights(): Insight[] {
     });
   }
 
-  // 5. Biggest category this month (context).
+  // 5. Forward look at the current CALENDAR month (the one heuristic that
+  // does NOT use the latest data month): projected net, and — when partial
+  // current-month data exists — categories pacing materially over typical
+  // (same 25% / $75 materiality as the MoM rule).
+  const fc = getForecast();
+  if (fc) {
+    if (fc.mode === "pace") {
+      for (const c of fc.categories) {
+        const over = c.projected - c.typical;
+        if (c.typical > 0 && over >= 75 && over / c.typical >= 0.25) {
+          insights.push({
+            severity: "warn",
+            category: c.category,
+            title: `${c.category} pacing ${fmt(over)} over usual`,
+            detail: `${fmt(c.soFar)} by day ${fc.daysOfData} → ${fmt(c.projected)} projected vs ${fmt(c.typical)} typical`,
+          });
+        }
+      }
+    }
+    insights.push({
+      severity: fc.projectedNet >= 0 ? "info" : "warn",
+      title: `${fc.targetMonth} on track for ${fc.projectedNet >= 0 ? "+" : "−"}${fmt(Math.abs(fc.projectedNet))} net`,
+      detail:
+        fc.mode === "pace"
+          ? `paced from ${fc.daysOfData} days of data · payroll ${fmt(fc.projectedIncome)}`
+          : `from last ${fc.basisMonths.length} complete months · payroll ${fmt(fc.projectedIncome)} − fixed ${fmt(fc.projectedFixed)} − variable ${fmt(fc.projectedVariable)}`,
+    });
+  }
+
+  // 6. Biggest category this month (context).
   if (curCats.length) {
     const top = [...curCats].sort((a, b) => b.total - a.total)[0];
     insights.push({

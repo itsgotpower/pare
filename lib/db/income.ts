@@ -18,7 +18,7 @@ export interface IncomeVsSpend {
   variable: number;
 }
 
-const TYPE_CASE = `
+export const TYPE_CASE = `
   CASE
     WHEN UPPER(description) LIKE '%PEOPLE CENTER%' OR UPPER(description) LIKE '%PAYROLL%' THEN 'Payroll'
     WHEN UPPER(description) LIKE '%REFUND%' OR UPPER(description) LIKE '%REMBOURS%' THEN 'Tax refund'
@@ -28,7 +28,7 @@ const TYPE_CASE = `
   END
 `;
 
-const FIXED_CATEGORIES = `('Rent / housing', 'Phone / utilities')`;
+export const FIXED_CATEGORIES = `('Rent / housing', 'Phone / utilities')`;
 
 export function getMonthlyIncome(months: number = 12): MonthlyIncome[] {
   const db = getDb();
