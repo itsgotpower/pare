@@ -10,6 +10,7 @@ import {
   Tag,
   Target,
   Repeat,
+  Plug,
   PanelLeftClose,
   PanelLeft,
   Sun,
@@ -23,6 +24,7 @@ const NAV_ITEMS = [
   { href: "/upload", label: "UPLOAD", icon: Upload },
   { href: "/categories", label: "CATEGORIES", icon: Tag },
   { href: "/goals", label: "GOALS", icon: Target },
+  { href: "/connect", label: "CONNECT", icon: Plug },
 ];
 
 export function Sidebar() {

@@ -31,6 +31,7 @@ ALL financial data is PII. Never commit real transactions, PDFs, or the SQLite d
 - `/upload` — drag-drop PDF only (the CSV-import button/route were REMOVED — they duplicated PDF data; see Data provenance)
 - `/categories` — rule CRUD grouped by category, override→rule suggestions, recategorize-on-add
 - `/goals` — monthly limits, progress bars (green<80 / yellow<100 / red over), suggested limits from 6-mo avg
+- `/connect` — MCP setup instructions (server component, `force-dynamic`): computes the machine's absolute paths (`process.cwd()`, `process.execPath`, `PARSE_DB_PATH`) per request so the Claude Code (`~/.claude.json`) and Claude Desktop config snippets are copy-paste ready; the Desktop variant wraps the command in `/bin/sh -c "cd …"` because its config has no `cwd` field (migrations resolve via cwd). Tool list (10 read / 6 write), example prompts, privacy note; `CopyBlock` (components/connect/copy-block.tsx) falls back to `execCommand("copy")` outside secure contexts.
 
 ## Commands
 - `npm run dev` — start dev server (localhost:3000)
