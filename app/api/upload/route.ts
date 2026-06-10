@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
 
     try {
       writeFileSync(tmpPath, Buffer.from(bytes));
-      const rows = parsePdf(tmpPath);
+      const { transactions: rows, statements: metas } = parsePdf(tmpPath);
 
       if (rows.length === 0) {
         return Response.json(
@@ -45,6 +45,7 @@ export async function POST(request: NextRequest) {
       const source = rows[0].source;
       const account = rows[0].account;
       const period = rows[0].period;
+      const meta = metas[0];
 
       const statementId = insertStatement({
         filename: file.name,
@@ -52,6 +53,8 @@ export async function POST(request: NextRequest) {
         account,
         period,
         row_count: rows.length,
+        closing_balance: meta?.closing_balance ?? null,
+        closing_date: meta?.closing_date ?? null,
       });
 
       let inserted = 0;
