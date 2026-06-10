@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { DashboardSkeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { CalendarHeatmap, type DailySpend } from "@/components/dashboard/calendar-heatmap";
 import { categoryColor, PALETTE } from "@/lib/colors";
 import {
   BarChart,
@@ -281,6 +282,7 @@ export default function Dashboard() {
   const [cashflow, setCashflow] = useState<Cashflow | null>(null);
   const [cashflowMonth, setCashflowMonth] = useState<string | null>(null);
   const [forecast, setForecast] = useState<Forecast | null>(null);
+  const [dailySpend, setDailySpend] = useState<DailySpend[]>([]);
   const allMerchantsRef = useRef<TopMerchant[]>([]);
   const allCashflowRef = useRef<Cashflow | null>(null);
 
@@ -301,6 +303,7 @@ export default function Dashboard() {
         setCashflow(data.cashflow || null);
         allCashflowRef.current = data.cashflow || null;
         setForecast(data.forecast || null);
+        setDailySpend(data.daily_spend || []);
         setLoading(false);
       });
   }, []);
@@ -1030,13 +1033,20 @@ export default function Dashboard() {
 
           <TabsContent value="cashflow">
             {!cashflow || cashflow.months.length === 0 ? (
-              <Card>
-                <CardContent className="py-16 text-center">
-                  <p className="font-mono text-sm text-muted-foreground">
-                    NO CHEQUING DATA — UPLOAD A CHEQUING STATEMENT
-                  </p>
-                </CardContent>
-              </Card>
+              <>
+                <Card>
+                  <CardContent className="py-16 text-center">
+                    <p className="font-mono text-sm text-muted-foreground">
+                      NO CHEQUING DATA — UPLOAD A CHEQUING STATEMENT
+                    </p>
+                  </CardContent>
+                </Card>
+                {dailySpend.length > 0 && (
+                  <div className="mt-6">
+                    <CalendarHeatmap days={dailySpend} />
+                  </div>
+                )}
+              </>
             ) : (
               <>
                 <div className="flex flex-wrap items-center justify-between mb-4 gap-3">
@@ -1148,6 +1158,12 @@ export default function Dashboard() {
                     </div>
                   </div>
                 </div>
+
+                {dailySpend.length > 0 && (
+                  <div className="mt-6">
+                    <CalendarHeatmap days={dailySpend} syncMonth={cashflowMonth} />
+                  </div>
+                )}
 
                 {forecast && (
                   <>
