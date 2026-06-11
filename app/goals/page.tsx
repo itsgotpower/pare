@@ -120,7 +120,7 @@ export default function GoalsPage() {
 
   if (loading) {
     return (
-      <div className="p-6">
+      <div className="p-4 md:p-6">
         <h1 className="font-mono text-2xl font-bold tracking-tight uppercase mb-6">
           GOALS
         </h1>
@@ -130,8 +130,8 @@ export default function GoalsPage() {
   }
 
   return (
-    <div className="p-6">
-      <div className="flex items-center justify-between mb-6">
+    <div className="p-4 md:p-6">
+      <div className="flex items-start justify-between gap-3 mb-6">
         <div>
           <h1 className="font-mono text-2xl font-bold tracking-tight uppercase">
             GOALS
@@ -253,7 +253,7 @@ export default function GoalsPage() {
               g.percentage > 100 ? "over" : g.percentage > 80 ? "warning" : "ok";
 
             return (
-              <div key={g.category} className="bg-card p-6">
+              <div key={g.category} className="bg-card p-4 md:p-6">
                 <div className="flex items-start justify-between mb-3">
                   <div>
                     <h3 className="font-mono text-xs tracking-widest uppercase text-muted-foreground flex items-center gap-2">

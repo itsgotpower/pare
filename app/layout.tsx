@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, JetBrains_Mono } from "next/font/google";
 import { Sidebar } from "@/components/layout/navbar";
 import "./globals.css";
@@ -18,6 +18,14 @@ export const metadata: Metadata = {
   description: "Local-first personal spending analysis",
 };
 
+// viewport-fit=cover so the bottom tab bar can pad into the home-indicator
+// safe area on notched phones.
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+};
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -28,9 +36,11 @@ export default function RootLayout({
       lang="en"
       className={`${geistSans.variable} ${jetbrainsMono.variable} h-full`}
     >
-      <body className="h-full flex">
+      {/* Column on phones (top bar / content / tab bar via order classes),
+          row on desktop (sidebar / content). */}
+      <body className="h-full flex flex-col md:flex-row">
         <Sidebar />
-        <main className="flex-1 overflow-auto">{children}</main>
+        <main className="flex-1 overflow-auto min-h-0">{children}</main>
       </body>
     </html>
   );

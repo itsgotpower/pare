@@ -57,6 +57,7 @@ export default function TransactionsPage() {
   const [source, setSource] = useState<string>("all");
   const [flow, setFlow] = useState<string>("spend");
   const [loading, setLoading] = useState(true);
+  const [filterSheetOpen, setFilterSheetOpen] = useState(false);
 
   // Recategorize dialog
   const [selected, setSelected] = useState<Transaction | null>(null);
@@ -167,8 +168,42 @@ export default function TransactionsPage() {
       ? [selected.effective_category, ...categories]
       : categories;
 
+  const activeFilters =
+    (category !== "all" ? 1 : 0) + (source !== "all" ? 1 : 0);
+
+  const filterSelects = (
+    <>
+      <Select value={category} onValueChange={(v) => setCategory(v ?? "all")}>
+        <SelectTrigger className="w-full sm:w-[200px] font-mono text-xs">
+          <SelectValue placeholder="Category" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all" className="font-mono text-xs">
+            ALL CATEGORIES
+          </SelectItem>
+          {categories.map((c) => (
+            <SelectItem key={c} value={c} className="font-mono text-xs">
+              {c.toUpperCase()}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <Select value={source} onValueChange={(v) => setSource(v ?? "all")}>
+        <SelectTrigger className="w-full sm:w-[160px] font-mono text-xs">
+          <SelectValue placeholder="Source" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all" className="font-mono text-xs">ALL SOURCES</SelectItem>
+          <SelectItem value="amex" className="font-mono text-xs">AMEX</SelectItem>
+          <SelectItem value="cibc_visa" className="font-mono text-xs">CIBC VISA</SelectItem>
+          <SelectItem value="cibc_chequing" className="font-mono text-xs">CIBC CHEQUING</SelectItem>
+        </SelectContent>
+      </Select>
+    </>
+  );
+
   return (
-    <div className="p-6">
+    <div className="p-4 md:p-6">
       <h1 className="font-mono text-2xl font-bold tracking-tight uppercase mb-6">
         TRANSACTIONS
       </h1>
@@ -184,8 +219,8 @@ export default function TransactionsPage() {
         </TabsList>
       </Tabs>
 
-      <div className="flex flex-col sm:flex-row gap-3 mb-6">
-        <InputGroup className="max-w-xs">
+      <div className="flex gap-3 mb-6">
+        <InputGroup className="flex-1 sm:flex-none sm:w-72">
           <InputGroupAddon align="inline-start">
             <InputGroupText>⌕</InputGroupText>
           </InputGroupAddon>
@@ -196,35 +231,101 @@ export default function TransactionsPage() {
             className="font-mono text-sm"
           />
         </InputGroup>
-        <Select value={category} onValueChange={(v) => setCategory(v ?? "all")}>
-          <SelectTrigger className="w-[200px] font-mono text-xs">
-            <SelectValue placeholder="Category" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all" className="font-mono text-xs">
-              ALL CATEGORIES
-            </SelectItem>
-            {categories.map((c) => (
-              <SelectItem key={c} value={c} className="font-mono text-xs">
-                {c.toUpperCase()}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select value={source} onValueChange={(v) => setSource(v ?? "all")}>
-          <SelectTrigger className="w-[160px] font-mono text-xs">
-            <SelectValue placeholder="Source" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all" className="font-mono text-xs">ALL SOURCES</SelectItem>
-            <SelectItem value="amex" className="font-mono text-xs">AMEX</SelectItem>
-            <SelectItem value="cibc_visa" className="font-mono text-xs">CIBC VISA</SelectItem>
-            <SelectItem value="cibc_chequing" className="font-mono text-xs">CIBC CHEQUING</SelectItem>
-          </SelectContent>
-        </Select>
+        {/* Phones: category/source live in a bottom sheet */}
+        <button
+          onClick={() => setFilterSheetOpen(true)}
+          className="sm:hidden inline-flex items-center gap-1.5 border border-input bg-background px-3 font-mono text-xs tracking-widest uppercase hover:bg-accent shrink-0"
+        >
+          FILTERS
+          {activeFilters > 0 && (
+            <span className="bg-foreground text-background px-1.5 text-[10px]">
+              {activeFilters}
+            </span>
+          )}
+        </button>
+        <div className="hidden sm:flex gap-3">{filterSelects}</div>
       </div>
 
-      <Card>
+      <Dialog open={filterSheetOpen} onOpenChange={setFilterSheetOpen}>
+        <DialogContent className="top-auto bottom-0 left-0 translate-x-0 translate-y-0 w-full max-w-full rounded-none border-t border-border pb-[calc(1rem+env(safe-area-inset-bottom))] data-open:slide-in-from-bottom-4">
+          <DialogHeader>
+            <DialogTitle className="font-mono tracking-widest uppercase">
+              FILTERS
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 mt-2">
+            {filterSelects}
+            <div className="flex gap-3 pt-1">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setCategory("all");
+                  setSource("all");
+                }}
+                disabled={activeFilters === 0}
+                className="flex-1 font-mono text-xs tracking-widest uppercase"
+              >
+                CLEAR
+              </Button>
+              <Button
+                onClick={() => setFilterSheetOpen(false)}
+                className="flex-1 font-mono text-xs tracking-widest uppercase"
+              >
+                DONE
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Phones: tappable list rows instead of a five-column table */}
+      <Card className="md:hidden">
+        <CardContent className="p-0">
+          {loading ? (
+            <p className="text-center py-8 text-muted-foreground text-sm">
+              Loading...
+            </p>
+          ) : transactions.length === 0 ? (
+            <p className="text-center py-8 text-muted-foreground text-sm">
+              No transactions found. Upload a statement first.
+            </p>
+          ) : (
+            <div className="divide-y divide-border">
+              {transactions.map((tx) => (
+                <button
+                  key={tx.id}
+                  onClick={() => openRecategorize(tx)}
+                  className="w-full text-left px-4 py-3 active:bg-accent transition-colors"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <p className="text-sm truncate min-w-0">{tx.description}</p>
+                    <span className="font-mono text-sm shrink-0">
+                      {formatAmount(tx.amount)}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between gap-2 mt-1.5">
+                    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 border text-xs font-mono min-w-0">
+                      <span
+                        className="inline-block w-2 h-2 shrink-0"
+                        style={{ backgroundColor: categoryColor(tx.effective_category) }}
+                      />
+                      <span className="truncate">{tx.effective_category}</span>
+                      {tx.has_override ? (
+                        <span className="text-muted-foreground">✱</span>
+                      ) : null}
+                    </span>
+                    <span className="font-mono text-[10px] text-muted-foreground uppercase shrink-0">
+                      {tx.txn_date} · {tx.source.replace("_", " ")}
+                    </span>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card className="hidden md:block">
         <CardContent className="p-0">
           <Table>
             <TableHeader>
