@@ -122,7 +122,7 @@ export default function CategoriesPage() {
 
   if (loading) {
     return (
-      <div className="p-6">
+      <div className="p-4 md:p-6">
         <h1 className="font-mono text-2xl font-bold tracking-tight uppercase mb-6">
           CATEGORIES
         </h1>
@@ -132,8 +132,8 @@ export default function CategoriesPage() {
   }
 
   return (
-    <div className="p-6">
-      <div className="flex items-center justify-between mb-6">
+    <div className="p-4 md:p-6">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-6">
         <div>
           <h1 className="font-mono text-2xl font-bold tracking-tight uppercase">
             CATEGORIES
@@ -218,7 +218,7 @@ export default function CategoriesPage() {
             {suggestions.map((s, i) => (
               <div
                 key={i}
-                className="flex items-center justify-between py-2 border-t first:border-t-0"
+                className="flex flex-wrap items-center justify-between gap-2 py-2 border-t first:border-t-0"
               >
                 <div>
                   <span className="font-mono text-sm font-medium">"{s.keyword}"</span>
@@ -271,9 +271,10 @@ export default function CategoriesPage() {
                     className="inline-flex items-center gap-1 px-2 py-1 border text-xs font-mono group"
                   >
                     {rule.keyword}
+                    {/* No hover on touch — keep the delete × visible there */}
                     <button
                       onClick={() => handleDelete(rule.id)}
-                      className="opacity-0 group-hover:opacity-100 ml-1 text-muted-foreground hover:text-foreground transition-opacity"
+                      className="opacity-100 md:opacity-0 md:group-hover:opacity-100 ml-1 px-1 -mr-1 text-muted-foreground hover:text-foreground transition-opacity"
                     >
                       ×
                     </button>
