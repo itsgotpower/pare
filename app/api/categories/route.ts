@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { listRules, addRule, deleteRule, seedCategoryRules, recategorizeAll } from "@/lib/db/categories";
+import { listRules, addRule, deleteRule, seedCategoryRules, recategorizeAll, recategorizeMatching } from "@/lib/db/categories";
 import { getDb } from "@/lib/db";
 
 export async function GET() {
@@ -35,11 +35,12 @@ export async function POST(request: NextRequest) {
   try {
     addRule(body.category, body.keyword);
 
+    let changed = 0;
     if (body.apply_existing) {
-      recategorizeMatching(body.keyword, body.category);
+      changed = recategorizeMatching(body.keyword, body.category);
     }
 
-    return Response.json({ success: true });
+    return Response.json({ success: true, changed });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Failed to add rule";
     return Response.json({ error: message }, { status: 400 });
@@ -53,15 +54,6 @@ export async function DELETE(request: NextRequest) {
 
   deleteRule(parseInt(id));
   return Response.json({ success: true });
-}
-
-function recategorizeMatching(keyword: string, category: string) {
-  const db = getDb();
-  db.prepare(
-    `UPDATE transactions SET category = ?
-     WHERE UPPER(description) LIKE '%' || UPPER(?) || '%'
-       AND id NOT IN (SELECT transaction_id FROM category_overrides)`
-  ).run(category, keyword);
 }
 
 function getSuggestions(): { keyword: string; category: string; count: number }[] {

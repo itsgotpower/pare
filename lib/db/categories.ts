@@ -98,6 +98,11 @@ export function addOverride(transactionId: number, originalCategory: string, new
   ).run(transactionId, originalCategory, newCategory);
 }
 
+export function removeOverride(transactionId: number): void {
+  const db = getDb();
+  db.prepare("DELETE FROM category_overrides WHERE transaction_id = ?").run(transactionId);
+}
+
 /**
  * Apply the current category_rules (first-match-wins by sort_order) to a single
  * description. Mirrors the Python categorize() so DB rows and parser agree.
@@ -116,6 +121,30 @@ export function categorizeByRules(description: string, rules: CategoryRule[]): s
 // location, not a phone bill). Only user-defined categories — like Rent — may
 // tag transfers.
 const SEED_CATEGORY_NAMES = new Set(STARTER_RULES.map(([category]) => category));
+
+/**
+ * Apply one keyword→category mapping to every matching transaction (used when a
+ * rule is added with apply_existing). Mirrors recategorizeAll's chequing gating:
+ * income/payment/fee_interest rows are never reclassified, and seeded card
+ * categories may not tag transfers (location false matches). Returns the number
+ * of rows changed.
+ */
+export function recategorizeMatching(keyword: string, category: string): number {
+  const db = getDb();
+  const transferGate = SEED_CATEGORY_NAMES.has(category)
+    ? "AND NOT (source = 'cibc_chequing' AND flow = 'transfer')"
+    : "";
+  const result = db
+    .prepare(
+      `UPDATE transactions SET category = ?
+       WHERE UPPER(description) LIKE '%' || UPPER(?) || '%'
+         AND id NOT IN (SELECT transaction_id FROM category_overrides)
+         AND NOT (source = 'cibc_chequing' AND flow IN ('income', 'payment', 'fee_interest'))
+         ${transferGate}`
+    )
+    .run(category, keyword);
+  return result.changes;
+}
 
 /**
  * Re-run category rules against every transaction, skipping manual overrides.
