@@ -117,7 +117,7 @@ export function CalendarHeatmap({ days, syncMonth }: Props) {
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-[1px] bg-border border border-border">
       {/* Calendar — 2 cols */}
-      <div className="col-span-1 md:col-span-2 bg-card p-6">
+      <div className="col-span-1 md:col-span-2 bg-card p-4 md:p-6">
         <div className="flex items-center justify-between mb-4">
           <h2 className="font-mono text-xs tracking-widest uppercase text-muted-foreground">
             DAILY SPEND — {formatMonthFull(month).toUpperCase()}
@@ -164,6 +164,7 @@ export function CalendarHeatmap({ days, syncMonth }: Props) {
                 key={key}
                 onMouseEnter={() => setHovered(key)}
                 onMouseLeave={() => setHovered((h) => (h === key ? null : h))}
+                onClick={() => setHovered((h) => (h === key ? null : key))}
                 className={`relative aspect-square bg-card ${
                   hovered === key ? "outline outline-1 outline-foreground z-10" : ""
                 }`}
@@ -193,7 +194,7 @@ export function CalendarHeatmap({ days, syncMonth }: Props) {
               ? `${hovered} · ${formatCurrency(hoveredDay.total)} · ${hoveredDay.count} TXN${hoveredDay.count !== 1 ? "S" : ""}`
               : hovered
               ? `${hovered} · NO SPEND`
-              : "HOVER A DAY FOR DETAIL"}
+              : "TAP OR HOVER A DAY FOR DETAIL"}
           </p>
           <div className="flex items-center gap-1.5">
             <span className="font-mono text-[9px] tracking-widest text-muted-foreground">
@@ -214,7 +215,7 @@ export function CalendarHeatmap({ days, syncMonth }: Props) {
       </div>
 
       {/* Month stats */}
-      <div className="bg-card p-6 flex flex-col justify-between gap-4">
+      <div className="bg-card p-4 md:p-6 flex flex-col justify-between gap-4">
         <div>
           <h2 className="font-mono text-xs tracking-widest uppercase text-muted-foreground mb-2">
             MONTH SPEND
@@ -259,7 +260,7 @@ export function CalendarHeatmap({ days, syncMonth }: Props) {
 
       {/* Spend by weekday — full width, whole data range (not just the visible month) */}
       {weekdayAvg && (
-        <div className="col-span-1 md:col-span-3 bg-card p-6">
+        <div className="col-span-1 md:col-span-3 bg-card p-4 md:p-6">
           <div className="flex items-baseline justify-between mb-4">
             <h2 className="font-mono text-xs tracking-widest uppercase text-muted-foreground">
               SPEND BY WEEKDAY
@@ -274,7 +275,7 @@ export function CalendarHeatmap({ days, syncMonth }: Props) {
               const avg = weekdayAvg[i];
               const isPeak = avg === max && avg > 0;
               return (
-                <div key={name} className="bg-card p-3 flex flex-col items-center gap-2">
+                <div key={name} className="bg-card p-1.5 md:p-3 flex flex-col items-center gap-2">
                   <span className="font-mono text-[10px] tabular-nums">
                     {formatCurrency(avg)}
                   </span>

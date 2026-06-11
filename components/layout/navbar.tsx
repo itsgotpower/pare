@@ -28,6 +28,16 @@ const NAV_ITEMS = [
   { href: "/connect", label: "CONNECT", icon: Plug },
 ];
 
+// Bottom tab bar on phones: the five main destinations. Upload lives in the
+// top bar as an action, connect/profile/theme ride along with it.
+const MOBILE_TABS = [
+  { href: "/", label: "DASH", icon: LayoutDashboard },
+  { href: "/transactions", label: "TXNS", icon: ArrowLeftRight },
+  { href: "/recurring", label: "RECUR", icon: Repeat },
+  { href: "/categories", label: "CATS", icon: Tag },
+  { href: "/goals", label: "GOALS", icon: Target },
+];
+
 export function Sidebar() {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
@@ -58,40 +68,109 @@ export function Sidebar() {
     localStorage.setItem("parse-sidebar-collapsed", String(next));
   };
 
+  const isActive = (href: string) =>
+    href === "/" ? pathname === "/" : pathname.startsWith(href);
+
   // The login page is a full-screen gate — no chrome.
   if (pathname === "/login") return null;
 
   return (
-    <aside
-      className={`h-screen sticky top-0 border-r border-border bg-card flex flex-col transition-[width] duration-200 ${
-        collapsed ? "w-14" : "w-48"
-      }`}
-    >
-      <div className="flex items-center justify-between px-3 h-14 border-b border-border">
-        {!collapsed && (
+    <>
+      {/* Mobile top bar — wordmark + actions (upload is an action, not a tab) */}
+      <header className="md:hidden order-first shrink-0 z-40 bg-card border-b border-border pt-[env(safe-area-inset-top)]">
+        <div className="flex items-center justify-between h-12 pl-4 pr-1">
           <Link href="/" className="font-mono text-sm font-bold tracking-tight">
             PARSE
           </Link>
-        )}
-        <button
-          onClick={toggleCollapsed}
-          className="text-muted-foreground hover:text-foreground transition-colors p-1"
-          aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-        >
-          {collapsed ? <PanelLeft className="size-4" /> : <PanelLeftClose className="size-4" />}
-        </button>
-      </div>
+          <div className="flex items-center">
+            {[
+              { href: "/upload", label: "Upload statements", icon: Upload },
+              { href: "/connect", label: "Connect MCP", icon: Plug },
+            ].map(({ href, label, icon: Icon }) => (
+              <Link
+                key={href}
+                href={href}
+                aria-label={label}
+                className={`flex items-center justify-center w-11 h-12 transition-colors ${
+                  isActive(href)
+                    ? "text-foreground"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <Icon className="size-4" />
+              </Link>
+            ))}
+            <button
+              onClick={toggleDark}
+              aria-label={dark ? "Switch to light mode" : "Switch to dark mode"}
+              className="flex items-center justify-center w-11 h-12 text-muted-foreground hover:text-foreground transition-colors"
+            >
+              {dark ? <Sun className="size-4" /> : <Moon className="size-4" />}
+            </button>
+            <Link
+              href="/profile"
+              aria-label="Profile"
+              className={`flex items-center justify-center w-11 h-12 transition-colors ${
+                isActive("/profile")
+                  ? "text-foreground"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <User className="size-4" />
+            </Link>
+          </div>
+        </div>
+      </header>
 
-      <nav className="flex-1 py-2">
-        {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
-          const isActive = href === "/" ? pathname === "/" : pathname.startsWith(href);
-          return (
+      {/* Mobile bottom tab bar */}
+      <nav className="md:hidden order-last shrink-0 z-40 bg-card border-t border-border pb-[env(safe-area-inset-bottom)]">
+        <div className="grid grid-cols-5">
+          {MOBILE_TABS.map(({ href, label, icon: Icon }) => (
+            <Link
+              key={href}
+              href={href}
+              className={`flex flex-col items-center justify-center gap-1 h-14 font-mono text-[9px] tracking-widest transition-colors ${
+                isActive(href)
+                  ? "text-foreground bg-accent border-t-2 border-foreground"
+                  : "text-muted-foreground border-t-2 border-transparent"
+              }`}
+            >
+              <Icon className="size-4" />
+              <span>{label}</span>
+            </Link>
+          ))}
+        </div>
+      </nav>
+
+      {/* Desktop sidebar */}
+      <aside
+        className={`hidden md:flex h-screen sticky top-0 border-r border-border bg-card flex-col transition-[width] duration-200 ${
+          collapsed ? "w-14" : "w-48"
+        }`}
+      >
+        <div className="flex items-center justify-between px-3 h-14 border-b border-border">
+          {!collapsed && (
+            <Link href="/" className="font-mono text-sm font-bold tracking-tight">
+              PARSE
+            </Link>
+          )}
+          <button
+            onClick={toggleCollapsed}
+            className="text-muted-foreground hover:text-foreground transition-colors p-1"
+            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          >
+            {collapsed ? <PanelLeft className="size-4" /> : <PanelLeftClose className="size-4" />}
+          </button>
+        </div>
+
+        <nav className="flex-1 py-2">
+          {NAV_ITEMS.map(({ href, label, icon: Icon }) => (
             <Link
               key={href}
               href={href}
               title={collapsed ? label : undefined}
               className={`flex items-center gap-3 px-4 py-2.5 font-mono text-xs tracking-widest transition-colors ${
-                isActive
+                isActive(href)
                   ? "text-foreground bg-accent border-l-2 border-foreground"
                   : "text-muted-foreground hover:text-foreground hover:bg-accent/50 border-l-2 border-transparent"
               }`}
@@ -99,32 +178,32 @@ export function Sidebar() {
               <Icon className="size-4 shrink-0" />
               {!collapsed && <span>{label}</span>}
             </Link>
-          );
-        })}
-      </nav>
+          ))}
+        </nav>
 
-      <div className="border-t border-border py-2">
-        <Link
-          href="/profile"
-          title={collapsed ? "PROFILE" : undefined}
-          className={`flex items-center gap-3 px-4 py-2.5 font-mono text-xs tracking-widest transition-colors ${
-            pathname.startsWith("/profile")
-              ? "text-foreground bg-accent border-l-2 border-foreground"
-              : "text-muted-foreground hover:text-foreground hover:bg-accent/50 border-l-2 border-transparent"
-          }`}
-        >
-          <User className="size-4 shrink-0" />
-          {!collapsed && <span>PROFILE</span>}
-        </Link>
-        <button
-          onClick={toggleDark}
-          title={dark ? "Switch to light mode" : "Switch to dark mode"}
-          className="flex items-center gap-3 px-4 py-2.5 w-full font-mono text-xs tracking-widest text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors"
-        >
-          {dark ? <Sun className="size-4 shrink-0" /> : <Moon className="size-4 shrink-0" />}
-          {!collapsed && <span>{dark ? "LIGHT" : "DARK"}</span>}
-        </button>
-      </div>
-    </aside>
+        <div className="border-t border-border py-2">
+          <Link
+            href="/profile"
+            title={collapsed ? "PROFILE" : undefined}
+            className={`flex items-center gap-3 px-4 py-2.5 font-mono text-xs tracking-widest transition-colors ${
+              pathname.startsWith("/profile")
+                ? "text-foreground bg-accent border-l-2 border-foreground"
+                : "text-muted-foreground hover:text-foreground hover:bg-accent/50 border-l-2 border-transparent"
+            }`}
+          >
+            <User className="size-4 shrink-0" />
+            {!collapsed && <span>PROFILE</span>}
+          </Link>
+          <button
+            onClick={toggleDark}
+            title={dark ? "Switch to light mode" : "Switch to dark mode"}
+            className="flex items-center gap-3 px-4 py-2.5 w-full font-mono text-xs tracking-widest text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors"
+          >
+            {dark ? <Sun className="size-4 shrink-0" /> : <Moon className="size-4 shrink-0" />}
+            {!collapsed && <span>{dark ? "LIGHT" : "DARK"}</span>}
+          </button>
+        </div>
+      </aside>
+    </>
   );
 }

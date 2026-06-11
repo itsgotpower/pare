@@ -55,7 +55,7 @@ export default function RecurringPage() {
 
   if (loading) {
     return (
-      <div className="p-6">
+      <div className="p-4 md:p-6">
         <h1 className="font-mono text-2xl font-bold tracking-tight uppercase mb-6">
           RECURRING
         </h1>
@@ -65,7 +65,7 @@ export default function RecurringPage() {
   }
 
   return (
-    <div className="p-6">
+    <div className="p-4 md:p-6">
       <h1 className="font-mono text-2xl font-bold tracking-tight uppercase mb-1">
         RECURRING
       </h1>
@@ -85,21 +85,21 @@ export default function RecurringPage() {
       ) : (
         <>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-[1px] bg-border border border-border mb-6">
-            <div className="bg-card p-6">
+            <div className="bg-card p-4 md:p-6">
               <h2 className="font-mono text-xs tracking-widest uppercase text-muted-foreground mb-2">
                 MONTHLY RECURRING
               </h2>
               <p className="font-mono text-3xl font-bold">{formatCurrency(monthlyTotal)}</p>
               <p className="text-xs text-muted-foreground mt-1">{subs.length} recurring charges</p>
             </div>
-            <div className="bg-card p-6">
+            <div className="bg-card p-4 md:p-6">
               <h2 className="font-mono text-xs tracking-widest uppercase text-muted-foreground mb-2">
                 ANNUALIZED
               </h2>
               <p className="font-mono text-3xl font-bold">{formatCurrency(monthlyTotal * 12)}</p>
               <p className="text-xs text-muted-foreground mt-1">per year at this rate</p>
             </div>
-            <div className="bg-card p-6">
+            <div className="bg-card p-4 md:p-6">
               <h2 className="font-mono text-xs tracking-widest uppercase text-muted-foreground mb-2">
                 TO REVIEW
               </h2>
@@ -115,7 +115,49 @@ export default function RecurringPage() {
             </div>
           </div>
 
-          <Card>
+          {/* Phones: list rows instead of the six-column table */}
+          <Card className="md:hidden">
+            <CardContent className="p-0">
+              <div className="divide-y divide-border">
+                {subs.map((s, i) => (
+                  <div key={i} className="px-4 py-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span
+                          className="inline-block w-2 h-2 shrink-0"
+                          style={{ backgroundColor: categoryColor(s.category) }}
+                        />
+                        <span className="text-sm truncate">{s.merchant}</span>
+                        {s.multiPerMonth && (
+                          <span
+                            className="font-mono text-[10px] px-1.5 py-0.5 border shrink-0"
+                            style={{ borderColor: PALETTE.terracotta, color: PALETTE.terracotta }}
+                          >
+                            2×/MO?
+                          </span>
+                        )}
+                      </div>
+                      <span className="font-mono text-sm font-medium shrink-0">
+                        {formatCents(s.monthlyCost)}
+                        <span className="text-muted-foreground font-normal text-xs">/mo</span>
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between gap-2 mt-1">
+                      <span className="font-mono text-[10px] text-muted-foreground uppercase">
+                        {s.frequency}
+                        {s.variableAmount ? " · variable" : ""}
+                      </span>
+                      <span className="font-mono text-[10px] text-muted-foreground">
+                        {formatCents(s.typical)} typical · {formatCurrency(s.annualCost)}/yr
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="hidden md:block">
             <CardContent className="p-0">
               <Table>
                 <TableHeader>

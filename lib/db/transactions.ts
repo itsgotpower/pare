@@ -13,6 +13,7 @@ export interface TransactionRow {
   category: string;
   flow: string;
   effective_category: string;
+  has_override: number;
   dedup_key: string;
   created_at: string;
 }
@@ -107,7 +108,9 @@ export function listTransactions(filters: TransactionFilters = {}): {
 
   const rows = db
     .prepare(
-      `SELECT * FROM v_transactions ${where} ORDER BY txn_date DESC, id DESC LIMIT @limit OFFSET @offset`
+      `SELECT *,
+         EXISTS(SELECT 1 FROM category_overrides co WHERE co.transaction_id = v_transactions.id) AS has_override
+       FROM v_transactions ${where} ORDER BY txn_date DESC, id DESC LIMIT @limit OFFSET @offset`
     )
     .all({ ...params, limit, offset }) as TransactionRow[];
 
