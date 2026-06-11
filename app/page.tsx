@@ -398,6 +398,8 @@ export default function Dashboard() {
   const [cashForecast, setCashForecast] = useState<CashflowForecast | null>(null);
   const [horizon, setHorizon] = useState(30);
   const [entryDialogOpen, setEntryDialogOpen] = useState(false);
+  // Touch devices have no hover — switch every chart tooltip to tap.
+  const [coarsePointer, setCoarsePointer] = useState(false);
   const [editingEntry, setEditingEntry] = useState<ManualEntry | null>(null);
   const [entryName, setEntryName] = useState("");
   const [entryKind, setEntryKind] = useState<"asset" | "liability">("asset");
@@ -406,6 +408,10 @@ export default function Dashboard() {
   const [entryNote, setEntryNote] = useState("");
   const allMerchantsRef = useRef<TopMerchant[]>([]);
   const allCashflowRef = useRef<Cashflow | null>(null);
+
+  useEffect(() => {
+    setCoarsePointer(window.matchMedia("(hover: none)").matches);
+  }, []);
 
   useEffect(() => {
     fetch("/api/summary?type=all")
@@ -633,12 +639,14 @@ export default function Dashboard() {
     fcToday > cashForecast.anchor.date &&
     fcToday <= fcEndDate;
 
+  const tooltipTrigger = coarsePointer ? ("click" as const) : ("hover" as const);
+
   if (loading) {
     return <DashboardSkeleton />;
   }
 
   return (
-    <div className="p-6">
+    <div className="p-4 md:p-6">
       <h1 className="font-mono text-2xl font-bold tracking-tight uppercase mb-6">
         DASHBOARD
       </h1>
@@ -700,7 +708,10 @@ export default function Dashboard() {
           </div>
         )}
         <Tabs defaultValue="overview">
-          <TabsList variant="line" className="mb-4">
+          {/* Seven tabs don't fit a phone — let the strip scroll sideways.
+              pb gives the active-tab underline (bottom:-5px) room to render. */}
+          <div className="mb-4 -mx-4 px-4 pb-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:mx-0 md:px-0">
+            <TabsList variant="line">
             <TabsTrigger value="overview" className="font-mono text-xs tracking-widest">
               OVERVIEW
             </TabsTrigger>
@@ -723,10 +734,11 @@ export default function Dashboard() {
               BASELINE
             </TabsTrigger>
           </TabsList>
+          </div>
 
           <TabsContent value="overview">
         {filterLabel && (
-          <div className="flex items-center gap-3 mb-3">
+          <div className="flex flex-wrap items-center gap-3 mb-3">
             <span className="font-mono text-[10px] tracking-widest text-muted-foreground">SHOWING</span>
             {selectedMonth && (
               <button
@@ -760,7 +772,7 @@ export default function Dashboard() {
         )}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-[1px] bg-border border border-border">
           {/* Monthly Spend — 2 cols */}
-          <div className="col-span-1 md:col-span-2 bg-card p-6">
+          <div className="col-span-1 md:col-span-2 bg-card p-4 md:p-6">
             <h2 className="font-mono text-xs tracking-widest uppercase text-muted-foreground mb-4">
               MONTHLY SPEND
             </h2>
@@ -780,6 +792,7 @@ export default function Dashboard() {
                   tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`}
                 />
                 <Tooltip
+                  trigger={tooltipTrigger}
                   formatter={(value) => [formatCurrency(Number(value)), "Spend"]}
                   labelFormatter={(v) => formatMonthFull(String(v))}
                   contentStyle={{
@@ -815,7 +828,7 @@ export default function Dashboard() {
           </div>
 
           {/* Total + This Month — 1 col, stacked */}
-          <div className="row-span-2 bg-card p-6 flex flex-col">
+          <div className="row-span-2 bg-card p-4 md:p-6 flex flex-col">
             <h2 className="font-mono text-xs tracking-widest uppercase text-muted-foreground mb-4">
               TOP CATEGORIES
             </h2>
@@ -846,6 +859,7 @@ export default function Dashboard() {
                   ))}
                 </Pie>
                 <Tooltip
+                  trigger={tooltipTrigger}
                   formatter={(value) => [formatCurrency(Number(value))]}
                   contentStyle={{
                     fontFamily: "var(--font-mono)",
@@ -886,7 +900,7 @@ export default function Dashboard() {
           </div>
 
           {/* Summary stats */}
-          <div className="bg-card p-6">
+          <div className="bg-card p-4 md:p-6">
             <h2 className="font-mono text-xs tracking-widest uppercase text-muted-foreground mb-2">
               {filterLabel || "TOTAL SPEND"}
             </h2>
@@ -897,7 +911,7 @@ export default function Dashboard() {
             </p>
           </div>
 
-          <div className="bg-card p-6">
+          <div className="bg-card p-4 md:p-6">
             <h2 className="font-mono text-xs tracking-widest uppercase text-muted-foreground mb-2">
               MONTHLY AVG
             </h2>
@@ -909,11 +923,11 @@ export default function Dashboard() {
 
           {/* Goals row */}
           {goals.length > 0 && (
-            <div className="col-span-1 md:col-span-3 bg-card p-6">
+            <div className="col-span-1 md:col-span-3 bg-card p-4 md:p-6">
               <h2 className="font-mono text-xs tracking-widest uppercase text-muted-foreground mb-4">
                 GOALS
               </h2>
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 {goals.map((g) => (
                   <div key={g.category} className="space-y-1">
                     <div className="flex justify-between text-xs font-mono">
@@ -943,7 +957,7 @@ export default function Dashboard() {
           )}
 
           {/* Top merchants */}
-          <div className="col-span-1 md:col-span-2 bg-card p-6">
+          <div className="col-span-1 md:col-span-2 bg-card p-4 md:p-6">
             <h2 className="font-mono text-xs tracking-widest uppercase text-muted-foreground mb-4">
               TOP MERCHANTS
             </h2>
@@ -981,7 +995,7 @@ export default function Dashboard() {
             const projected = isCurrent ? dailyRate * daysInMonth : latest.total;
             const prev = monthly.length > 1 ? monthly[monthly.length - 2] : null;
             return (
-              <div className="bg-card p-6 flex flex-col">
+              <div className="bg-card p-4 md:p-6 flex flex-col">
                 <h2 className="font-mono text-xs tracking-widest uppercase text-muted-foreground mb-2">
                   {isCurrent ? "THIS MONTH" : formatMonthFull(latest.month).toUpperCase()}
                 </h2>
@@ -1011,7 +1025,7 @@ export default function Dashboard() {
           <TabsContent value="categories">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-[1px] bg-border border border-border">
               {categories.map((c) => (
-                <div key={c.category} className="bg-card p-6">
+                <div key={c.category} className="bg-card p-4 md:p-6">
                   <div className="flex items-center justify-between mb-2">
                     <h3 className="font-mono text-xs tracking-widest uppercase flex items-center gap-2">
                       <span
@@ -1056,7 +1070,7 @@ export default function Dashboard() {
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-3 gap-[1px] bg-border border border-border">
                 {/* Income vs spend — 2 cols */}
-                <div className="col-span-1 md:col-span-2 bg-card p-6">
+                <div className="col-span-1 md:col-span-2 bg-card p-4 md:p-6">
                   <h2 className="font-mono text-xs tracking-widest uppercase text-muted-foreground mb-4">
                     INCOME VS SPEND
                   </h2>
@@ -1076,6 +1090,7 @@ export default function Dashboard() {
                         tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`}
                       />
                       <Tooltip
+                        trigger={tooltipTrigger}
                         formatter={(value, name) => {
                           const labels: Record<string, string> = { income: "Income", fixed: "Fixed", variable: "Variable" };
                           return [formatCurrency(Number(value)), labels[String(name)] || String(name)];
@@ -1110,7 +1125,7 @@ export default function Dashboard() {
                 </div>
 
                 {/* Income by type */}
-                <div className="row-span-2 bg-card p-6">
+                <div className="row-span-2 bg-card p-4 md:p-6">
                   <h2 className="font-mono text-xs tracking-widest uppercase text-muted-foreground mb-4">
                     INCOME BY TYPE
                   </h2>
@@ -1132,6 +1147,7 @@ export default function Dashboard() {
                         ))}
                       </Pie>
                       <Tooltip
+                        trigger={tooltipTrigger}
                         formatter={(value) => [formatCurrency(Number(value))]}
                         contentStyle={{
                           fontFamily: "var(--font-mono)",
@@ -1159,7 +1175,7 @@ export default function Dashboard() {
                 </div>
 
                 {/* Net cashflow per month — 2 cols, under income vs spend */}
-                <div className="col-span-1 md:col-span-2 bg-card p-6">
+                <div className="col-span-1 md:col-span-2 bg-card p-4 md:p-6">
                   <h2 className="font-mono text-xs tracking-widest uppercase text-muted-foreground mb-4">
                     NET CASHFLOW (INCOME − FIXED − VARIABLE)
                   </h2>
@@ -1179,6 +1195,7 @@ export default function Dashboard() {
                         tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`}
                       />
                       <Tooltip
+                        trigger={tooltipTrigger}
                         formatter={(value) => [formatCurrency(Number(value)), "Net"]}
                         labelFormatter={(v) => formatMonthFull(String(v))}
                         contentStyle={{
@@ -1201,7 +1218,7 @@ export default function Dashboard() {
                 </div>
 
                 {/* Total income */}
-                <div className="bg-card p-6">
+                <div className="bg-card p-4 md:p-6">
                   <h2 className="font-mono text-xs tracking-widest uppercase text-muted-foreground mb-2">
                     TOTAL INCOME
                   </h2>
@@ -1212,7 +1229,7 @@ export default function Dashboard() {
                 </div>
 
                 {/* Net this month + MoM delta */}
-                <div className="bg-card p-6">
+                <div className="bg-card p-4 md:p-6">
                   <h2 className="font-mono text-xs tracking-widest uppercase text-muted-foreground mb-2">
                     NET THIS MONTH
                   </h2>
@@ -1231,7 +1248,7 @@ export default function Dashboard() {
                 </div>
 
                 {/* Total net (period surplus) */}
-                <div className="bg-card p-6">
+                <div className="bg-card p-4 md:p-6">
                   <h2 className="font-mono text-xs tracking-widest uppercase text-muted-foreground mb-2">
                     PERIOD SURPLUS
                   </h2>
@@ -1302,7 +1319,7 @@ export default function Dashboard() {
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-[1px] bg-border border border-border">
                   {/* Money flow sankey — 2 cols */}
-                  <div className="col-span-1 md:col-span-2 bg-card p-6">
+                  <div className="col-span-1 md:col-span-2 bg-card p-4 md:p-6">
                     <h2 className="font-mono text-xs tracking-widest uppercase text-muted-foreground mb-4">
                       MONEY FLOW{" "}
                       {cashflowMonth
@@ -1310,6 +1327,10 @@ export default function Dashboard() {
                         : `— ALL ${cashflow.months.length} MONTHS`}
                     </h2>
                     {sankey && sankey.links.length > 0 ? (
+                      // The sankey needs ~135px per side for its labels —
+                      // scrolls sideways on phones instead of squeezing.
+                      <div className="overflow-x-auto">
+                      <div className="min-w-[560px]">
                       <ResponsiveContainer width="100%" height={360}>
                         <Sankey
                           data={sankey}
@@ -1320,6 +1341,7 @@ export default function Dashboard() {
                           margin={{ top: 24, right: 135, bottom: 12, left: 135 }}
                         >
                           <Tooltip
+                            trigger={tooltipTrigger}
                             formatter={(value) => [formatCurrency(Number(value))]}
                             contentStyle={{
                               fontFamily: "var(--font-mono)",
@@ -1330,6 +1352,8 @@ export default function Dashboard() {
                           />
                         </Sankey>
                       </ResponsiveContainer>
+                      </div>
+                      </div>
                     ) : (
                       <p className="text-sm text-muted-foreground py-12 text-center">
                         No income recorded for this period.
@@ -1338,7 +1362,7 @@ export default function Dashboard() {
                   </div>
 
                   {/* In / out / net summary */}
-                  <div className="bg-card p-6 flex flex-col justify-between gap-4">
+                  <div className="bg-card p-4 md:p-6 flex flex-col justify-between gap-4">
                     <div>
                       <h2 className="font-mono text-xs tracking-widest uppercase text-muted-foreground mb-2">
                         MONEY IN
@@ -1390,7 +1414,7 @@ export default function Dashboard() {
                       FORECAST — {formatMonthFull(forecast.targetMonth).toUpperCase()}
                     </h2>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-[1px] bg-border border border-border">
-                      <div className="bg-card p-6">
+                      <div className="bg-card p-4 md:p-6">
                         <h2 className="font-mono text-xs tracking-widest uppercase text-muted-foreground mb-2">
                           PROJECTED SPEND
                         </h2>
@@ -1407,7 +1431,7 @@ export default function Dashboard() {
                             : `median of last ${forecast.basisMonths.length} complete months`}
                         </p>
                       </div>
-                      <div className="bg-card p-6">
+                      <div className="bg-card p-4 md:p-6">
                         <h2 className="font-mono text-xs tracking-widest uppercase text-muted-foreground mb-2">
                           PROJECTED NET
                         </h2>
@@ -1428,7 +1452,7 @@ export default function Dashboard() {
                           · one-off income excluded
                         </p>
                       </div>
-                      <div className="bg-card p-6">
+                      <div className="bg-card p-4 md:p-6">
                         <h2 className="font-mono text-xs tracking-widest uppercase text-muted-foreground mb-2">
                           RECURRING COMMITTED
                         </h2>
@@ -1441,7 +1465,7 @@ export default function Dashboard() {
                       </div>
 
                       {forecast.mode === "pace" && forecast.categories.length > 0 && (
-                        <div className="col-span-1 md:col-span-3 bg-card p-6">
+                        <div className="col-span-1 md:col-span-3 bg-card p-4 md:p-6">
                           <h2 className="font-mono text-xs tracking-widest uppercase text-muted-foreground mb-4">
                             CATEGORY PACE (DAY {forecast.daysOfData} OF {forecast.daysInMonth})
                           </h2>
@@ -1537,7 +1561,7 @@ export default function Dashboard() {
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-[1px] bg-border border border-border">
                   {/* Balance projection — 2 cols */}
-                  <div className="col-span-1 md:col-span-2 bg-card p-6">
+                  <div className="col-span-1 md:col-span-2 bg-card p-4 md:p-6">
                     <h2 className="font-mono text-xs tracking-widest uppercase text-muted-foreground mb-4">
                       PROJECTED BALANCE — NEXT {horizon} DAYS
                     </h2>
@@ -1559,6 +1583,7 @@ export default function Dashboard() {
                           domain={["auto", "auto"]}
                         />
                         <Tooltip
+                          trigger={tooltipTrigger}
                           formatter={(value, name) => {
                             if (Array.isArray(value)) {
                               return [
@@ -1634,7 +1659,7 @@ export default function Dashboard() {
                   </div>
 
                   {/* End / lowest / anchor summary */}
-                  <div className="bg-card p-6 flex flex-col justify-between gap-4">
+                  <div className="bg-card p-4 md:p-6 flex flex-col justify-between gap-4">
                     <div>
                       <h2 className="font-mono text-xs tracking-widest uppercase text-muted-foreground mb-2">
                         END OF {horizon} DAYS
@@ -1692,7 +1717,7 @@ export default function Dashboard() {
                   </div>
 
                   {/* Estimate inputs — full width */}
-                  <div className="col-span-1 md:col-span-3 bg-card p-6">
+                  <div className="col-span-1 md:col-span-3 bg-card p-4 md:p-6">
                     <h2 className="font-mono text-xs tracking-widest uppercase text-muted-foreground mb-4">
                       ESTIMATE INPUTS
                     </h2>
@@ -1759,7 +1784,7 @@ export default function Dashboard() {
                   </div>
 
                   {/* Scheduled events — full width */}
-                  <div className="col-span-1 md:col-span-3 bg-card p-6">
+                  <div className="col-span-1 md:col-span-3 bg-card p-4 md:p-6">
                     <h2 className="font-mono text-xs tracking-widest uppercase text-muted-foreground mb-4">
                       SCHEDULED IN WINDOW ({fcEvents.length})
                     </h2>
@@ -1933,7 +1958,7 @@ export default function Dashboard() {
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-3 gap-[1px] bg-border border border-border">
                 {/* Net worth trend — 2 cols */}
-                <div className="col-span-1 md:col-span-2 bg-card p-6">
+                <div className="col-span-1 md:col-span-2 bg-card p-4 md:p-6">
                   <h2 className="font-mono text-xs tracking-widest uppercase text-muted-foreground mb-4">
                     NET WORTH TREND
                   </h2>
@@ -1953,6 +1978,7 @@ export default function Dashboard() {
                         tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`}
                       />
                       <Tooltip
+                        trigger={tooltipTrigger}
                         formatter={(value, name) => {
                           const labels: Record<string, string> = {
                             net: "Net worth",
@@ -2011,7 +2037,7 @@ export default function Dashboard() {
                 </div>
 
                 {/* Balance breakdown */}
-                <div className="row-span-2 bg-card p-6">
+                <div className="row-span-2 bg-card p-4 md:p-6">
                   <h2 className="font-mono text-xs tracking-widest uppercase text-muted-foreground mb-4">
                     BALANCES
                   </h2>
@@ -2056,7 +2082,7 @@ export default function Dashboard() {
                 {/* Stat cards */}
                 {netWorth.current && (
                   <>
-                    <div className="bg-card p-6">
+                    <div className="bg-card p-4 md:p-6">
                       <h2 className="font-mono text-xs tracking-widest uppercase text-muted-foreground mb-2">
                         NET WORTH
                       </h2>
@@ -2076,7 +2102,7 @@ export default function Dashboard() {
                         </p>
                       )}
                     </div>
-                    <div className="bg-card p-6">
+                    <div className="bg-card p-4 md:p-6">
                       <h2 className="font-mono text-xs tracking-widest uppercase text-muted-foreground mb-2">
                         ASSETS
                       </h2>
@@ -2087,7 +2113,7 @@ export default function Dashboard() {
                         as of {formatMonthFull(netWorth.current.month)}
                       </p>
                     </div>
-                    <div className="bg-card p-6">
+                    <div className="bg-card p-4 md:p-6">
                       <h2 className="font-mono text-xs tracking-widest uppercase text-muted-foreground mb-2">
                         LIABILITIES
                       </h2>
@@ -2102,7 +2128,7 @@ export default function Dashboard() {
                 )}
 
                 {/* Manual entries — full width */}
-                <div className="col-span-1 md:col-span-3 bg-card p-6">
+                <div className="col-span-1 md:col-span-3 bg-card p-4 md:p-6">
                   <h2 className="font-mono text-xs tracking-widest uppercase text-muted-foreground mb-4">
                     MANUAL ENTRIES
                   </h2>
@@ -2161,7 +2187,7 @@ export default function Dashboard() {
           </TabsContent>
 
           <TabsContent value="baseline">
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4">
               <p className="text-xs text-muted-foreground max-w-xl">
                 Discretionary baseline = spending with large one-off charges removed —
                 the typical monthly number for runway planning. One-offs are single
@@ -2191,7 +2217,7 @@ export default function Dashboard() {
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-[1px] bg-border border border-border">
               {/* Total vs baseline chart — 2 cols */}
-              <div className="col-span-1 md:col-span-2 bg-card p-6">
+              <div className="col-span-1 md:col-span-2 bg-card p-4 md:p-6">
                 <h2 className="font-mono text-xs tracking-widest uppercase text-muted-foreground mb-4">
                   TOTAL VS BASELINE SPEND
                 </h2>
@@ -2211,6 +2237,7 @@ export default function Dashboard() {
                       tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`}
                     />
                     <Tooltip
+                      trigger={tooltipTrigger}
                       formatter={(value, name) => [
                         formatCurrency(Number(value)),
                         name === "total" ? "Total" : "Baseline",
@@ -2240,7 +2267,7 @@ export default function Dashboard() {
               </div>
 
               {/* Averages */}
-              <div className="bg-card p-6">
+              <div className="bg-card p-4 md:p-6">
                 <h2 className="font-mono text-xs tracking-widest uppercase text-muted-foreground mb-2">
                   BASELINE AVG
                 </h2>
@@ -2259,7 +2286,7 @@ export default function Dashboard() {
               </div>
 
               {/* Excluded one-offs list — full width */}
-              <div className="col-span-1 md:col-span-3 bg-card p-6">
+              <div className="col-span-1 md:col-span-3 bg-card p-4 md:p-6">
                 <h2 className="font-mono text-xs tracking-widest uppercase text-muted-foreground mb-4">
                   EXCLUDED ONE-OFF CHARGES (≥ ${threshold})
                 </h2>
