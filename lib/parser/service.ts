@@ -6,15 +6,23 @@
 //       run-parser.ts child_process + poppler path. The Python parser runs in
 //       the same process tree, exactly as today.
 //
-//   hosted (Workers)           ->  RemoteParser. Workers can't fork poppler, so
-//       the bytes are HTTP-POSTed to the P2 parser container's `/parse`
-//       endpoint, which runs the SAME Python parser and returns the SAME JSON.
+//   hosted (Workers)           ->  ContainerParser. Workers can't fork poppler, so
+//       the bytes are routed to the P2 parser CONTAINER (a Container-backed
+//       Durable Object, env.PARSER) which runs the SAME Python parser and returns
+//       the SAME JSON. Resolution is off the Worker's `env` binding, NOT a URL —
+//       there is no reliable URL/getCloudflareContext inside a queue() invocation,
+//       so the consumer constructs `new ContainerParser(env.PARSER)` directly.
 //
-// A factory `getParserService()` selects on PARSE_DEPLOY_TARGET=hosted, exactly
-// like getRepo()/getScopedRepo. Both impls return the identical shape
-// (ParseResult: { transactions, statements }) so call sites are drop-in: the P5
-// upload endpoint and P4 queue consumer call `getParserService().parse(bytes)`
-// and never learn which impl ran.
+// There is ONE canonical "parse via container" path: ContainerParser, which wraps
+// the single parsePdfViaContainer() implementation in parser-container.ts. (The
+// old RemoteParser-by-URL / PARSER_SERVICE_URL path was removed — nothing in the
+// hosted/consumer path resolved a URL binding, and the self-host route calls
+// parsePdf() directly, so it was dead weight.)
+//
+// A factory `getParserService()` returns LocalParser for the self-host / local /
+// MCP path. Both impls return the identical shape (ParseResult: { transactions,
+// statements }) so call sites are drop-in: the P5 upload endpoint and P4 queue
+// consumer treat any ParserService the same and never learn which impl ran.
 //
 // CONTRACT (the thing P4/P5 consume — keep stable):
 //
@@ -24,7 +32,18 @@
 // transactions + per-statement metadata, or rejects on a parse/transport error.
 // ---------------------------------------------------------------------------
 
-import { parsePdf, type ParseResult } from "./run-parser";
+// Type-only: run-parser.ts statically imports node:child_process / fs / os (for
+// LocalParser's poppler exec). Importing those eagerly would pull them into the
+// hosted/Workers bundle (and break the workerd test that loads the consumer ->
+// this module). LocalParser lazy-imports parsePdf inside parse() instead, so this
+// module stays import-safe on Workers; only the self-host/local path loads it.
+import type { ParseResult } from "./run-parser";
+// Type-only: parser-container.ts pulls in @cloudflare/containers -> the
+// `cloudflare:workers` virtual module, which can't resolve off-Workers (Node/dev/
+// tests). Keep this module import-safe everywhere by importing only the TYPE here
+// and lazy-importing parsePdfViaContainer inside ContainerParser.parse() (only the
+// hosted path, on Workers, ever reaches it).
+import type { ParserContainerBinding } from "./parser-container";
 
 export type { ParseResult, ParsedTransaction, ParsedStatementMeta } from "./run-parser";
 
@@ -57,6 +76,9 @@ export class LocalParser implements ParserService {
     const { mkdtempSync, writeFileSync, rmSync } = await import("fs");
     const path = (await import("path")).default;
     const os = (await import("os")).default;
+    // Lazy: run-parser.ts pulls in node:child_process (poppler exec) — keep it off
+    // the hosted/Workers import graph (see the file header).
+    const { parsePdf } = await import("./run-parser");
 
     const tmpDir = mkdtempSync(path.join(os.tmpdir(), "parse-svc-"));
     const tmpPath = path.join(tmpDir, "statement.pdf");
@@ -70,71 +92,38 @@ export class LocalParser implements ParserService {
 }
 
 // ---------------------------------------------------------------------------
-// RemoteParser — hosted (Workers).
+// ContainerParser — hosted (Workers). The ONE canonical "parse via container"
+// impl.
 //
-// POSTs the raw bytes to the P2 container's `/parse` endpoint and returns its
-// JSON. The container runs the identical Python parser, so the JSON IS a
-// ParseResult. The base URL comes from the runtime (env var in Node, a Worker
-// binding in hosted mode) — resolved lazily by the factory, not hardcoded here.
-//
-// `fetchImpl` is injectable purely for unit tests; production passes the global
-// fetch (available on both Workers and Node 20+).
+// Wraps the `PARSER` Container binding (a Container-backed Durable Object
+// namespace, env.PARSER). parsePdfViaContainer() routes the bytes to the
+// container's `/parse` endpoint (getByName("default") -> instance.fetch) and
+// returns its JSON, which IS a ParseResult (the container runs the identical
+// Python parser). The binding is passed in explicitly — the queue consumer
+// constructs `new ContainerParser(env.PARSER)` off the Worker's env, since there
+// is no reliable URL/getCloudflareContext inside a queue() invocation.
 // ---------------------------------------------------------------------------
-export class RemoteParser implements ParserService {
-  constructor(
-    private readonly baseUrl: string,
-    private readonly fetchImpl: typeof fetch = fetch
-  ) {
-    if (!baseUrl) {
-      throw new Error("RemoteParser: a parser container base URL is required");
-    }
-  }
+export class ContainerParser implements ParserService {
+  constructor(private readonly binding: ParserContainerBinding) {}
 
   async parse(input: Uint8Array): Promise<ParseResult> {
-    // Trailing-slash-safe join: `<base>/parse`.
-    const url = `${this.baseUrl.replace(/\/+$/, "")}/parse`;
-
-    const res = await this.fetchImpl(url, {
-      method: "POST",
-      headers: { "content-type": "application/pdf" },
-      // A fresh ArrayBuffer-backed view so the body is a concrete byte payload
-      // (some fetch impls reject a Node Buffer / SharedArrayBuffer view).
-      body: new Uint8Array(input),
-    });
-
-    if (!res.ok) {
-      const detail = await res.text().catch(() => "");
-      throw new Error(
-        `RemoteParser: parser container returned ${res.status}${detail ? ` — ${detail.slice(0, 200)}` : ""}`
-      );
-    }
-
-    return (await res.json()) as ParseResult;
+    // Lazy import: parser-container.ts loads @cloudflare/containers (the
+    // `cloudflare:workers` module), which only exists on Workers. Importing it here
+    // keeps `service.ts` import-safe in Node/dev/tests; this path runs only hosted.
+    const { parsePdfViaContainer } = await import("./parser-container");
+    const result = await parsePdfViaContainer(this.binding, input);
+    return result as ParseResult;
   }
 }
 
 // ---------------------------------------------------------------------------
-// getParserService — the factory every call site uses.
+// getParserService — the factory for the SELF-HOST / local / MCP path.
 //
-// Selects on PARSE_DEPLOY_TARGET=hosted (same switch as getRepo / getScopedRepo
-// in lib/repo). Self-host returns a LocalParser; hosted returns a RemoteParser
-// pointed at the configured container URL.
-//
-// The hosted base URL is resolved from PARSER_SERVICE_URL — set as a [vars]
-// entry / binding in wrangler (wired in P6, alongside the real R2 bucket). We
-// fail closed with a clear message if hosted mode is selected without it,
-// rather than silently falling back to the child_process path (which can't run
-// on Workers).
+// Returns a LocalParser (child_process + poppler in-process). The hosted path
+// does NOT go through this factory: the queue consumer builds a ContainerParser
+// off env.PARSER directly (there is no process.env URL on Workers). Kept as the
+// drop-in `parse(bytes)` entry point for the non-hosted call sites.
 // ---------------------------------------------------------------------------
 export function getParserService(): ParserService {
-  if (process.env.PARSE_DEPLOY_TARGET === "hosted") {
-    const baseUrl = process.env.PARSER_SERVICE_URL;
-    if (!baseUrl) {
-      throw new Error(
-        "getParserService: hosted mode requires PARSER_SERVICE_URL (the P2 parser container base URL)"
-      );
-    }
-    return new RemoteParser(baseUrl);
-  }
   return new LocalParser();
 }

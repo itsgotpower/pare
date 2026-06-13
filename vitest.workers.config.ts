@@ -31,6 +31,11 @@ export default defineWorkersConfig({
             // useSQLite enables ctx.storage.sql on this class (equivalent to
             // wrangler's `new_sqlite_classes`), which is what the adapter targets.
             TEST_SQL: { className: "TestSqlObject", useSQLite: true },
+            // A real USER_DATA namespace exposing the production `call` RPC over
+            // DoSqlBackend (test-worker's UserDataTestObject), so the queueHandler
+            // regression test can exercise the consumer's REAL repo resolution
+            // (getRepoForUser(userId, env.USER_DATA)) rather than an injected repo.
+            USER_DATA: { className: "UserDataTestObject", useSQLite: true },
           },
           // R2 + KV for the P4 queue-consumer round-trip test: the PDF bytes live
           // in real (miniflare) R2 and the job-status records in real KV, exactly

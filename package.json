@@ -12,6 +12,7 @@
     "test:repo": "tsx --test lib/repo/*.test.ts lib/parser/*.test.ts lib/storage/*.test.ts lib/queue/*.test.ts",
     "test:do-sql": "vitest run --config vitest.workers.config.ts",
     "test:auth": "tsx --test lib/auth/*.test.ts",
+    "typecheck:workers": "tsc --noEmit -p tsconfig.workers.json",
     "mcp": "tsx mcp/server.ts",
     "cf:build": "opennextjs-cloudflare build",
     "cf:preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
@@ -42,6 +43,7 @@
   },
   "devDependencies": {
     "@cloudflare/vitest-pool-workers": "^0.8.71",
+    "@cloudflare/workers-types": "^4.20260613.1",
     "@opennextjs/cloudflare": "^1.19.11",
     "@tailwindcss/postcss": "^4",
     "@types/better-sqlite3": "^7.6.13",

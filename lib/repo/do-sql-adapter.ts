@@ -118,6 +118,33 @@ function parseNamedParams(sql: string): { rewritten: string; names: string[] } {
   return { rewritten: out, names };
 }
 
+// Coerce a DO-SQLite result row's INTEGER columns from bigint to number.
+//
+// DO SQLite returns INTEGER columns as JS `bigint`, whereas better-sqlite3 (with
+// its default settings, which lib/db relies on) returns them as `number`. lib/db
+// reads these raw and compares/serialises them as numbers — `has_override === 1`,
+// COUNT(*) pagination math, RETURNING id, `Response.json(...)` (which throws on a
+// bigint). Left as bigint, those silently break on the DO backend. So normalise
+// EVERY bigint that fits in a JS safe integer to `number` (mirroring the
+// `Number(result.lastInsertRowid)` coercion netWorth.addEntry already does); a
+// bigint beyond Number.MAX_SAFE_INTEGER is preserved as bigint to avoid a lossy
+// cast (lib/db has no such columns today, but this keeps the adapter honest).
+function coerceBigints<R>(row: R): R {
+  if (row === null || typeof row !== "object") return row;
+  const obj = row as Record<string, unknown>;
+  for (const key in obj) {
+    const v = obj[key];
+    if (
+      typeof v === "bigint" &&
+      v <= BigInt(Number.MAX_SAFE_INTEGER) &&
+      v >= BigInt(Number.MIN_SAFE_INTEGER)
+    ) {
+      obj[key] = Number(v);
+    }
+  }
+  return row;
+}
+
 // Resolve the positional binding array for a prepared statement from the args the
 // caller passed: NAMED → pull from the object in placeholder order; POSITIONAL →
 // use the args as-is.
@@ -132,6 +159,17 @@ function bindingsFor(names: string[], args: unknown[]): SqlValue[] {
   if (isNamedParams(args)) {
     const obj = args[0];
     return names.map((n) => {
+      // A placeholder whose key is ABSENT from the object is a programming error —
+      // better-sqlite3 throws "Missing named parameter ..." for it, and binding it
+      // to null instead would silently corrupt the query (e.g. an UPDATE that
+      // matches the wrong rows). Distinguish a MISSING key (throw) from a key that
+      // is present with an explicit undefined/null value (legitimately binds null):
+      // lib/db passes supersets (extra keys ignored, handled above) and explicit
+      // nulls (e.g. statement_id: null), but never references a placeholder it
+      // didn't supply.
+      if (!(n in obj)) {
+        throw new Error(`missing named parameter: @${n}`);
+      }
       const v = obj[n];
       return v === undefined ? null : (v as SqlValue);
     });
@@ -162,12 +200,18 @@ export class DoSqlStatement {
   get<R = Record<string, SqlValue>>(...args: unknown[]): R | undefined {
     const cursor = this.sql.exec<R>(this.rewritten, ...bindingsFor(this.names, args));
     const first = cursor.next();
-    return first.done ? undefined : (first.value as R);
+    // Normalise bigint INTEGER columns to number (see coerceBigints) so lib/db's
+    // numeric reads (=== 1, pagination, RETURNING id, Response.json) behave as on
+    // better-sqlite3.
+    return first.done ? undefined : coerceBigints(first.value as R);
   }
 
   // All rows.
   all<R = Record<string, SqlValue>>(...args: unknown[]): R[] {
-    return this.sql.exec<R>(this.rewritten, ...bindingsFor(this.names, args)).toArray();
+    return this.sql
+      .exec<R>(this.rewritten, ...bindingsFor(this.names, args))
+      .toArray()
+      .map((row) => coerceBigints(row));
   }
 
   // Execute a write; return { changes, lastInsertRowid } matching better-sqlite3's

@@ -110,18 +110,12 @@ export class R2PdfStore implements PdfStore {
   }
 }
 
-// Resolve the PDF_BUCKET R2 binding for the current request (Workers only),
-// imported lazily so the @opennextjs/cloudflare package is absent in plain
-// Node/dev — exactly how lib/repo/index.ts resolves USER_DATA.
+// Resolve the PDF_BUCKET R2 binding for the current request (Workers only) via the
+// shared getBinding helper — imported lazily so the @opennextjs/cloudflare package
+// is absent in plain Node/dev (exactly how lib/repo/index.ts resolves USER_DATA).
 async function getPdfBucket(): Promise<R2BucketLike | null> {
-  try {
-    const mod = await import("@opennextjs/cloudflare");
-    const ctx = await mod.getCloudflareContext({ async: true });
-    const bucket = (ctx?.env as Record<string, unknown> | undefined)?.PDF_BUCKET;
-    return (bucket as R2BucketLike | undefined) ?? null;
-  } catch {
-    return null;
-  }
+  const { getBinding } = await import("../cf-bindings");
+  return getBinding<R2BucketLike>("PDF_BUCKET");
 }
 
 /**

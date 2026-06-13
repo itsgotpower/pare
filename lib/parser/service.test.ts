@@ -3,7 +3,8 @@ import assert from "node:assert/strict";
 import { mkdtempSync, writeFileSync, rmSync } from "fs";
 import path from "path";
 import os from "os";
-import { LocalParser, RemoteParser, getParserService } from "./service";
+import { LocalParser, ContainerParser, getParserService } from "./service";
+import type { ParserContainerBinding } from "./parser-container";
 import { parsePdf, type ParseResult } from "./run-parser";
 
 // ---------------------------------------------------------------------------
@@ -62,7 +63,27 @@ test("LocalParser.parse(bytes) yields the same ParseResult as parsePdf on the sa
   assert.equal(viaService.statements[0]?.account, baseline.statements[0]?.account);
 });
 
-test("RemoteParser POSTs the bytes to <base>/parse and returns the parsed JSON", async () => {
+// A fake PARSER Container binding: getByName("default") -> an instance whose
+// fetch() returns a canned Response. Mirrors the production env.PARSER surface
+// (parsePdfViaContainer POSTs http://parser/parse to instance.fetch).
+function fakeContainerBinding(
+  respond: (req: Request) => Response | Promise<Response>
+): { binding: ParserContainerBinding; seen: { req: Request | null } } {
+  const seen: { req: Request | null } = { req: null };
+  const binding: ParserContainerBinding = {
+    getByName() {
+      return {
+        async fetch(req: Request) {
+          seen.req = req;
+          return respond(req);
+        },
+      };
+    },
+  };
+  return { binding, seen };
+}
+
+test("ContainerParser routes the bytes through the PARSER container and returns its JSON", async () => {
   const expected: ParseResult = {
     transactions: [
       {
@@ -79,58 +100,41 @@ test("RemoteParser POSTs the bytes to <base>/parse and returns the parsed JSON",
   };
 
   const bytes = new Uint8Array([1, 2, 3, 4]);
-  let seenUrl = "";
-  let seenMethod = "";
-  let seenBody: Uint8Array | null = null;
+  const { binding, seen } = fakeContainerBinding(
+    () =>
+      new Response(JSON.stringify(expected), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      })
+  );
 
-  const fakeFetch: typeof fetch = async (input, init) => {
-    seenUrl = String(input);
-    seenMethod = init?.method ?? "GET";
-    seenBody = new Uint8Array(init?.body as ArrayBuffer);
-    return new Response(JSON.stringify(expected), {
-      status: 200,
-      headers: { "content-type": "application/json" },
-    });
-  };
+  const result = await new ContainerParser(binding).parse(bytes);
 
-  // Trailing slash on the base URL must be normalised, not doubled.
-  const parser = new RemoteParser("https://parser.example.com/", fakeFetch);
-  const result = await parser.parse(bytes);
-
-  assert.equal(seenUrl, "https://parser.example.com/parse", "POSTs to <base>/parse");
-  assert.equal(seenMethod, "POST");
-  assert.deepEqual(seenBody, bytes, "the raw PDF bytes are the request body");
+  assert.equal(seen.req?.method, "POST", "POSTs to the container");
+  assert.ok(String(seen.req?.url).endsWith("/parse"), "hits the /parse endpoint");
+  const sentBody = new Uint8Array(await seen.req!.arrayBuffer());
+  assert.deepEqual(sentBody, bytes, "the raw PDF bytes are the request body");
   assert.deepEqual(result, expected, "returns the container's JSON unchanged");
 });
 
-test("RemoteParser surfaces a non-2xx from the container as an error", async () => {
-  const fakeFetch: typeof fetch = async () =>
-    new Response("boom", { status: 502 });
-  const parser = new RemoteParser("https://parser.example.com", fakeFetch);
-  await assert.rejects(() => parser.parse(new Uint8Array([0])), /502/);
+test("ContainerParser surfaces a non-2xx from the container as an error", async () => {
+  const { binding } = fakeContainerBinding(() => new Response("boom", { status: 502 }));
+  await assert.rejects(() => new ContainerParser(binding).parse(new Uint8Array([0])), /502/);
 });
 
-test("RemoteParser rejects an empty base URL at construction", () => {
-  assert.throws(() => new RemoteParser("", fetch), /base URL is required/);
-});
-
-test("getParserService selects LocalParser off-hosted and RemoteParser when hosted", () => {
+test("getParserService returns LocalParser (self-host / local / MCP path)", () => {
   const savedTarget = process.env.PARSE_DEPLOY_TARGET;
-  const savedUrl = process.env.PARSER_SERVICE_URL;
   try {
     delete process.env.PARSE_DEPLOY_TARGET;
     assert.ok(getParserService() instanceof LocalParser, "default -> LocalParser");
 
+    // getParserService is the self-host factory only; the hosted path constructs
+    // a ContainerParser off env.PARSER directly (no process.env URL on Workers),
+    // so even with the hosted target it still returns LocalParser here.
     process.env.PARSE_DEPLOY_TARGET = "hosted";
-    process.env.PARSER_SERVICE_URL = "https://parser.example.com";
-    assert.ok(getParserService() instanceof RemoteParser, "hosted -> RemoteParser");
-
-    delete process.env.PARSER_SERVICE_URL;
-    assert.throws(() => getParserService(), /PARSER_SERVICE_URL/, "hosted without URL fails closed");
+    assert.ok(getParserService() instanceof LocalParser, "factory stays LocalParser");
   } finally {
     if (savedTarget === undefined) delete process.env.PARSE_DEPLOY_TARGET;
     else process.env.PARSE_DEPLOY_TARGET = savedTarget;
-    if (savedUrl === undefined) delete process.env.PARSER_SERVICE_URL;
-    else process.env.PARSER_SERVICE_URL = savedUrl;
   }
 });
