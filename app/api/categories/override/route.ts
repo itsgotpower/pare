@@ -1,6 +1,5 @@
 import { NextRequest } from "next/server";
 import { getRepo } from "@/lib/repo";
-import { getDb } from "@/lib/db";
 
 export async function POST(request: NextRequest) {
   const body = await request.json();
@@ -14,17 +13,13 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Route-local lookup of the current category — not on the Repo surface; folds
-  // into the Repo with the encrypted/DO backend (Phase 2-3).
-  const db = getDb();
-  const tx = db
-    .prepare("SELECT category FROM transactions WHERE id = ?")
-    .get(transactionId) as { category: string } | undefined;
+  const repo = getRepo();
+  const tx = await repo.transactions.categoryOf(transactionId);
   if (!tx) {
     return Response.json({ error: "transaction not found" }, { status: 404 });
   }
 
-  await getRepo().categories.addOverride(transactionId, tx.category, newCategory);
+  await repo.categories.addOverride(transactionId, tx.category, newCategory);
   return Response.json({ success: true });
 }
 
