@@ -15,10 +15,11 @@ import type { D1Like } from "./hosted";
 export async function getD1(): Promise<D1Like> {
   // Try the Workers binding first.
   try {
-    // @ts-expect-error optional dep, only present on the Cloudflare target
     const mod = await import("@opennextjs/cloudflare");
     const ctx = await mod.getCloudflareContext({ async: true });
-    const db = ctx?.env?.DB;
+    // `DB` is wired via wrangler.toml on the Cloudflare target; the generated
+    // CloudflareEnv type isn't checked into source, so read it untyped.
+    const db = (ctx?.env as Record<string, unknown> | undefined)?.DB;
     if (db) return db as D1Like;
   } catch {
     // Not on Workers (or package absent) — fall through to the local shim.
