@@ -16,7 +16,10 @@ export default defineWorkersConfig({
     },
   },
   test: {
-    include: ["lib/repo/**/*.workers-spec.ts"],
+    // Both the DO-SQL data-path specs (lib/repo) and the P4 queue-consumer spec
+    // (lib/queue) run inside workerd: the consumer test needs a REAL per-user DO
+    // (ctx.storage.sql) plus miniflare R2 + KV, which only exist here.
+    include: ["lib/repo/**/*.workers-spec.ts", "lib/queue/**/*.workers-spec.ts"],
     poolOptions: {
       workers: {
         main: "./lib/repo/test-worker.ts",
@@ -29,6 +32,11 @@ export default defineWorkersConfig({
             // wrangler's `new_sqlite_classes`), which is what the adapter targets.
             TEST_SQL: { className: "TestSqlObject", useSQLite: true },
           },
+          // R2 + KV for the P4 queue-consumer round-trip test: the PDF bytes live
+          // in real (miniflare) R2 and the job-status records in real KV, exactly
+          // the bindings the production consumer resolves off env.
+          r2Buckets: { PDF_BUCKET: "pdf-bucket" },
+          kvNamespaces: { PARSE_JOBS: "parse-jobs" },
         },
       },
     },

@@ -24,8 +24,31 @@ import { DurableObject } from "cloudflare:workers";
 import { UserDataObject as UserDataImpl } from "./lib/repo/user-data-object";
 import type { AnyRepoCall } from "./lib/repo/repo-rpc";
 
+// OpenNext's generated default export is `{ fetch }`. To run a Cloudflare Queue
+// consumer on the SAME Worker, the `queue` handler must be a property of the
+// default export object alongside `fetch` (the documented OpenNext custom-worker
+// pattern — a `queue`/`scheduled` handler can't be a separate top-level export;
+// the runtime only looks at the default export's methods). So we import OpenNext's
+// handler, re-export its `fetch`, and add our P4 queue consumer.
 // @ts-expect-error — `.open-next/worker.js` exists only after `opennextjs-cloudflare build`.
-export { default } from "./.open-next/worker.js";
+import openNextHandler from "./.open-next/worker.js";
+import { queueHandler } from "./lib/queue/consumer";
+import type { ParseJobMessage, QueueMessageBatchLike } from "./lib/queue/types";
+
+const handler = {
+  // The Next.js app's fetch handler, untouched.
+  fetch: (openNextHandler as { fetch: (...args: unknown[]) => Promise<Response> }).fetch,
+
+  // The P4 async parse pipeline. Cloudflare delivers a MessageBatch to this
+  // handler for each batch pulled off the PARSE_QUEUE consumer (wired in P6). It
+  // acks/retries per message; a throw from a message's processing redelivers only
+  // that message (we use per-message ack/retry, not ackAll/retryAll).
+  async queue(batch: QueueMessageBatchLike<ParseJobMessage>, env: Record<string, unknown>) {
+    return queueHandler(batch, env);
+  },
+};
+
+export default handler;
 
 // The PDF parser runs in a Cloudflare Container (Python + poppler — unavailable in
 // the Workers runtime). Like UserDataObject, the Container-backed Durable Object

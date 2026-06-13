@@ -9,7 +9,7 @@
     "lint": "eslint",
     "gen:migrations": "tsx scripts/gen-migrations.ts",
     "test": "python3 -m unittest discover -s tests",
-    "test:repo": "tsx --test lib/repo/*.test.ts lib/parser/*.test.ts lib/storage/*.test.ts",
+    "test:repo": "tsx --test lib/repo/*.test.ts lib/parser/*.test.ts lib/storage/*.test.ts lib/queue/*.test.ts",
     "test:do-sql": "vitest run --config vitest.workers.config.ts",
     "test:auth": "tsx --test lib/auth/*.test.ts",
     "mcp": "tsx mcp/server.ts",
