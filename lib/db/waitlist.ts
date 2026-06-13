@@ -1,0 +1,32 @@
+import { getDb } from "../db";
+
+// Minimal email shape check — the real validation is "did it insert".
+const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+
+export interface WaitlistResult {
+  ok: boolean;
+  alreadyJoined?: boolean;
+  error?: string;
+}
+
+export function joinWaitlist(rawEmail: string, source = "homepage"): WaitlistResult {
+  const email = rawEmail.trim().toLowerCase();
+  if (!EMAIL_RE.test(email)) {
+    return { ok: false, error: "Enter a valid email address." };
+  }
+
+  const db = getDb();
+  const info = db
+    .prepare("INSERT OR IGNORE INTO waitlist (email, source) VALUES (?, ?)")
+    .run(email, source);
+
+  // changes === 0 means the UNIQUE email already existed — treat as success
+  // so we never reveal whether an address is already on the list.
+  return { ok: true, alreadyJoined: info.changes === 0 };
+}
+
+export function waitlistCount(): number {
+  const db = getDb();
+  const row = db.prepare("SELECT COUNT(*) AS n FROM waitlist").get() as { n: number };
+  return row.n;
+}

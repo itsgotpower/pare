@@ -18,8 +18,9 @@ import {
   User,
 } from "lucide-react";
 
+// "/" is the public marketing landing; the signed-in app starts at /dashboard.
 const NAV_ITEMS = [
-  { href: "/", label: "DASHBOARD", icon: LayoutDashboard },
+  { href: "/dashboard", label: "DASHBOARD", icon: LayoutDashboard },
   { href: "/transactions", label: "TRANSACTIONS", icon: ArrowLeftRight },
   { href: "/recurring", label: "RECURRING", icon: Repeat },
   { href: "/upload", label: "UPLOAD", icon: Upload },
@@ -31,7 +32,7 @@ const NAV_ITEMS = [
 // Bottom tab bar on phones: the five main destinations. Upload lives in the
 // top bar as an action, connect/profile/theme ride along with it.
 const MOBILE_TABS = [
-  { href: "/", label: "DASH", icon: LayoutDashboard },
+  { href: "/dashboard", label: "DASH", icon: LayoutDashboard },
   { href: "/transactions", label: "TXNS", icon: ArrowLeftRight },
   { href: "/recurring", label: "RECUR", icon: Repeat },
   { href: "/categories", label: "CATS", icon: Tag },
@@ -71,15 +72,15 @@ export function Sidebar() {
   const isActive = (href: string) =>
     href === "/" ? pathname === "/" : pathname.startsWith(href);
 
-  // The login page is a full-screen gate — no chrome.
-  if (pathname === "/login") return null;
+  // The login gate and the public marketing homepage are full-screen — no chrome.
+  if (pathname === "/login" || pathname === "/") return null;
 
   return (
     <>
       {/* Mobile top bar — wordmark + actions (upload is an action, not a tab) */}
       <header className="md:hidden order-first shrink-0 z-40 bg-card border-b border-border pt-[env(safe-area-inset-top)]">
         <div className="flex items-center justify-between h-12 pl-4 pr-1">
-          <Link href="/" className="font-mono text-sm font-bold tracking-tight">
+          <Link href="/dashboard" className="font-mono text-sm font-bold tracking-tight">
             PARSE
           </Link>
           <div className="flex items-center">
@@ -150,7 +151,7 @@ export function Sidebar() {
       >
         <div className="flex items-center justify-between px-3 h-14 border-b border-border">
           {!collapsed && (
-            <Link href="/" className="font-mono text-sm font-bold tracking-tight">
+            <Link href="/dashboard" className="font-mono text-sm font-bold tracking-tight">
               PARSE
             </Link>
           )}
