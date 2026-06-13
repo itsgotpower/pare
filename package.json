@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "test": "python3 -m unittest discover -s tests",
+    "test:repo": "tsx --test lib/repo/*.test.ts",
     "mcp": "tsx mcp/server.ts"
   },
   "dependencies": {

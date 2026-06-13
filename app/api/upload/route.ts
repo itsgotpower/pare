@@ -1,22 +1,22 @@
 import { NextRequest } from "next/server";
-import { writeFileSync, mkdtempSync, rmSync, readFileSync } from "fs";
+import { writeFileSync, mkdtempSync, rmSync } from "fs";
 import path from "path";
 import os from "os";
 import { parsePdf } from "@/lib/parser/run-parser";
-import { insertTransaction, computeDedupKey } from "@/lib/db/transactions";
-import { insertStatement } from "@/lib/db/statements";
-import { seedCategoryRules, recategorizeAll } from "@/lib/db/categories";
+import { computeDedupKey } from "@/lib/db/transactions";
+import { getRepo } from "@/lib/repo";
 
 export async function POST(request: NextRequest) {
   try {
-    seedCategoryRules();
+    const repo = getRepo();
+    await repo.categories.seed();
 
     const formData = await request.formData();
     const file = formData.get("file") as File | null;
     const csvData = formData.get("csv") as string | null;
 
     if (csvData) {
-      return handleCsvImport(csvData);
+      return await handleCsvImport(csvData);
     }
 
     if (!file) {
@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
       const period = rows[0].period;
       const meta = metas[0];
 
-      const statementId = insertStatement({
+      const statementId = await repo.statements.insert({
         filename: file.name,
         source,
         account,
@@ -67,7 +67,7 @@ export async function POST(request: NextRequest) {
         seqMap.set(seqKey, seq);
 
         const dedupKey = computeDedupKey(row.source, row.txn_date, row.description, row.amount, seq);
-        const didInsert = insertTransaction({
+        const didInsert = await repo.transactions.insert({
           statement_id: statementId || null,
           source: row.source,
           account: row.account,
@@ -86,7 +86,7 @@ export async function POST(request: NextRequest) {
 
       // The shipped parser taxonomy is generic; apply the DB's full rule set
       // (incl. the gitignored personal taxonomy) so uploads categorize correctly.
-      if (inserted > 0) recategorizeAll();
+      if (inserted > 0) await repo.categories.recategorizeAll();
 
       return Response.json({ inserted, skipped, total: rows.length, filename: file.name });
     } finally {
@@ -98,8 +98,11 @@ export async function POST(request: NextRequest) {
   }
 }
 
-function handleCsvImport(csvData: string) {
-  seedCategoryRules();
+// Dormant: the CSV-import UI/route were removed (PDFs only — see CLAUDE.md "Data
+// provenance"); nothing triggers this branch. Kept (and migrated) for parity.
+async function handleCsvImport(csvData: string) {
+  const repo = getRepo();
+  await repo.categories.seed();
 
   const lines = csvData.replace(/\r/g, "").trim().split("\n");
   const header = lines[0];
@@ -109,7 +112,7 @@ function handleCsvImport(csvData: string) {
   let skipped = 0;
   const seqMap = new Map<string, number>();
 
-  const statementId = insertStatement({
+  const statementId = await repo.statements.insert({
     filename: "csv-import",
     source: "csv",
     account: "CSV Import",
@@ -142,7 +145,7 @@ function handleCsvImport(csvData: string) {
     seqMap.set(seqKey, seq);
 
     const dedupKey = computeDedupKey(source, txnDate, description, amount, seq);
-    const didInsert = insertTransaction({
+    const didInsert = await repo.transactions.insert({
       statement_id: statementId || null,
       source, account, period,
       txn_date: txnDate,

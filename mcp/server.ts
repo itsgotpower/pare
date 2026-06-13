@@ -2,8 +2,8 @@
  * Parse — finance MCP server (stdio).
  *
  * Exposes the local SQLite finance data (data/parse.db) as MCP tools so an MCP
- * client (e.g. Claude) can query and lightly manage spending. Reuses the app's
- * lib/db query layer — single source of truth, no duplicated SQL.
+ * client (e.g. Claude) can query and lightly manage spending. Goes through the
+ * app's Repo layer — single source of truth, no duplicated SQL.
  *
  * Privacy: reads/writes ONLY the local DB. Set PARSE_DB_PATH to the absolute DB
  * path (the server's cwd is whatever the MCP client launches it with).
@@ -15,18 +15,9 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { z } from "zod";
 
 import { getDb } from "../lib/db";
-import { seedCategoryRules, listRules, addRule, deleteRule, recategorizeAll, addOverride } from "../lib/db/categories";
-import { listTransactions, getCategories } from "../lib/db/transactions";
-import { getMonthlyTotals, getCategoryBreakdown, getTopMerchants } from "../lib/db/summary";
-import { getIncomeByType, getIncomeVsSpend } from "../lib/db/income";
-import { getBaseline } from "../lib/db/baseline";
-import { listGoals, upsertGoal, deleteGoal, getCurrentProgress } from "../lib/db/goals";
-import { getSubscriptions } from "../lib/db/subscriptions";
-import { getInsights } from "../lib/db/insights";
+import { getRepo } from "../lib/repo";
 
-// Ensure schema + built-in/user rules exist before serving.
-getDb();
-seedCategoryRules();
+const repo = getRepo();
 
 const json = (data: unknown) => ({
   content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }],
@@ -44,9 +35,9 @@ server.registerTool(
     inputSchema: { months: z.number().int().positive().optional(), month: z.string().optional() },
   },
   async ({ months, month }) => json({
-    monthly_totals: getMonthlyTotals(months ?? 12),
-    category_breakdown: getCategoryBreakdown(month),
-    top_merchants: getTopMerchants(10, month),
+    monthly_totals: await repo.summary.monthlyTotals(months ?? 12),
+    category_breakdown: await repo.summary.categoryBreakdown(month),
+    top_merchants: await repo.summary.topMerchants(10, month),
   })
 );
 
@@ -66,7 +57,7 @@ server.registerTool(
       limit: z.number().int().positive().max(200).optional(),
     },
   },
-  async (args) => json(listTransactions(args))
+  async (args) => json(await repo.transactions.list(args))
 );
 
 server.registerTool(
@@ -76,7 +67,7 @@ server.registerTool(
     description: "Total card spend per category, optionally for a single month (YYYY-MM).",
     inputSchema: { month: z.string().optional() },
   },
-  async ({ month }) => json(getCategoryBreakdown(month))
+  async ({ month }) => json(await repo.summary.categoryBreakdown(month))
 );
 
 server.registerTool(
@@ -86,7 +77,7 @@ server.registerTool(
     description: "Income by type (payroll, tax refund, etc.) and the monthly income vs fixed/variable spend series.",
     inputSchema: {},
   },
-  async () => json({ income_by_type: getIncomeByType(), income_vs_spend: getIncomeVsSpend() })
+  async () => json({ income_by_type: await repo.income.byType(), income_vs_spend: await repo.income.vsSpend() })
 );
 
 server.registerTool(
@@ -97,7 +88,7 @@ server.registerTool(
     inputSchema: {},
   },
   async () => {
-    const rows = getIncomeVsSpend().filter((m) => m.income > 0);
+    const rows = (await repo.income.vsSpend()).filter((m) => m.income > 0);
     const net = rows.map((m) => ({ month: m.month, income: m.income, fixed: m.fixed, variable: m.variable, net: m.income - m.fixed - m.variable }));
     return json({ monthly: net, period_surplus: net.reduce((s, m) => s + m.net, 0) });
   }
@@ -110,7 +101,7 @@ server.registerTool(
     description: "Spending with large one-off charges (>= threshold) removed — the runway-planning number. Returns per-month total vs baseline and the excluded one-offs.",
     inputSchema: { threshold: z.number().positive().optional() },
   },
-  async ({ threshold }) => json(getBaseline(threshold ?? 300))
+  async ({ threshold }) => json(await repo.baseline.get(threshold ?? 300))
 );
 
 server.registerTool(
@@ -120,7 +111,7 @@ server.registerTool(
     description: "Detected recurring charges (3+ months) with monthly/annual cost, frequency, and double-bill flags.",
     inputSchema: {},
   },
-  async () => json(getSubscriptions())
+  async () => json(await repo.subscriptions.get())
 );
 
 server.registerTool(
@@ -130,7 +121,7 @@ server.registerTool(
     description: "Current spending goals and progress for the latest data month (spent vs limit, % used).",
     inputSchema: {},
   },
-  async () => json(getCurrentProgress())
+  async () => json(await repo.goals.currentProgress())
 );
 
 server.registerTool(
@@ -140,7 +131,7 @@ server.registerTool(
     description: "Auto-generated tips: over/near-budget goals, month-over-month category moves, net surplus/deficit, large one-offs.",
     inputSchema: {},
   },
-  async () => json(getInsights())
+  async () => json(await repo.insights.get())
 );
 
 server.registerTool(
@@ -150,7 +141,7 @@ server.registerTool(
     description: "Distinct spend categories in use, plus the keyword rules that drive categorization.",
     inputSchema: {},
   },
-  async () => json({ categories: getCategories(), rules: listRules() })
+  async () => json({ categories: await repo.transactions.categories(), rules: await repo.categories.listRules() })
 );
 
 // ---- Write tools ------------------------------------------------------------
@@ -163,8 +154,8 @@ server.registerTool(
     inputSchema: { category: z.string(), monthly_limit: z.number().positive() },
   },
   async ({ category, monthly_limit }) => {
-    upsertGoal(category, monthly_limit);
-    return json({ ok: true, goals: getCurrentProgress() });
+    await repo.goals.upsert(category, monthly_limit);
+    return json({ ok: true, goals: await repo.goals.currentProgress() });
   }
 );
 
@@ -176,9 +167,9 @@ server.registerTool(
     inputSchema: { category: z.string() },
   },
   async ({ category }) => {
-    const g = listGoals().find((x) => x.category === category);
+    const g = (await repo.goals.list()).find((x) => x.category === category);
     if (!g) return json({ ok: false, error: `No goal for "${category}"` });
-    deleteGoal(g.id);
+    await repo.goals.delete(g.id);
     return json({ ok: true });
   }
 );
@@ -191,9 +182,9 @@ server.registerTool(
     inputSchema: { category: z.string(), keyword: z.string(), apply_existing: z.boolean().optional() },
   },
   async ({ category, keyword, apply_existing }) => {
-    addRule(category, keyword);
+    await repo.categories.addRule(category, keyword);
     let changed = 0;
-    if (apply_existing) changed = recategorizeAll();
+    if (apply_existing) changed = await repo.categories.recategorizeAll();
     return json({ ok: true, recategorized: changed });
   }
 );
@@ -206,7 +197,7 @@ server.registerTool(
     inputSchema: { id: z.number().int() },
   },
   async ({ id }) => {
-    deleteRule(id);
+    await repo.categories.deleteRule(id);
     return json({ ok: true });
   }
 );
@@ -218,7 +209,7 @@ server.registerTool(
     description: "Re-apply all category rules to every transaction (respecting manual overrides). Returns how many changed.",
     inputSchema: {},
   },
-  async () => json({ ok: true, changed: recategorizeAll() })
+  async () => json({ ok: true, changed: await repo.categories.recategorizeAll() })
 );
 
 server.registerTool(
@@ -232,12 +223,14 @@ server.registerTool(
     const db = getDb();
     const row = db.prepare("SELECT category FROM transactions WHERE id = ?").get(transaction_id) as { category: string } | undefined;
     if (!row) return json({ ok: false, error: `No transaction ${transaction_id}` });
-    addOverride(transaction_id, row.category, category);
+    await repo.categories.addOverride(transaction_id, row.category, category);
     return json({ ok: true });
   }
 );
 
 async function main() {
+  // Ensure schema + built-in/user rules exist before serving (opens the DB).
+  await repo.categories.seed();
   const transport = new StdioServerTransport();
   await server.connect(transport);
 }

@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { cookies } from "next/headers";
-import { getDataHealth } from "@/lib/db/profile";
+import { getRepo } from "@/lib/repo";
 import {
   createSessionToken,
   verifySessionToken,
@@ -40,7 +40,7 @@ export async function GET() {
   return Response.json({
     configured: true,
     authenticated: true,
-    profile: { ...user, health: getDataHealth() },
+    profile: { ...user, health: await getRepo().profile.dataHealth() },
   });
 }
 
