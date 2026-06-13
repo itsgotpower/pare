@@ -4,11 +4,13 @@ import path from "path";
 import os from "os";
 import { parsePdf } from "@/lib/parser/run-parser";
 import { computeDedupKey } from "@/lib/db/transactions";
-import { getRepo } from "@/lib/repo";
+import { getScopedRepo, unauthorized } from "@/lib/repo/scoped";
+import type { Repo } from "@/lib/repo";
 
 export async function POST(request: NextRequest) {
   try {
-    const repo = getRepo();
+    const repo = await getScopedRepo(request);
+    if (!repo) return unauthorized();
     await repo.categories.seed();
 
     const formData = await request.formData();
@@ -16,7 +18,7 @@ export async function POST(request: NextRequest) {
     const csvData = formData.get("csv") as string | null;
 
     if (csvData) {
-      return await handleCsvImport(csvData);
+      return await handleCsvImport(repo, csvData);
     }
 
     if (!file) {
@@ -99,8 +101,7 @@ export async function POST(request: NextRequest) {
 
 // Dormant: the CSV-import UI/route were removed (PDFs only — see CLAUDE.md "Data
 // provenance"); nothing triggers this branch. Kept (and migrated) for parity.
-async function handleCsvImport(csvData: string) {
-  const repo = getRepo();
+async function handleCsvImport(repo: Repo, csvData: string) {
   await repo.categories.seed();
 
   const lines = csvData.replace(/\r/g, "").trim().split("\n");

@@ -96,7 +96,13 @@ export class SqliteRepo implements Repo {
   }
 
   private ready(): Promise<Database.Database> {
+    // Always go through backend.open(): the file backend caches and returns its
+    // singleton, while the DO backend re-asserts ITS connection as the active
+    // one (useConnection) so that when multiple per-user backends share a process
+    // each operation runs against the right user's DB. open() is idempotent and
+    // cheap after the first call, so this stays O(1) and keeps local mode intact.
     if (!this.opened) this.opened = this.backend.open();
+    else this.opened = this.opened.then(() => this.backend.open());
     return this.opened;
   }
 

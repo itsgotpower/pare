@@ -5,7 +5,20 @@ import { verifySessionToken, SESSION_COOKIE } from "@/lib/auth/session";
 // and the marketing homepage's waitlist signup (posted while signed out).
 const PUBLIC_PATHS = ["/login", "/api/auth", "/api/waitlist"];
 
+// Hosted mode is selected at build/deploy time (PARSE_DEPLOY_TARGET=hosted).
+const HOSTED = process.env.PARSE_DEPLOY_TARGET === "hosted";
+
 export function proxy(request: NextRequest) {
+  // HOSTED mode: retire the single-user gate entirely. Auth is per-request and
+  // multi-tenant — every API route resolves the caller via getScopedRepo()
+  // (cookie OR bearer) and returns 401 itself when unauthenticated, and pages
+  // gate via the account system. Crucially, NOT running middleware here also
+  // unblocks the @opennextjs/cloudflare build, which (per Session 1) cannot
+  // bundle this Node-runtime middleware. The self-hosted gate below is untouched.
+  if (HOSTED) {
+    return NextResponse.next();
+  }
+
   const { pathname } = request.nextUrl;
   const authed = verifySessionToken(request.cookies.get(SESSION_COOKIE)?.value);
 
