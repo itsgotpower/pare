@@ -1,9 +1,9 @@
 import { NextRequest } from "next/server";
-import { listTransactions, getCategories } from "@/lib/db/transactions";
-import { seedCategoryRules } from "@/lib/db/categories";
+import { getRepo } from "@/lib/repo";
 
 export async function GET(request: NextRequest) {
-  seedCategoryRules();
+  const repo = getRepo();
+  await repo.categories.seed();
 
   const params = request.nextUrl.searchParams;
 
@@ -18,8 +18,8 @@ export async function GET(request: NextRequest) {
     limit: params.get("limit") ? parseInt(params.get("limit")!) : 50,
   };
 
-  const { rows, total } = listTransactions(filters);
-  const categories = getCategories();
+  const { rows, total } = await repo.transactions.list(filters);
+  const categories = await repo.transactions.categories();
 
   return Response.json({ rows, total, categories });
 }

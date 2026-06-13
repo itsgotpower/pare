@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { joinWaitlist } from "@/lib/db/waitlist";
+import { getRepo } from "@/lib/repo";
 
 // Public endpoint (allowlisted in proxy.ts) — the marketing homepage posts here
 // while the visitor is signed out.
@@ -12,7 +12,7 @@ export async function POST(request: NextRequest) {
     return Response.json({ error: "Invalid request." }, { status: 400 });
   }
 
-  const result = joinWaitlist(email);
+  const result = await getRepo().waitlist.join(email);
   if (!result.ok) {
     return Response.json({ error: result.error }, { status: 400 });
   }
