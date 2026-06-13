@@ -62,6 +62,29 @@ migrations_dir = "d1/migrations"
 name = "USER_DATA"
 class_name = "UserDataObject"
 
+# Per-user data store (registered above) plus the parser Container — both are
+# SQLite-backed Durable Object classes, so both go in new_sqlite_classes.
 [[migrations]]
 tag = "v1"
-new_sqlite_classes = ["UserDataObject"]
+new_sqlite_classes = ["UserDataObject", "ParserContainer"]
+
+# --- PDF parser container (hosted parsing path) ---
+#
+# Workers can't run Python/poppler/child_process, so PDF parsing runs in a
+# Cloudflare Container: the image is lib/parser/Dockerfile (Python http.server +
+# the unchanged parser). The ParserContainer class (lib/parser/parser-container.ts,
+# re-exported from worker.ts) extends @cloudflare/containers' Container base; the
+# request side routes a PDF to it via PARSER.getByName("default") (see
+# parsePdfViaContainer). A real deploy builds + pushes the image automatically on
+# `wrangler deploy`; locally the image is runnable standalone with Docker.
+[[containers]]
+class_name = "ParserContainer"
+image = "./lib/parser/Dockerfile"
+# Build context must be the repo root so the Dockerfile can COPY lib/parser/*.
+image_build_context = "."
+max_instances = 5
+instance_type = "basic"
+
+[[durable_objects.bindings]]
+name = "PARSER"
+class_name = "ParserContainer"
