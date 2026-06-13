@@ -7,8 +7,13 @@ const nextConfig: NextConfig = {
 export default nextConfig;
 
 // Make Cloudflare bindings (D1, Durable Objects, etc. declared in wrangler.toml)
-// available via getCloudflareContext() during `next dev`. No-op for the production
-// Worker build. Kept at the bottom so the exported config is unaffected.
+// available via getCloudflareContext() during `next dev`. Gate to development only:
+// during `next build` (NODE_ENV=production) this wires a wrangler dev-proxy that, now
+// that wrangler.toml declares [[containers]], asserts a build ID we don't have at
+// build time ("Build ID should be set if containers are defined"). The dev proxy is
+// only needed for `next dev`, so skip it during the production build.
 // See https://opennext.js.org/cloudflare/get-started
 import { initOpenNextCloudflareForDev } from "@opennextjs/cloudflare";
-void initOpenNextCloudflareForDev();
+if (process.env.NODE_ENV === "development") {
+  void initOpenNextCloudflareForDev();
+}
