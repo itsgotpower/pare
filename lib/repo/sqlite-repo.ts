@@ -20,7 +20,13 @@ import type {
   WaitlistRepo,
 } from "./types";
 
-import { insertTransaction, listTransactions, getCategories } from "../db/transactions";
+import {
+  insertTransaction,
+  insertManyTransactions,
+  getTransactionCategory,
+  listTransactions,
+  getCategories,
+} from "../db/transactions";
 import { insertStatement, listStatements } from "../db/statements";
 import {
   seedCategoryRules,
@@ -31,8 +37,16 @@ import {
   removeOverride,
   recategorizeMatching,
   recategorizeAll,
+  uncategorizedCount,
+  ruleSuggestions,
 } from "../db/categories";
-import { listGoals, upsertGoal, deleteGoal, getCurrentProgress } from "../db/goals";
+import {
+  listGoals,
+  upsertGoal,
+  deleteGoal,
+  getCurrentProgress,
+  getCategoryAverages,
+} from "../db/goals";
 import {
   listManualEntries,
   addManualEntry,
@@ -68,12 +82,14 @@ import { joinWaitlist, waitlistCount } from "../db/waitlist";
 // backend.persist() so the encrypted backend can flush ciphertext after a change
 // (no-op on the file backend).
 //
-// NOTE (batching follow-up): the upload path loops insert(), and on the encrypted
-// backend persist() will serialise+encrypt the whole DB per row (O(n^2)). Add an
-// insertMany()/write-boundary before wiring the encrypted backend in Phase 2-3.
+// Bulk writes (e.g. an upload's many inserts) go through insertMany() + batch(),
+// which collapse to a SINGLE backend.persist() instead of one flush per row — on
+// the encrypted/DO backend that turns an O(n^2) serialise+encrypt into one pass.
 export class SqliteRepo implements Repo {
   private backend: DbBackend;
   private opened: Promise<Database.Database> | null = null;
+  // While > 0, write() defers persistence to the enclosing batch() boundary.
+  private batchDepth = 0;
 
   constructor(backend: DbBackend) {
     this.backend = backend;
@@ -91,17 +107,36 @@ export class SqliteRepo implements Repo {
   }
 
   // Write: run the mutation, then durably persist (no-op on the file backend).
+  // Inside a batch() the persist is deferred to the boundary so N writes flush once.
   private async write<T>(fn: () => T): Promise<T> {
     const db = await this.ready();
     const result = fn();
-    await this.backend.persist(db);
+    if (this.batchDepth === 0) await this.backend.persist(db);
+    return result;
+  }
+
+  // Run several writes under ONE durability boundary: persist exactly once after
+  // fn resolves. Nested batches share the outermost boundary, and we only persist
+  // on success (if fn throws, nothing is flushed).
+  async batch<T>(fn: () => Promise<T>): Promise<T> {
+    const db = await this.ready();
+    this.batchDepth++;
+    let result: T;
+    try {
+      result = await fn();
+    } finally {
+      this.batchDepth--;
+    }
+    if (this.batchDepth === 0) await this.backend.persist(db);
     return result;
   }
 
   transactions: TransactionRepo = {
     insert: (tx) => this.write(() => insertTransaction(tx)),
+    insertMany: (txs) => this.write(() => insertManyTransactions(txs)),
     list: (filters) => this.read(() => listTransactions(filters)),
     categories: () => this.read(() => getCategories()),
+    categoryOf: (id) => this.read(() => getTransactionCategory(id)),
   };
 
   statements: StatementRepo = {
@@ -120,6 +155,8 @@ export class SqliteRepo implements Repo {
     recategorizeMatching: (keyword, category) =>
       this.write(() => recategorizeMatching(keyword, category)),
     recategorizeAll: () => this.write(() => recategorizeAll()),
+    uncategorizedCount: () => this.read(() => uncategorizedCount()),
+    ruleSuggestions: () => this.read(() => ruleSuggestions()),
   };
 
   goals: GoalRepo = {
@@ -127,6 +164,7 @@ export class SqliteRepo implements Repo {
     upsert: (category, monthlyLimit) => this.write(() => upsertGoal(category, monthlyLimit)),
     delete: (id) => this.write(() => deleteGoal(id)),
     currentProgress: () => this.read(() => getCurrentProgress()),
+    categoryAverages: () => this.read(() => getCategoryAverages()),
   };
 
   netWorth: NetWorthRepo = {
