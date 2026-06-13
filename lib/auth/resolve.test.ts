@@ -87,10 +87,10 @@ const PASSWORD = "correct-horse-battery-staple";
 
 before(() => {
   const db = new Database(":memory:");
-  // Apply the SAME migration the app ships (006), so the test exercises the
+  // Apply the SAME auth-D1 migration the app ships, so the test exercises the
   // real schema rather than a hand-written copy.
   const sql = fs.readFileSync(
-    path.join(process.cwd(), "lib/db/migrations/006_better_auth.sql"),
+    path.join(process.cwd(), "d1/migrations/0001_better_auth.sql"),
     "utf-8"
   );
   db.exec(sql);

@@ -26,7 +26,28 @@ export async function getD1(): Promise<D1Like> {
   }
 
   const { getDb } = await import("@/lib/db");
-  return makeD1Shim(getDb()) as D1Like;
+  const db = getDb();
+  await ensureShimAuthSchema(db);
+  return makeD1Shim(db) as D1Like;
+}
+
+// Local hosted-dev only: the shim wraps the app's better-sqlite3 file DB, whose
+// migrations (001-005) deliberately exclude the auth schema (that lives in the D1
+// auth DB, d1/migrations/0001_better_auth.sql). So for `next dev` in hosted mode
+// we apply that auth schema to the shim DB once. Idempotent (CREATE … IF NOT
+// EXISTS). Node/dev-only: on Workers getD1() returns env.DB above and never
+// reaches here, so the fs import is not exercised on the Cloudflare target.
+const authSchemaApplied = new WeakSet<BetterSqliteDb>();
+async function ensureShimAuthSchema(db: BetterSqliteDb): Promise<void> {
+  if (authSchemaApplied.has(db)) return;
+  const fs = await import("node:fs");
+  const path = await import("node:path");
+  const sql = fs.readFileSync(
+    path.join(process.cwd(), "d1/migrations/0001_better_auth.sql"),
+    "utf-8"
+  );
+  db.exec(sql);
+  authSchemaApplied.add(db);
 }
 
 // Minimal D1Database surface over a better-sqlite3 connection, sufficient for

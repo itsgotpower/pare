@@ -25,17 +25,32 @@ import { sendPasswordResetEmail } from "./email";
 export type D1Like = ConstructorParameters<typeof D1Dialect>[0]["database"];
 
 export function hostedAuthOptions(db: D1Like): BetterAuthOptions {
+  // Fail closed if the signing secret is missing. better-auth otherwise falls
+  // back to a PUBLIC default secret ("better-auth-secret-1234…") whenever it
+  // doesn't detect production — which would make every session cookie and bearer
+  // token forgeable, letting anyone mint a token for any userId and walk straight
+  // into that user's Durable Object. Refuse to start instead. Provision it with
+  // `wrangler secret put BETTER_AUTH_SECRET` (see DEPLOY.md).
+  const secret = process.env.BETTER_AUTH_SECRET;
+  if (!secret) {
+    throw new Error(
+      "BETTER_AUTH_SECRET is not set. Hosted mode requires it for session/token " +
+        "signing; set it with `wrangler secret put BETTER_AUTH_SECRET`."
+    );
+  }
+
   return {
     // Kysely over the D1 dialect. better-auth detects this as a "sqlite"
-    // dialect for query generation; the 006 migration provides the schema
-    // (we do NOT let better-auth auto-create tables in production).
+    // dialect for query generation; the auth-D1 migration (d1/migrations/
+    // 0001_better_auth.sql, applied via `wrangler d1 migrations apply parse-auth`)
+    // provides the schema (we do NOT let better-auth auto-create tables).
     database: {
       dialect: new D1Dialect({ database: db }),
       type: "sqlite",
     },
     // Trusted origins / base URL come from the environment in the Worker; the
     // secret is required in hosted mode (cookie signing + token hashing).
-    secret: process.env.BETTER_AUTH_SECRET,
+    secret,
     baseURL: process.env.BETTER_AUTH_URL,
     emailAndPassword: {
       enabled: true,

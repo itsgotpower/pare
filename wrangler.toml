@@ -4,10 +4,9 @@
 # unchanged, against the demo DB. The build emits .open-next/worker.js (the Worker
 # entrypoint) and .open-next/assets (static assets), referenced below.
 #
-# The D1 and Durable Object bindings are DECLARED but UNUSED — later sessions wire
-# the auth DB (D1) and per-user data layer (Durable Object) to them. See
-# hosted-product-plan.md (Phases 1–2). Stubbing them now keeps the binding names
-# stable so app code can reference `env.AUTH_DB` / `env.USER_DATA` once implemented.
+# The D1 (`DB`) and Durable Object (`USER_DATA`) bindings below are LIVE as of
+# Phase 2: better-auth reads `env.DB` and getRepoForUser() routes per-user data to
+# `env.USER_DATA`. See hosted-product-plan.md (Phases 1–2) and DEPLOY.md.
 
 name = "parse"
 # Custom entrypoint (worker.ts) re-exports OpenNext's generated fetch handler
@@ -16,6 +15,20 @@ name = "parse"
 main = "worker.ts"
 compatibility_date = "2024-12-30"
 compatibility_flags = ["nodejs_compat", "global_fetch_strictly_public"]
+
+# Selects the HOSTED deploy target at runtime: getScopedRepo() routes per-user
+# Durable Objects and proxy.ts retires the single-user gate. Without this the
+# Worker defaults to self-host mode (file-backed better-sqlite3, which can't load
+# on Workers) — i.e. a broken deploy. Self-host/local leaves it unset.
+[vars]
+PARSE_DEPLOY_TARGET = "hosted"
+
+# Secrets (NOT set here — provision with `wrangler secret put <NAME>`):
+#   BETTER_AUTH_SECRET  — required; session/token signing (hosted.ts fails closed
+#                         without it). Generate: `openssl rand -base64 32`.
+#   BETTER_AUTH_URL     — the deployed origin, e.g. https://parse.<sub>.workers.dev
+#   RESEND_API_KEY      — password-reset email (optional in dev).
+#   AUTH_EMAIL_FROM     — From: address for reset email.
 
 # Static assets emitted by the OpenNext build.
 [assets]
@@ -35,6 +48,11 @@ service = "parse"
 binding = "DB"
 database_name = "parse-auth"
 database_id = "00000000-0000-0000-0000-000000000000"
+# better-auth schema for this DB only. Apply with:
+#   npx wrangler d1 migrations apply parse-auth --remote
+# Kept separate from lib/db/migrations (the per-user DO data schema) on purpose:
+# auth tables must never land in a user's data DB, nor vice versa.
+migrations_dir = "d1/migrations"
 
 # Per-user data store (Durable Object, SQLite-backed) — one DO per user. The
 # UserDataObject class is implemented in worker.ts (delegating to

@@ -13,11 +13,14 @@ preferred path for Next.js. Later phases wire real auth (D1), per-user data
   defaults; in-memory incremental cache, no R2 bucket needed yet).
 - `wrangler.toml` — Worker name, OpenNext entrypoint (`.open-next/worker.js`),
   static assets binding, the self-reference service binding OpenNext needs, plus
-  **two stubbed bindings declared for later phases**:
-  - `AUTH_DB` — a D1 database (`parse-auth`) for the multi-user account system
-    (Phase 2, better-auth). `database_id` is a placeholder.
+  **two bindings, LIVE as of Phase 2**:
+  - `DB` — a D1 database (`parse-auth`) for the multi-user account system
+    (Phase 2, better-auth). `database_id` is a placeholder until you create it.
   - `USER_DATA` — a Durable Object (`UserDataObject`) for per-user data
-    (Phase 1/2, `DoRepo`). **The DO class is not implemented yet.**
+    (Phase 2, one DO per user). Implemented in `worker.ts` →
+    `lib/repo/user-data-object.ts`.
+- `PARSE_DEPLOY_TARGET = "hosted"` in `[vars]` — selects hosted mode at runtime
+  (per-user DOs + better-auth; retires the single-user proxy gate).
 - `next.config.ts` calls `initOpenNextCloudflareForDev()` so the bindings are
   reachable via `getCloudflareContext()` during `next dev` (no-op in production).
 - npm scripts: `cf:build`, `cf:preview`, `cf:deploy`, `cf:typegen`.
@@ -52,43 +55,45 @@ The app serves on `https://parse.<your-subdomain>.workers.dev` after deploy.
 
 ### Before the first real deploy
 
-The stubbed bindings reference resources that don't exist yet. For a clean
-deploy you must either create them or comment them out in `wrangler.toml`:
-
 ```bash
-# Create the D1 auth DB and paste the returned database_id into wrangler.toml
+# 1. Create the D1 auth DB; paste the returned database_id into wrangler.toml.
 npx wrangler d1 create parse-auth
+
+# 2. Apply the better-auth schema to that D1 DB (d1/migrations/0001_better_auth.sql).
+#    Without this, every getSession() throws "no such table: user".
+npx wrangler d1 migrations apply parse-auth --remote
+
+# 3. Provision the auth secrets (NOT stored in wrangler.toml).
+openssl rand -base64 32 | npx wrangler secret put BETTER_AUTH_SECRET
+npx wrangler secret put BETTER_AUTH_URL      # e.g. https://parse.<sub>.workers.dev
+npx wrangler secret put RESEND_API_KEY       # password-reset email
+npx wrangler secret put AUTH_EMAIL_FROM      # From: address
 ```
 
-The `USER_DATA` Durable Object will only deploy once a `UserDataObject` class is
-exported from the Worker (Phase 1/2). Until then, comment out the
-`[[durable_objects.bindings]]` and `[[migrations]]` blocks, or the deploy will
-fail validation.
+`BETTER_AUTH_SECRET` is mandatory — hosted auth (`lib/auth/hosted.ts`) **throws on
+startup** if it's unset rather than fall back to better-auth's public default
+secret (which would make every session/bearer token forgeable). The `USER_DATA`
+Durable Object (`UserDataObject`) is exported from `worker.ts`, so the
+`[[durable_objects.bindings]]` / `[[migrations]]` blocks deploy as-is.
 
-## Known blocker: Node-runtime `proxy.ts` (the auth gate)
+> **Still required before hosted mode actually serves data:** `UserDataObject`
+> loads the native `better-sqlite3` module, which **does not run on workerd**
+> (Phase 3 swaps in a WASM SQLite behind the same `DoBackend` seam). Until then,
+> the build/deploy succeeds and auth works, but per-user data requests fail at
+> runtime. Tracked as Phase 3.
 
-> **The OpenNext build currently fails on this app** with:
-> `ERROR Node.js middleware is not currently supported.`
+## Resolved: Node-runtime `proxy.ts` (the auth gate)
 
-Next 16's `proxy.ts` (the renamed middleware) runs on the **Node runtime** here
-because the auth gate uses `node:crypto` (HMAC) and `node:fs` (reads the
-`auth-secret` file) — see `lib/auth/session.ts`. `@opennextjs/cloudflare`
-(v1.19.x) only supports **Edge-runtime** middleware today; Node `proxy.ts`
-support is in progress upstream (PRs opennextjs/opennextjs-cloudflare#1280 and
-#1275, issue #1277) but **not yet released**.
+Phase 0 hit `ERROR Node.js middleware is not currently supported` because Next
+16's `proxy.ts` (the renamed middleware) ran on the **Node runtime** (the
+single-user gate uses `node:crypto` HMAC + `node:fs` for the `auth-secret` file)
+and `@opennextjs/cloudflare` only supports Edge-runtime middleware.
 
-This is expected and does **not** indicate a config problem — the rest of the
-OpenNext pipeline builds cleanly and produces a working `.open-next/worker.js`
-(verified locally by building with the proxy temporarily removed). Resolved by
-one of (in plan order):
-
-1. **Phase 2 retires the proxy gate in hosted mode** anyway (better-auth on D1
-   replaces the single-user scrypt + HMAC-cookie gate). At that point the auth
-   check moves out of Node middleware.
-2. Upgrade `@opennextjs/cloudflare` once the Node-`proxy.ts` PRs ship.
-3. (If neither is ready) port `proxy.ts` to the Edge runtime: swap `node:crypto`
-   for Web Crypto (async HMAC) and source the secret from an env var / KV
-   instead of the filesystem. Out of scope for Phase 0 (config-only).
+**Phase 2 resolves this** as planned: in hosted mode (`PARSE_DEPLOY_TARGET=hosted`)
+`proxy.ts` short-circuits to `NextResponse.next()` — auth is now per-request via
+better-auth and the API routes self-gate (401), so there is no Node middleware to
+bundle. The self-hosted gate is unchanged and only runs in self-host mode (which
+doesn't deploy to Workers).
 
 ## Demo DB note
 

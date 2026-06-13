@@ -156,7 +156,7 @@ let userIdB = "";
 before(async () => {
   const db = new Database(":memory:");
   db.exec(
-    fs.readFileSync(path.join(process.cwd(), "lib/db/migrations/006_better_auth.sql"), "utf-8")
+    fs.readFileSync(path.join(process.cwd(), "d1/migrations/0001_better_auth.sql"), "utf-8")
   );
   auth = createHostedAuth(makeD1Shim(db));
 
