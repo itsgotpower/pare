@@ -122,7 +122,14 @@ function parseNamedParams(sql: string): { rewritten: string; names: string[] } {
 // caller passed: NAMED → pull from the object in placeholder order; POSITIONAL →
 // use the args as-is.
 function bindingsFor(names: string[], args: unknown[]): SqlValue[] {
-  if (names.length > 0 && isNamedParams(args)) {
+  // A single plain object is ALWAYS the named-params convention — independent of
+  // how many placeholders the query has. When the query has zero placeholders
+  // (names is empty), this correctly binds NOTHING: e.g. lib/db calls
+  // `db.prepare("SELECT COUNT(*) FROM v_transactions <where>").get(params)` where,
+  // with no filters, <where> is empty and params is `{}`. The old `names.length > 0`
+  // guard fell through to the positional branch and bound the object itself as one
+  // value → "Wrong number of parameter bindings" on every unfiltered list().
+  if (isNamedParams(args)) {
     const obj = args[0];
     return names.map((n) => {
       const v = obj[n];

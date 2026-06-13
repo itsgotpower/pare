@@ -241,6 +241,13 @@ describe("DoSqlBackend over real ctx.storage.sql (workerd)", () => {
       expect(total).toBe(2);
       expect(rows.every((r) => r.source === "amex")).toBe(true);
 
+      // Regression: UNFILTERED list() — the COUNT query has ZERO placeholders but is
+      // still called with an (empty) params object. The adapter must bind nothing,
+      // not the object itself ("Wrong number of parameter bindings").
+      const allTxns = await repo.transactions.list();
+      expect(allTxns.total).toBe(3);
+      expect(allTxns.rows.length).toBe(3);
+
       // override write (FK to transactions) + view reflects it.
       const target = rows[0];
       await repo.categories.addOverride(target.id, target.category, "Coffee");
