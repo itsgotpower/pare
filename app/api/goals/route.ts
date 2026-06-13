@@ -1,16 +1,18 @@
 import { NextRequest } from "next/server";
-import { listGoals, upsertGoal, deleteGoal, getCurrentProgress } from "@/lib/db/goals";
-import { getCategories } from "@/lib/db/transactions";
-import { seedCategoryRules } from "@/lib/db/categories";
+import { getRepo } from "@/lib/repo";
 import { getDb } from "@/lib/db";
 
 export async function GET() {
-  seedCategoryRules();
+  const repo = getRepo();
+  await repo.categories.seed();
 
-  const goals = listGoals();
-  const progress = getCurrentProgress();
-  const categories = getCategories();
+  const goals = await repo.goals.list();
+  const progress = await repo.goals.currentProgress();
+  const categories = await repo.transactions.categories();
 
+  // Route-local aggregate (suggested limits from 6-mo averages) — not part of the
+  // Repo surface; runs on the same connection the Repo opened above. Fold into the
+  // Repo when the encrypted/DO backend lands (Phase 2-3).
   const db = getDb();
   const averages = db
     .prepare(
@@ -31,14 +33,15 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
-  seedCategoryRules();
+  const repo = getRepo();
+  await repo.categories.seed();
   const body = await request.json();
 
   if (!body.category || !body.monthly_limit) {
     return Response.json({ error: "category and monthly_limit required" }, { status: 400 });
   }
 
-  upsertGoal(body.category, body.monthly_limit);
+  await repo.goals.upsert(body.category, body.monthly_limit);
   return Response.json({ success: true });
 }
 
@@ -47,6 +50,6 @@ export async function DELETE(request: NextRequest) {
   const id = searchParams.get("id");
   if (!id) return Response.json({ error: "id required" }, { status: 400 });
 
-  deleteGoal(parseInt(id));
+  await getRepo().goals.delete(parseInt(id));
   return Response.json({ success: true });
 }
