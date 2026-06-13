@@ -1,94 +1,85 @@
 import { NextRequest } from "next/server";
-import { getMonthlyTotals, getCategoryBreakdown, getTrends, getTopMerchants } from "@/lib/db/summary";
-import { getCurrentProgress } from "@/lib/db/goals";
-import { getMonthlyIncome, getIncomeByType, getIncomeVsSpend } from "@/lib/db/income";
-import { getBaseline } from "@/lib/db/baseline";
-import { getCashflow } from "@/lib/db/cashflow";
-import { getDailySpend } from "@/lib/db/heatmap";
-import { getForecast } from "@/lib/db/forecast";
-import { getInsights } from "@/lib/db/insights";
-import { getNetWorth } from "@/lib/db/networth";
-import { getCashflowForecast } from "@/lib/db/cashflowForecast";
-import { seedCategoryRules } from "@/lib/db/categories";
+import { getRepo } from "@/lib/repo";
 
 export async function GET(request: NextRequest) {
-  seedCategoryRules();
+  const repo = getRepo();
+  await repo.categories.seed();
 
   const params = request.nextUrl.searchParams;
   const type = params.get("type") || "all";
   const month = params.get("month") || undefined;
 
   if (type === "monthly_totals") {
-    return Response.json(getMonthlyTotals());
+    return Response.json(await repo.summary.monthlyTotals());
   }
 
   if (type === "category_breakdown") {
-    return Response.json(getCategoryBreakdown(month));
+    return Response.json(await repo.summary.categoryBreakdown(month));
   }
 
   if (type === "trends") {
-    return Response.json(getTrends());
+    return Response.json(await repo.summary.trends());
   }
 
   if (type === "top_merchants") {
     const category = params.get("category") || undefined;
-    return Response.json(getTopMerchants(10, month, category));
+    return Response.json(await repo.summary.topMerchants(10, month, category));
   }
 
   if (type === "goals") {
-    return Response.json(getCurrentProgress());
+    return Response.json(await repo.goals.currentProgress());
   }
 
   if (type === "income") {
     return Response.json({
-      monthly_income: getMonthlyIncome(),
-      income_by_type: getIncomeByType(),
-      income_vs_spend: getIncomeVsSpend(),
+      monthly_income: await repo.income.monthly(),
+      income_by_type: await repo.income.byType(),
+      income_vs_spend: await repo.income.vsSpend(),
     });
   }
 
   if (type === "baseline") {
     const threshold = params.get("threshold") ? parseInt(params.get("threshold")!) : 300;
-    return Response.json(getBaseline(threshold));
+    return Response.json(await repo.baseline.get(threshold));
   }
 
   if (type === "insights") {
-    return Response.json(getInsights());
+    return Response.json(await repo.insights.get());
   }
 
   if (type === "cashflow") {
-    return Response.json(getCashflow(month));
+    return Response.json(await repo.cashflow.get(month));
   }
 
   if (type === "forecast") {
-    return Response.json(getForecast());
+    return Response.json(await repo.forecast.get());
   }
 
   if (type === "heatmap") {
-    return Response.json(getDailySpend());
+    return Response.json(await repo.heatmap.dailySpend());
   }
 
   if (type === "net_worth") {
-    return Response.json(getNetWorth());
+    return Response.json(await repo.netWorth.get());
   }
 
   if (type === "cashflow_forecast") {
-    return Response.json(getCashflowForecast());
+    return Response.json(await repo.cashflowForecast.get());
   }
 
   return Response.json({
-    monthly_totals: getMonthlyTotals(),
-    category_breakdown: getCategoryBreakdown(month),
-    trends: getTrends(),
-    top_merchants: getTopMerchants(10, month),
-    goals: getCurrentProgress(),
-    income_by_type: getIncomeByType(),
-    income_vs_spend: getIncomeVsSpend(),
-    insights: getInsights(),
-    cashflow: getCashflow(),
-    forecast: getForecast(),
-    daily_spend: getDailySpend(),
-    net_worth: getNetWorth(),
-    cashflow_forecast: getCashflowForecast(),
+    monthly_totals: await repo.summary.monthlyTotals(),
+    category_breakdown: await repo.summary.categoryBreakdown(month),
+    trends: await repo.summary.trends(),
+    top_merchants: await repo.summary.topMerchants(10, month),
+    goals: await repo.goals.currentProgress(),
+    income_by_type: await repo.income.byType(),
+    income_vs_spend: await repo.income.vsSpend(),
+    insights: await repo.insights.get(),
+    cashflow: await repo.cashflow.get(),
+    forecast: await repo.forecast.get(),
+    daily_spend: await repo.heatmap.dailySpend(),
+    net_worth: await repo.netWorth.get(),
+    cashflow_forecast: await repo.cashflowForecast.get(),
   });
 }

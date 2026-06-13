@@ -1,11 +1,14 @@
 import { NextRequest } from "next/server";
-import { listRules, addRule, deleteRule, seedCategoryRules, recategorizeAll, recategorizeMatching } from "@/lib/db/categories";
+import { getRepo } from "@/lib/repo";
 import { getDb } from "@/lib/db";
 
 export async function GET() {
-  seedCategoryRules();
-  const rules = listRules();
+  const repo = getRepo();
+  await repo.categories.seed();
+  const rules = await repo.categories.listRules();
 
+  // Route-local queries (uncategorized count + override→rule suggestions) — not
+  // part of the Repo surface; share the connection the Repo opened above.
   const db = getDb();
   const uncategorized = db
     .prepare(
@@ -20,11 +23,12 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
-  seedCategoryRules();
+  const repo = getRepo();
+  await repo.categories.seed();
   const body = await request.json();
 
   if (body.action === "recategorize_all") {
-    const changed = recategorizeAll();
+    const changed = await repo.categories.recategorizeAll();
     return Response.json({ success: true, changed });
   }
 
@@ -33,11 +37,11 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    addRule(body.category, body.keyword);
+    await repo.categories.addRule(body.category, body.keyword);
 
     let changed = 0;
     if (body.apply_existing) {
-      changed = recategorizeMatching(body.keyword, body.category);
+      changed = await repo.categories.recategorizeMatching(body.keyword, body.category);
     }
 
     return Response.json({ success: true, changed });
@@ -52,7 +56,7 @@ export async function DELETE(request: NextRequest) {
   const id = searchParams.get("id");
   if (!id) return Response.json({ error: "id required" }, { status: 400 });
 
-  deleteRule(parseInt(id));
+  await getRepo().categories.deleteRule(parseInt(id));
   return Response.json({ success: true });
 }
 

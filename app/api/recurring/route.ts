@@ -1,7 +1,7 @@
-import { getSubscriptions } from "@/lib/db/subscriptions";
-import { seedCategoryRules } from "@/lib/db/categories";
+import { getRepo } from "@/lib/repo";
 
 export async function GET() {
-  seedCategoryRules();
-  return Response.json(getSubscriptions());
+  const repo = getRepo();
+  await repo.categories.seed();
+  return Response.json(await repo.subscriptions.get());
 }

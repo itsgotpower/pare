@@ -9,8 +9,19 @@ export const DB_PATH = process.env.PARSE_DB_PATH || path.join(process.cwd(), "da
 const DB_DIR = path.dirname(DB_PATH);
 
 let _db: Database.Database | null = null;
+let _override: Database.Database | null = null;
+
+// Lets a DbBackend (e.g. EncryptedBlobBackend) route getDb() — and therefore the
+// delegated lib/db/* query functions — at a connection it owns (a decrypted
+// in-memory DB), instead of the file singleton. Pass null to restore the default.
+// One-connection-at-a-time is correct for the target model (one Durable Object
+// per user); the file singleton path below is unchanged when no override is set.
+export function useConnection(db: Database.Database | null): void {
+  _override = db;
+}
 
 export function getDb(): Database.Database {
+  if (_override) return _override;
   if (_db) return _db;
 
   if (!fs.existsSync(DB_DIR)) {

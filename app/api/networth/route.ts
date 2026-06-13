@@ -1,10 +1,5 @@
 import { NextRequest } from "next/server";
-import {
-  getNetWorth,
-  addManualEntry,
-  updateManualEntry,
-  deleteManualEntry,
-} from "@/lib/db/networth";
+import { getRepo } from "@/lib/repo";
 
 const DATE_RX = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -26,7 +21,7 @@ function validateEntry(body: Record<string, unknown>): string | null {
 }
 
 export async function GET() {
-  return Response.json(getNetWorth());
+  return Response.json(await getRepo().netWorth.get());
 }
 
 export async function POST(request: NextRequest) {
@@ -34,7 +29,7 @@ export async function POST(request: NextRequest) {
   const error = validateEntry(body);
   if (error) return Response.json({ error }, { status: 400 });
 
-  addManualEntry({
+  await getRepo().netWorth.addEntry({
     name: (body.name as string).trim(),
     kind: body.kind,
     amount: Number(body.amount),
@@ -51,7 +46,7 @@ export async function PUT(request: NextRequest) {
   const error = validateEntry(body);
   if (error) return Response.json({ error }, { status: 400 });
 
-  updateManualEntry(id, {
+  await getRepo().netWorth.updateEntry(id, {
     name: (body.name as string).trim(),
     kind: body.kind,
     amount: Number(body.amount),
@@ -65,6 +60,6 @@ export async function DELETE(request: NextRequest) {
   const id = request.nextUrl.searchParams.get("id");
   if (!id) return Response.json({ error: "id required" }, { status: 400 });
 
-  deleteManualEntry(parseInt(id));
+  await getRepo().netWorth.deleteEntry(parseInt(id));
   return Response.json({ success: true });
 }
