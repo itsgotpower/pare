@@ -4,11 +4,13 @@ import path from "path";
 import os from "os";
 import { parsePdf } from "@/lib/parser/run-parser";
 import { computeDedupKey } from "@/lib/db/transactions";
-import { getRepo } from "@/lib/repo";
+import { getScopedRepo, unauthorized } from "@/lib/repo/scoped";
+import type { Repo } from "@/lib/repo";
 
 export async function POST(request: NextRequest) {
   try {
-    const repo = getRepo();
+    const repo = await getScopedRepo(request);
+    if (!repo) return unauthorized();
     await repo.categories.seed();
 
     const formData = await request.formData();
@@ -16,7 +18,7 @@ export async function POST(request: NextRequest) {
     const csvData = formData.get("csv") as string | null;
 
     if (csvData) {
-      return await handleCsvImport(csvData);
+      return await handleCsvImport(repo, csvData);
     }
 
     if (!file) {
@@ -57,17 +59,13 @@ export async function POST(request: NextRequest) {
         closing_date: meta?.closing_date ?? null,
       });
 
-      let inserted = 0;
-      let skipped = 0;
       const seqMap = new Map<string, number>();
-
-      for (const row of rows) {
+      const newTxns = rows.map((row) => {
         const seqKey = `${row.source}|${row.txn_date}|${row.description}|${row.amount}`;
         const seq = (seqMap.get(seqKey) || 0) + 1;
         seqMap.set(seqKey, seq);
 
-        const dedupKey = computeDedupKey(row.source, row.txn_date, row.description, row.amount, seq);
-        const didInsert = await repo.transactions.insert({
+        return {
           statement_id: statementId || null,
           source: row.source,
           account: row.account,
@@ -77,16 +75,26 @@ export async function POST(request: NextRequest) {
           amount: row.amount,
           category: row.category,
           flow: row.flow,
-          dedup_key: dedupKey,
-        });
+          dedup_key: computeDedupKey(row.source, row.txn_date, row.description, row.amount, seq),
+        };
+      });
 
-        if (didInsert) inserted++;
-        else skipped++;
-      }
-
-      // The shipped parser taxonomy is generic; apply the DB's full rule set
-      // (incl. the gitignored personal taxonomy) so uploads categorize correctly.
-      if (inserted > 0) await repo.categories.recategorizeAll();
+      // One write boundary: insert every row, then recategorize once. On the
+      // encrypted/DO backend this serialises+encrypts a single time instead of
+      // per row. The recategorize applies the DB's full rule set (incl. the
+      // gitignored personal taxonomy) since the parser taxonomy is generic.
+      const { inserted, skipped } = await repo.batch(async () => {
+        const result = await repo.transactions.insertMany(newTxns);
+        // Recategorize unconditionally. On the DO backend, writes inside batch()
+        // are buffered and return a placeholder (the real result only exists once
+        // the batch is shipped), so we CANNOT branch on result.inserted here — the
+        // old `if (result.inserted > 0)` dereferenced undefined and 500'd every
+        // hosted upload. recategorizeAll() is idempotent and cheap, so running it
+        // every time is correct. The batch's return value (insertMany's real
+        // result, returnIndex 0) supplies the counts on both backends.
+        await repo.categories.recategorizeAll();
+        return result;
+      });
 
       return Response.json({ inserted, skipped, total: rows.length, filename: file.name });
     } finally {
@@ -100,16 +108,13 @@ export async function POST(request: NextRequest) {
 
 // Dormant: the CSV-import UI/route were removed (PDFs only — see CLAUDE.md "Data
 // provenance"); nothing triggers this branch. Kept (and migrated) for parity.
-async function handleCsvImport(csvData: string) {
-  const repo = getRepo();
+async function handleCsvImport(repo: Repo, csvData: string) {
   await repo.categories.seed();
 
   const lines = csvData.replace(/\r/g, "").trim().split("\n");
   const header = lines[0];
   const hasDateCol = header.includes("txn_date");
 
-  let inserted = 0;
-  let skipped = 0;
   const seqMap = new Map<string, number>();
 
   const statementId = await repo.statements.insert({
@@ -119,6 +124,8 @@ async function handleCsvImport(csvData: string) {
     period: "imported",
     row_count: lines.length - 1,
   });
+
+  const newTxns: Parameters<typeof repo.transactions.insertMany>[0] = [];
 
   for (let i = 1; i < lines.length; i++) {
     const parts = parseCSVLine(lines[i]);
@@ -144,8 +151,7 @@ async function handleCsvImport(csvData: string) {
     const seq = (seqMap.get(seqKey) || 0) + 1;
     seqMap.set(seqKey, seq);
 
-    const dedupKey = computeDedupKey(source, txnDate, description, amount, seq);
-    const didInsert = await repo.transactions.insert({
+    newTxns.push({
       statement_id: statementId || null,
       source, account, period,
       txn_date: txnDate,
@@ -153,12 +159,11 @@ async function handleCsvImport(csvData: string) {
       amount,
       category,
       flow,
-      dedup_key: dedupKey,
+      dedup_key: computeDedupKey(source, txnDate, description, amount, seq),
     });
-
-    if (didInsert) inserted++;
-    else skipped++;
   }
+
+  const { inserted, skipped } = await repo.transactions.insertMany(newTxns);
 
   return Response.json({ inserted, skipped, total: lines.length - 1, filename: "csv-import" });
 }

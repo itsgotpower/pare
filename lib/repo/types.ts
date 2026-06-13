@@ -97,15 +97,42 @@ export interface ManualEntryInput {
 
 // --- Per-module namespaces -------------------------------------------------
 
+// Result of a batched insert: how many rows were newly written vs. skipped as
+// duplicates (INSERT OR IGNORE on the dedup_key).
+export interface InsertManyResult {
+  inserted: number;
+  skipped: number;
+}
+
+// One row's current category — used by the override route to record the
+// before-value when a manual override is applied.
+export interface TransactionCategory {
+  category: string;
+}
+
 export interface TransactionRepo {
   insert(tx: NewTransaction): Promise<boolean>;
+  // Insert many rows under a SINGLE DB transaction (one persist on backends that
+  // serialise+encrypt on every write — avoids the O(n^2) per-row flush). Returns
+  // newly-inserted vs. skipped-as-duplicate counts.
+  insertMany(txs: NewTransaction[]): Promise<InsertManyResult>;
   list(filters?: TransactionFilters): Promise<{ rows: TransactionRow[]; total: number }>;
   categories(): Promise<string[]>;
+  // The current stored category for one row, or null if it doesn't exist.
+  categoryOf(id: number): Promise<TransactionCategory | null>;
 }
 
 export interface StatementRepo {
   insert(stmt: NewStatement): Promise<number>;
   list(): Promise<StatementRow[]>;
+}
+
+// A keyword→category rule suggestion mined from manual overrides, plus how many
+// existing rows the keyword would (re)tag.
+export interface RuleSuggestion {
+  keyword: string;
+  category: string;
+  count: number;
 }
 
 export interface CategoryRepo {
@@ -117,6 +144,17 @@ export interface CategoryRepo {
   removeOverride(transactionId: number): Promise<void>;
   recategorizeMatching(keyword: string, category: string): Promise<number>;
   recategorizeAll(): Promise<number>;
+  // Count of card-spend rows still in 'Other / uncategorized'.
+  uncategorizedCount(): Promise<number>;
+  // Rule suggestions derived from recorded manual overrides.
+  ruleSuggestions(): Promise<RuleSuggestion[]>;
+}
+
+// A category's average monthly card spend over the data window — the basis for
+// suggested goal limits.
+export interface CategoryAverage {
+  category: string;
+  avg_monthly: number;
 }
 
 export interface GoalRepo {
@@ -124,6 +162,8 @@ export interface GoalRepo {
   upsert(category: string, monthlyLimit: number): Promise<void>;
   delete(id: number): Promise<void>;
   currentProgress(): Promise<GoalProgress[]>;
+  // Per-category average monthly card spend (suggested-limit source).
+  categoryAverages(): Promise<CategoryAverage[]>;
 }
 
 export interface NetWorthRepo {
@@ -203,4 +243,11 @@ export interface Repo {
   heatmap: HeatmapRepo;
   profile: ProfileRepo;
   waitlist: WaitlistRepo;
+
+  // Group several writes into ONE durability boundary. Every write issued by `fn`
+  // runs against the open connection, and the backend persists exactly once after
+  // `fn` resolves (instead of once per write). On the file backend persist() is a
+  // no-op so this is purely a batching hint; on the encrypted/DO backend it turns
+  // an upload's per-row serialise+encrypt (O(n^2)) into a single flush.
+  batch<T>(fn: () => Promise<T>): Promise<T>;
 }

@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { cookies } from "next/headers";
-import { getRepo } from "@/lib/repo";
+import { getScopedRepo } from "@/lib/repo/scoped";
+import { isHostedMode } from "@/lib/auth/resolve";
 import {
   createSessionToken,
   verifySessionToken,
@@ -28,7 +29,19 @@ async function isAuthenticated(): Promise<boolean> {
   return verifySessionToken(store.get(SESSION_COOKIE)?.value);
 }
 
-export async function GET() {
+// This is the SELF-HOSTED single-user gate (scrypt + HMAC cookie, better-sqlite3,
+// node:fs secret). In hosted mode it must NOT run — it would 500 on Workers
+// (better-sqlite3 can't load) and mixes auth domains with better-auth. Hosted auth
+// lives at /api/auth/[...all]; this exact path returns 404 there.
+function hostedDisabled(): Response {
+  return Response.json(
+    { error: "Not found (hosted mode uses /api/auth/* via better-auth)" },
+    { status: 404 }
+  );
+}
+
+export async function GET(request: NextRequest) {
+  if (isHostedMode()) return hostedDisabled();
   const configured = isConfigured();
   const authenticated = configured && (await isAuthenticated());
 
@@ -36,15 +49,20 @@ export async function GET() {
     return Response.json({ configured, authenticated: false });
   }
 
+  // Self-hosted single-user profile + data-health. getScopedRepo returns the
+  // file-backed repo here (this GET runs behind the self-hosted gate); in hosted
+  // mode the dashboard reads health via the per-user routes instead.
+  const repo = await getScopedRepo(request);
   const user = getUser()!;
   return Response.json({
     configured: true,
     authenticated: true,
-    profile: { ...user, health: await getRepo().profile.dataHealth() },
+    profile: { ...user, health: repo ? await repo.profile.dataHealth() : null },
   });
 }
 
 export async function POST(request: NextRequest) {
+  if (isHostedMode()) return hostedDisabled();
   const body = await request.json().catch(() => ({}));
   const store = await cookies();
 

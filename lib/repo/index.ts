@@ -1,18 +1,92 @@
 import { FileBackend } from "./file-backend";
 import { SqliteRepo } from "./sqlite-repo";
+import { DoRepoClient } from "./do-repo-client";
+import { callRepoMethod, type AnyRepoCall } from "./repo-rpc";
+import { isHostedMode } from "../auth/resolve";
 import type { Repo } from "./types";
 
 export * from "./types";
 
-// The process-wide Repo for local/self-host + MCP, backed by the better-sqlite3
-// file singleton. Routes and the MCP server consume the app's persistence through
-// this factory: `import { getRepo } from "lib/repo"`.
+// ---------------------------------------------------------------------------
+// getRepo — the persistence factory, now auth-scoped.
 //
-// Phase 2 replaces this with an auth-scoped, per-user factory (one Durable Object
-// per user) — the Repo contract stays the same, so call sites don't change.
-let _repo: Repo | null = null;
+// Two deploy targets, selected by PARSE_DEPLOY_TARGET (lib/auth/resolve.ts):
+//
+//   self-hosted / local / MCP  ->  one process-wide SqliteRepo over the
+//       better-sqlite3 file singleton. There is exactly one account, so there's
+//       nothing to scope; `getRepo()` (no args) returns it. `npm run mcp` and
+//       local dev are unchanged.
+//
+//   hosted  ->  one Durable Object per user. `getRepoForUser(userId)` derives the
+//       user's DO from their id (USER_DATA.idFromName(userId)) and returns a
+//       DoRepoClient that forwards every Repo call to THAT DO. Isolation is by
+//       construction: distinct userId -> distinct DO -> distinct SQLite DB, with
+//       no query that can cross between them.
+//
+// Routes don't call these directly — they call getScopedRepo(request, auth),
+// which resolves the caller via resolveUser() and hands back their Repo (or null,
+// which the route turns into 401 in hosted mode).
+// ---------------------------------------------------------------------------
+
+// The process-wide file-backed Repo for local/self-host + MCP.
+let _localRepo: Repo | null = null;
 
 export function getRepo(): Repo {
-  if (!_repo) _repo = new SqliteRepo(new FileBackend());
-  return _repo;
+  if (!_localRepo) _localRepo = new SqliteRepo(new FileBackend());
+  return _localRepo;
+}
+
+// Resolve the USER_DATA Durable Object namespace binding for the current request
+// (Workers only). Imported lazily so the package is absent in plain Node/dev.
+async function getUserDataNamespace(): Promise<DoNamespaceLike | null> {
+  try {
+    const mod = await import("@opennextjs/cloudflare");
+    const ctx = await mod.getCloudflareContext({ async: true });
+    const ns = (ctx?.env as Record<string, unknown> | undefined)?.USER_DATA;
+    return (ns as DoNamespaceLike | undefined) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+// Minimal slice of DurableObjectNamespace / stub we use — declared structurally so
+// this file needs no @cloudflare/workers-types and tests can inject a stand-in.
+export interface DoStubLike {
+  call(req: AnyRepoCall): Promise<unknown>;
+}
+export interface DoNamespaceLike {
+  idFromName(name: string): unknown;
+  get(id: unknown): DoStubLike;
+}
+
+// Build a Repo scoped to one user's Durable Object. The DO id is derived
+// deterministically from the userId, so the same user always routes to the same
+// DO (their database), and different users can NEVER share one.
+export function repoOverDoStub(stub: DoStubLike): Repo {
+  return new DoRepoClient((call) => stub.call(call));
+}
+
+export async function getRepoForUser(userId: string): Promise<Repo> {
+  const ns = await getUserDataNamespace();
+  if (!ns) {
+    throw new Error(
+      "getRepoForUser: USER_DATA Durable Object binding unavailable (hosted mode requires the Workers runtime)"
+    );
+  }
+  const id = ns.idFromName(userId);
+  return repoOverDoStub(ns.get(id));
+}
+
+// In-process scoped repo used by tests (and any non-Worker hosted-mode harness):
+// each userId gets its OWN SqliteRepo/backend, dispatched through the SAME
+// repo-rpc envelope the real DO uses — so the test exercises the production
+// routing contract, just without a Worker. `backendFor(userId)` supplies a fresh
+// per-user backend (e.g. DoBackend over a per-user MemoryDurableStore).
+export function inProcessRepoForUser(perUserRepo: Repo): Repo {
+  return new DoRepoClient((call) => callRepoMethod(perUserRepo, call));
+}
+
+// Whether the per-request scoped path is active (hosted target).
+export function isScopedMode(): boolean {
+  return isHostedMode();
 }
