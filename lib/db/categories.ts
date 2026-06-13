@@ -90,6 +90,94 @@ export function deleteRule(id: number): void {
   if (row) removeUserRule(row.keyword);
 }
 
+// Count of card-spend rows still in the catch-all category.
+export function uncategorizedCount(): number {
+  const db = getDb();
+  const row = db
+    .prepare(
+      `SELECT COUNT(*) as count FROM v_transactions
+       WHERE effective_category = 'Other / uncategorized' AND flow = 'spend'`
+    )
+    .get() as { count: number };
+  return row.count;
+}
+
+export interface RuleSuggestion {
+  keyword: string;
+  category: string;
+  count: number;
+}
+
+/**
+ * Mine keyword→category rule suggestions from recorded manual overrides: for each
+ * override category with ≥2 examples, take the longest common substring of the
+ * overridden descriptions and count how many other rows it would (re)tag.
+ */
+export function ruleSuggestions(): RuleSuggestion[] {
+  const db = getDb();
+  const overrides = db
+    .prepare(
+      `SELECT co.new_category, t.description
+       FROM category_overrides co
+       JOIN transactions t ON t.id = co.transaction_id`
+    )
+    .all() as { new_category: string; description: string }[];
+
+  if (overrides.length < 2) return [];
+
+  const byCategory = new Map<string, string[]>();
+  for (const o of overrides) {
+    const descs = byCategory.get(o.new_category) || [];
+    descs.push(o.description.toUpperCase());
+    byCategory.set(o.new_category, descs);
+  }
+
+  const suggestions: RuleSuggestion[] = [];
+
+  for (const [category, descriptions] of byCategory) {
+    if (descriptions.length < 2) continue;
+
+    const common = longestCommonSubstring(descriptions);
+    if (common.length < 3) continue;
+
+    const matchCount = (
+      db
+        .prepare(
+          `SELECT COUNT(*) as count FROM transactions
+           WHERE UPPER(description) LIKE '%' || ? || '%'
+             AND category != ?`
+        )
+        .get(common, category) as { count: number }
+    ).count;
+
+    if (matchCount > 0) {
+      suggestions.push({ keyword: common, category, count: matchCount });
+    }
+  }
+
+  return suggestions;
+}
+
+function longestCommonSubstring(strings: string[]): string {
+  if (strings.length === 0) return "";
+  if (strings.length === 1) return strings[0];
+
+  let best = "";
+  const first = strings[0];
+
+  for (let i = 0; i < first.length; i++) {
+    for (let len = first.length - i; len > best.length; len--) {
+      const candidate = first.substring(i, i + len).trim();
+      if (candidate.length <= best.length) continue;
+      if (strings.every((s) => s.includes(candidate))) {
+        best = candidate;
+      }
+    }
+  }
+
+  return best;
+}
+
 export function addOverride(transactionId: number, originalCategory: string, newCategory: string): void {
   const db = getDb();
   db.prepare(

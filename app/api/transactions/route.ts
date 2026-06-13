@@ -1,8 +1,9 @@
 import { NextRequest } from "next/server";
-import { getRepo } from "@/lib/repo";
+import { getScopedRepo, unauthorized } from "@/lib/repo/scoped";
 
 export async function GET(request: NextRequest) {
-  const repo = getRepo();
+  const repo = await getScopedRepo(request);
+  if (!repo) return unauthorized();
   await repo.categories.seed();
 
   const params = request.nextUrl.searchParams;

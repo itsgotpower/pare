@@ -1,8 +1,10 @@
 import { NextRequest } from "next/server";
-import { getRepo } from "@/lib/repo";
-import { getDb } from "@/lib/db";
+import { getScopedRepo, unauthorized } from "@/lib/repo/scoped";
 
 export async function POST(request: NextRequest) {
+  const repo = await getScopedRepo(request);
+  if (!repo) return unauthorized();
+
   const body = await request.json();
   const transactionId = Number(body.transaction_id);
   const newCategory = typeof body.new_category === "string" ? body.new_category.trim() : "";
@@ -14,26 +16,23 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Route-local lookup of the current category — not on the Repo surface; folds
-  // into the Repo with the encrypted/DO backend (Phase 2-3).
-  const db = getDb();
-  const tx = db
-    .prepare("SELECT category FROM transactions WHERE id = ?")
-    .get(transactionId) as { category: string } | undefined;
+  const tx = await repo.transactions.categoryOf(transactionId);
   if (!tx) {
     return Response.json({ error: "transaction not found" }, { status: 404 });
   }
 
-  await getRepo().categories.addOverride(transactionId, tx.category, newCategory);
+  await repo.categories.addOverride(transactionId, tx.category, newCategory);
   return Response.json({ success: true });
 }
 
 export async function DELETE(request: NextRequest) {
+  const repo = await getScopedRepo(request);
+  if (!repo) return unauthorized();
   const id = request.nextUrl.searchParams.get("transaction_id");
   if (!id) {
     return Response.json({ error: "transaction_id required" }, { status: 400 });
   }
 
-  await getRepo().categories.removeOverride(parseInt(id));
+  await repo.categories.removeOverride(parseInt(id));
   return Response.json({ success: true });
 }
