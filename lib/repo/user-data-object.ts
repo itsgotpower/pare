@@ -5,32 +5,36 @@
 // is BY CONSTRUCTION: there is no query that can reach another user's DO. This is
 // the literal backing for the product's "your own database" claim.
 //
-// Internally the DO owns a SqliteRepo over a DoBackend over a DurableObjectStore
-// (its own ctx.storage). DoBackend loads the whole-DB blob into an in-memory
-// connection, runs MIGRATIONS at first access, and serialises back on persist().
-// Every Repo method is exposed as an RPC method (callable on the DO stub from the
-// Worker); DoRepoClient (lib/repo/do-repo-client.ts) is the request-side proxy
-// that forwards each Repo call to these methods.
+// Internally the DO owns a SqliteRepo over a DoSqlBackend (lib/repo/do-sql-backend.ts)
+// over the DO's NATIVE SQLite storage (ctx.storage.sql). DoSqlBackend builds a
+// better-sqlite3-shaped adapter (lib/repo/do-sql-adapter.ts) so the unchanged,
+// synchronous lib/db/*.ts query layer runs directly on DO SQLite — no native
+// better-sqlite3 module (which can't load on workerd) and no whole-DB blob. It runs
+// MIGRATIONS at first access; writes go straight to DO storage, so persist() is a
+// no-op. Every Repo method is exposed via the `call` RPC entry point; DoRepoClient
+// (lib/repo/do-repo-client.ts) is the request-side proxy that forwards each Repo
+// call to it.
 //
-// NOTE on the runtime split: better-sqlite3 is a native module. The DoBackend +
-// SqliteRepo path runs in Node (where this DO is exercised by the in-process /
-// miniflare-storage tests). The DurableObjectStore chunked-storage layout — the
-// part that must run in the Workers runtime — is proven against real DO storage
-// under miniflare (see do-backend.test.ts Part 2). A production Workers build
-// swaps better-sqlite3 for a WASM SQLite behind the same DoBackend seam; that is
-// out of scope for this convergence step, which wires the tenancy + routing.
+// The live data path is proven against a REAL ctx.storage.sql inside workerd by
+// lib/repo/do-sql-backend.workers-spec.ts (@cloudflare/vitest-pool-workers): full
+// schema incl. the v_transactions VIEW, FK enforcement, the named-param adapter
+// round-trip, and the Repo namespace methods over DoSqlBackend. The earlier
+// blob-based DoBackend + DurableObjectStore (do-backend.ts / do-store.ts) remain in
+// tree for the Node-backed tests and the encrypted self-host blob seam, but are no
+// longer on the hosted DO path.
 
 import { SqliteRepo } from "./sqlite-repo";
-import { DoBackend } from "./do-backend";
-import { DurableObjectStore, type DurableStorageLike } from "./do-store";
+import { DoSqlBackend } from "./do-sql-backend";
+import type { DoStorageWithSql } from "./do-sql-adapter";
 import type { Repo } from "./types";
 import { REPO_METHODS, type RepoMethodCall, callRepoMethod } from "./repo-rpc";
 
-// The slice of a Durable Object's `ctx`/`state` we use: just its storage. Declared
-// structurally so this module needs no @cloudflare/workers-types and tests can
-// pass a stand-in (the same MemoryDurableStore-style fake the storage layer uses).
+// The slice of a Durable Object's `ctx`/`state` we use: its storage, which must
+// expose the NATIVE SQLite API (`storage.sql` + `transactionSync`). Declared
+// structurally (DoStorageWithSql) so this module needs no @cloudflare/workers-types
+// and tests can pass a stand-in over a real (miniflare) ctx.storage.sql.
 export interface DurableObjectCtxLike {
-  storage: DurableStorageLike;
+  storage: DoStorageWithSql;
   // blockConcurrencyWhile serialises against the DO's input gate; optional so a
   // plain test ctx without it still works (calls run directly).
   blockConcurrencyWhile?<T>(fn: () => Promise<T>): Promise<T>;
@@ -47,9 +51,11 @@ export class UserDataObject {
   private repo: Repo;
 
   constructor(ctx: DurableObjectCtxLike, _env?: unknown) {
-    // One SqliteRepo over this DO's own storage. The DoBackend opens/migrates the
-    // user's DB lazily on first Repo call and persists back to ctx.storage.
-    this.repo = new SqliteRepo(new DoBackend(new DurableObjectStore(ctx.storage)));
+    // One SqliteRepo over this DO's NATIVE SQLite storage. DoSqlBackend builds a
+    // better-sqlite3-shaped adapter over ctx.storage.sql, runs migrations lazily on
+    // first Repo call, and routes the unchanged lib/db/* query layer at it. Writes
+    // go straight to DO storage (persist() is a no-op — no blob serialisation).
+    this.repo = new SqliteRepo(new DoSqlBackend(ctx.storage));
   }
 
   // Single RPC entry point: the Worker-side DoRepoClient sends a {namespace,
