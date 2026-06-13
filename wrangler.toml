@@ -1,0 +1,44 @@
+# Cloudflare Workers config for Parse (hosted pivot — Phase 0 scaffolding).
+#
+# Deploys the CURRENT single-user Next.js app to Workers via @opennextjs/cloudflare,
+# unchanged, against the demo DB. The build emits .open-next/worker.js (the Worker
+# entrypoint) and .open-next/assets (static assets), referenced below.
+#
+# The D1 and Durable Object bindings are DECLARED but UNUSED — later sessions wire
+# the auth DB (D1) and per-user data layer (Durable Object) to them. See
+# hosted-product-plan.md (Phases 1–2). Stubbing them now keeps the binding names
+# stable so app code can reference `env.AUTH_DB` / `env.USER_DATA` once implemented.
+
+name = "parse"
+main = ".open-next/worker.js"
+compatibility_date = "2024-12-30"
+compatibility_flags = ["nodejs_compat", "global_fetch_strictly_public"]
+
+# Static assets emitted by the OpenNext build.
+[assets]
+directory = ".open-next/assets"
+binding = "ASSETS"
+
+# OpenNext needs a self-reference service binding for cache revalidation / RSC.
+[[services]]
+binding = "WORKER_SELF_REFERENCE"
+service = "parse"
+
+# --- Stubbed bindings (declared now, wired in later phases) ---
+
+# Auth database (D1) — accounts/sessions for multi-user mode (Phase 2, better-auth).
+# Replace database_id with the real id from `wrangler d1 create parse-auth`.
+[[d1_databases]]
+binding = "AUTH_DB"
+database_name = "parse-auth"
+database_id = "00000000-0000-0000-0000-000000000000"
+
+# Per-user data store (Durable Object, SQLite-backed) — one DO per user (Phase 1/2,
+# DoRepo). The class is not implemented yet; the migration tag reserves the name.
+[[durable_objects.bindings]]
+name = "USER_DATA"
+class_name = "UserDataObject"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["UserDataObject"]
