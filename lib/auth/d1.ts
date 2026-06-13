@@ -13,22 +13,23 @@ import type { D1Like } from "./hosted";
 // real D1 binding.
 
 export async function getD1(): Promise<D1Like> {
-  // Try the Workers binding first.
-  try {
-    const mod = await import("@opennextjs/cloudflare");
-    const ctx = await mod.getCloudflareContext({ async: true });
-    // `DB` is wired via wrangler.toml on the Cloudflare target; the generated
-    // CloudflareEnv type isn't checked into source, so read it untyped.
-    const db = (ctx?.env as Record<string, unknown> | undefined)?.DB;
-    if (db) return db as D1Like;
-  } catch {
-    // Not on Workers (or package absent) — fall through to the local shim.
-  }
+  // Try the Workers binding first via the shared getBinding helper. `DB` is wired
+  // via wrangler.toml on the Cloudflare target; the generated CloudflareEnv type
+  // isn't checked into source, so it's resolved untyped. When unavailable (not on
+  // Workers, package absent, or binding unwired) we fall through to the local shim.
+  const { getBinding } = await import("@/lib/cf-bindings");
+  const binding = await getBinding<D1Like>("DB");
+  if (binding) return binding;
 
   const { getDb } = await import("@/lib/db");
   const db = getDb();
   await ensureShimAuthSchema(db);
-  return makeD1Shim(db) as D1Like;
+  // The shim is a deliberately PARTIAL D1Database surface (only what kysely-d1's
+  // D1Dialect calls — prepare/bind/all/run/first/batch/exec). Now that
+  // @cloudflare/workers-types resolves the full D1Database interface (it's a
+  // devDep for the workers-spec typecheck gate), cast through `unknown`: the shim
+  // intentionally omits methods like withSession that the auth path never uses.
+  return makeD1Shim(db) as unknown as D1Like;
 }
 
 // Local hosted-dev only: the shim wraps the app's better-sqlite3 file DB, whose

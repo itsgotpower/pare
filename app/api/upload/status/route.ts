@@ -14,8 +14,14 @@ import { unauthorized } from "@/lib/repo/scoped";
 //   Record shape (lib/queue/job-store.ts ParseJobRecord):
 //     { jobId, userId, filename, status, inserted, skipped, error,
 //       createdAt, updatedAt }
-//   where status is "queued" | "parsing" | "done" | "failed".
-//   On "done", { inserted, skipped } are set; on "failed", { error } is set.
+//   where status is "queued" | "parsing" | "retrying" | "done" | "failed".
+//   On "done", { inserted, skipped } are set; on "failed"/"retrying", { error } is set.
+//
+//   TERMINAL vs NON-TERMINAL — the client keeps polling until status is one of the
+//   TWO terminal states: "done" (success) or "failed" (permanent). "queued",
+//   "parsing", and "retrying" all mean "not finished — poll again". "retrying" is
+//   a transient failure the consumer rethrew for a Queue retry; it is NOT a
+//   permanent failure and must not be surfaced to the user as one.
 //
 // TENANCY — the job-store key is `job/<userId>/<jobId>`, so the lookup is scoped
 // to the AUTHENTICATED caller: we pass `resolved.userId` (never a userId from the

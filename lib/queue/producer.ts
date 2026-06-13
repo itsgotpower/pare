@@ -27,18 +27,12 @@ export async function enqueueParseJob(
   await queue.send(message, { contentType: "json" });
 }
 
-// Resolve the PARSE_QUEUE producer binding for the current request (Workers only),
-// imported lazily so the @opennextjs/cloudflare package is absent in plain
-// Node/dev — exactly how lib/storage/pdf-store.ts resolves PDF_BUCKET.
+// Resolve the PARSE_QUEUE producer binding for the current request (Workers only)
+// via the shared getBinding helper — imported lazily so the @opennextjs/cloudflare
+// package is absent in plain Node/dev (exactly how lib/storage/pdf-store.ts resolves PDF_BUCKET).
 async function getParseQueueBinding(): Promise<QueueLike<ParseJobMessage> | null> {
-  try {
-    const mod = await import("@opennextjs/cloudflare");
-    const ctx = await mod.getCloudflareContext({ async: true });
-    const q = (ctx?.env as Record<string, unknown> | undefined)?.PARSE_QUEUE;
-    return (q as QueueLike<ParseJobMessage> | undefined) ?? null;
-  } catch {
-    return null;
-  }
+  const { getBinding } = await import("../cf-bindings");
+  return getBinding<QueueLike<ParseJobMessage>>("PARSE_QUEUE");
 }
 
 /**

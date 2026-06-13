@@ -32,7 +32,7 @@ import type { AnyRepoCall } from "./lib/repo/repo-rpc";
 // handler, re-export its `fetch`, and add our P4 queue consumer.
 // @ts-expect-error — `.open-next/worker.js` exists only after `opennextjs-cloudflare build`.
 import openNextHandler from "./.open-next/worker.js";
-import { queueHandler } from "./lib/queue/consumer";
+import { queueHandler, type QueueConsumerEnv } from "./lib/queue/consumer";
 import type { ParseJobMessage, QueueMessageBatchLike } from "./lib/queue/types";
 
 const handler = {
@@ -43,7 +43,7 @@ const handler = {
   // handler for each batch pulled off the PARSE_QUEUE consumer (wired in P6). It
   // acks/retries per message; a throw from a message's processing redelivers only
   // that message (we use per-message ack/retry, not ackAll/retryAll).
-  async queue(batch: QueueMessageBatchLike<ParseJobMessage>, env: Record<string, unknown>) {
+  async queue(batch: QueueMessageBatchLike<ParseJobMessage>, env: QueueConsumerEnv) {
     return queueHandler(batch, env);
   },
 };
@@ -54,7 +54,7 @@ export default handler;
 // the Workers runtime). Like UserDataObject, the Container-backed Durable Object
 // class must be exported from the entry module so wrangler can register it
 // (wrangler.toml [[containers]] + [[durable_objects.bindings]] class_name = "ParserContainer").
-export { ParserContainer } from "./lib/parser/parser-container";
+export { ParserContainer } from "./lib/parser/parser-container-do";
 
 // The registered Durable Object. Extends the Workers DurableObject base (so the
 // platform recognises it as a DO with storage + an input gate) and delegates all

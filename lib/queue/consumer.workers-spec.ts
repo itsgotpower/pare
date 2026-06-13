@@ -199,7 +199,7 @@ describe("P4 parse-job consumer (workerd: real DO + miniflare R2/KV, parser mock
     expect(await pdfStore.get(bobKey)).not.toBeNull();
   });
 
-  it("a failing parse LEAVES the PDF and marks the job failed, then rethrows (Queue retries)", async () => {
+  it("a failing parse LEAVES the PDF and marks the job RETRYING (non-terminal), then rethrows (Queue retries)", async () => {
     const repos = new PerUserDoRepos();
     const { deps, pdfStore } = makeDeps(throwingParser("container 502"), repos);
     const jobStore = jobStoreOverKv(env.PARSE_JOBS);
@@ -214,9 +214,10 @@ describe("P4 parse-job consumer (workerd: real DO + miniflare R2/KV, parser mock
     // PDF retained (so the retry can re-fetch the bytes).
     expect(await pdfStore.get(r2Key)).not.toBeNull();
 
-    // Job marked failed with the error detail.
+    // A transient failure marks the job `retrying` (NON-terminal — the client keeps
+    // polling), NOT terminal `failed`, with the error detail recorded.
     const job = await jobStore.get("carol", "jC");
-    expect(job?.status).toBe("failed");
+    expect(job?.status).toBe("retrying");
     expect(job?.error).toMatch(/container 502/);
 
     // No rows written.

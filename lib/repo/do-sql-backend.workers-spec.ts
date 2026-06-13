@@ -146,6 +146,74 @@ describe("DoSqlBackend over real ctx.storage.sql (workerd)", () => {
     });
   });
 
+  it("bindingsFor THROWS on a MISSING named param, but binds an explicit null", async () => {
+    await withCtx(async (storage) => {
+      const db = new DoSqlDatabase(storage);
+      runMigrationsOnDoSql(db);
+
+      const ins = db.prepare(`
+        INSERT INTO transactions
+          (statement_id, source, account, period, txn_date, description, amount, category, flow, dedup_key)
+        VALUES
+          (@statement_id, @source, @account, @period, @txn_date, @description, @amount, @category, @flow, @dedup_key)
+      `);
+
+      // A row OBJECT that OMITS @amount entirely -> a missing-key error (matches
+      // better-sqlite3's "Missing named parameter"), NOT a silent bind-to-null.
+      const incomplete = {
+        statement_id: null, source: "amex", account: "card", period: "2026-05",
+        txn_date: "2026-05-04", description: "X", /* amount missing */ category: "G",
+        flow: "spend", dedup_key: "miss",
+      };
+      expect(() => ins.run(incomplete as never)).toThrow(/missing named parameter: @amount/);
+
+      // An EXPLICIT null for a nullable column (statement_id) binds fine (present key).
+      const ok = {
+        statement_id: null, source: "amex", account: "card", period: "2026-05",
+        txn_date: "2026-05-04", description: "Y", amount: 12.5, category: "G",
+        flow: "spend", dedup_key: "ok",
+      };
+      expect(ins.run(ok).changes).toBe(1);
+
+      // A SUPERSET (extra keys) is still accepted — only referenced placeholders matter.
+      expect(ins.run({ ...ok, dedup_key: "ok2", extra: "ignored" } as never).changes).toBe(1);
+    });
+  });
+
+  it("INTEGER columns come back as number (not bigint) from get()/all()", async () => {
+    await withCtx(async (storage) => {
+      const db = new DoSqlDatabase(storage);
+      runMigrationsOnDoSql(db);
+
+      db.prepare(
+        "INSERT INTO category_rules (category, keyword, sort_order) VALUES (?, ?, ?)"
+      ).run("Coffee", "STARBUCKS", 0);
+
+      // A SELECT of an INTEGER column (COUNT) must be a plain JS number, not bigint,
+      // so lib/db's `=== 1`, pagination math, and Response.json behave as on
+      // better-sqlite3 (DO SQLite returns INTEGER as bigint without the coercion).
+      const row = db
+        .prepare("SELECT COUNT(*) AS c FROM category_rules")
+        .get<{ c: number }>()!;
+      expect(typeof row.c).toBe("number");
+      expect(row.c).toBe(1);
+
+      // all() coerces too.
+      const rows = db
+        .prepare("SELECT id, sort_order FROM category_rules")
+        .all<{ id: number; sort_order: number }>();
+      expect(typeof rows[0].id).toBe("number");
+      expect(typeof rows[0].sort_order).toBe("number");
+
+      // EXISTS(...) (the has_override shape) comes back as number 0/1, so `=== 1` works.
+      const ex = db
+        .prepare("SELECT EXISTS(SELECT 1 FROM category_rules) AS has")
+        .get<{ has: number }>()!;
+      expect(typeof ex.has).toBe("number");
+      expect(ex.has).toBe(1);
+    });
+  });
+
   it("transaction() wrapper commits a batch and rolls back on throw", async () => {
     await withCtx(async (storage) => {
       const db = new DoSqlDatabase(storage);

@@ -25,7 +25,7 @@
 //     jobId:    string,                 // the queue message + this record's id
 //     userId:   string,                 // owner; matches the key prefix
 //     filename: string,                 // original upload name (for display)
-//     status:   "queued" | "parsing" | "done" | "failed",
+//     status:   "queued" | "parsing" | "retrying" | "done" | "failed",
 //     inserted: number | null,          // rows newly written   (set on `done`)
 //     skipped:  number | null,          // rows deduped/skipped  (set on `done`)
 //     error:    string | null,          // failure detail        (set on `failed`)
@@ -34,10 +34,19 @@
 //   }
 //
 //   Lifecycle: queued (P5 upload) -> parsing (consumer start)
-//                -> done {inserted, skipped}  | failed {error}  (consumer end)
+//                -> done {inserted, skipped}            (consumer success)
+//                -> retrying {error}                    (transient failure; the
+//                     Queue will redeliver — NON-TERMINAL, the client keeps polling)
+//                -> failed {error}                      (permanent / retries exhausted)
+//
+// TERMINAL vs NON-TERMINAL — the client poll contract: ONLY `done` and `failed`
+// are terminal. `queued`/`parsing`/`retrying` mean "keep polling". `retrying`
+// exists precisely so a transient error (container 502, R2 read lag) that the
+// consumer rethrows for a Queue retry does NOT prematurely look like a permanent
+// `failed` to a polling client.
 // ---------------------------------------------------------------------------
 
-export type ParseJobStatus = "queued" | "parsing" | "done" | "failed";
+export type ParseJobStatus = "queued" | "parsing" | "retrying" | "done" | "failed";
 
 export interface ParseJobRecord {
   jobId: string;
@@ -133,26 +142,43 @@ export class KvJobStore {
     await this.transition(userId, jobId, (r) => ({ ...r, status: "parsing" }));
   }
 
+  // Idempotent-aware: if the job is ALREADY `done`, this is a NO-OP — a Queue
+  // redelivery of a message whose insert already committed must not clobber the
+  // first run's real counts with the re-run's {inserted: 0} (the second insert
+  // dedups to all-skipped). `done` is terminal, so the first non-zero record wins.
   async markDone(
     userId: string,
     jobId: string,
     counts: { inserted: number; skipped: number }
   ): Promise<void> {
-    await this.transition(userId, jobId, (r) => ({
-      ...r,
-      status: "done",
-      inserted: counts.inserted,
-      skipped: counts.skipped,
-      error: null,
-    }));
+    await this.transition(userId, jobId, (r) =>
+      r.status === "done"
+        ? r
+        : {
+            ...r,
+            status: "done",
+            inserted: counts.inserted,
+            skipped: counts.skipped,
+            error: null,
+          }
+    );
   }
 
+  // NON-TERMINAL: a transient failure the consumer will rethrow for a Queue retry.
+  // The client keeps polling (only done/failed are terminal). Never overwrites a
+  // job already `done` (a late retry of an already-succeeded message).
+  async markRetrying(userId: string, jobId: string, error: string): Promise<void> {
+    await this.transition(userId, jobId, (r) =>
+      r.status === "done" ? r : { ...r, status: "retrying", error: error.slice(0, 500) }
+    );
+  }
+
+  // TERMINAL failure: a permanent outcome (unsupported PDF / retries exhausted).
+  // Never overwrites a job already `done`.
   async markFailed(userId: string, jobId: string, error: string): Promise<void> {
-    await this.transition(userId, jobId, (r) => ({
-      ...r,
-      status: "failed",
-      error: error.slice(0, 500),
-    }));
+    await this.transition(userId, jobId, (r) =>
+      r.status === "done" ? r : { ...r, status: "failed", error: error.slice(0, 500) }
+    );
   }
 
   // Read-modify-write a record. If the record is gone (TTL-expired, or never
@@ -176,18 +202,12 @@ export class KvJobStore {
   }
 }
 
-// Resolve the PARSE_JOBS KV binding for the current request (Workers only),
-// imported lazily so the @opennextjs/cloudflare package is absent in plain
-// Node/dev — exactly how lib/storage/pdf-store.ts resolves PDF_BUCKET.
+// Resolve the PARSE_JOBS KV binding for the current request (Workers only) via the
+// shared getBinding helper — imported lazily so the @opennextjs/cloudflare package
+// is absent in plain Node/dev (exactly how lib/storage/pdf-store.ts resolves PDF_BUCKET).
 async function getJobKv(): Promise<KvNamespaceLike | null> {
-  try {
-    const mod = await import("@opennextjs/cloudflare");
-    const ctx = await mod.getCloudflareContext({ async: true });
-    const kv = (ctx?.env as Record<string, unknown> | undefined)?.PARSE_JOBS;
-    return (kv as KvNamespaceLike | undefined) ?? null;
-  } catch {
-    return null;
-  }
+  const { getBinding } = await import("../cf-bindings");
+  return getBinding<KvNamespaceLike>("PARSE_JOBS");
 }
 
 /**

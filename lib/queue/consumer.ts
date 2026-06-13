@@ -7,25 +7,28 @@
 // Per message, the consumer:
 //   1. guards the R2 key belongs to the message's userId (drop + log if not);
 //   2. fetches the PDF bytes from R2 (PdfStore.get);
-//   3. parses via getParserService().parse(bytes) (RemoteParser -> container);
-//   4. writes statement + transactions + recategorize in ONE repo.batch() — the
-//      EXACT pattern app/api/upload/route.ts uses (read counts off the batch
-//      return, never off a buffered write mid-closure);
+//   3. parses via the injected ParserService (ContainerParser -> container in prod);
+//   4. writes statement + transactions + recategorize via insertParsedStatement —
+//      the ONE shared helper app/api/upload/route.ts also uses (counts come off the
+//      batch return, never off a buffered write mid-closure);
 //   5. on success: marks the job done {inserted, skipped} and DELETES the PDF from
 //      R2 (retention default — see shouldPersistAfterParse);
-//   6. on failure: marks the job failed, LEAVES the PDF in R2, and rethrows so the
-//      Queue retries the message (Cloudflare semantics: a throw from queue() fails
-//      the whole batch and redelivers it).
+//   6. on a transient failure: marks the job `retrying` (NON-terminal — the client
+//      keeps polling), LEAVES the PDF in R2, and rethrows so the Queue retries the
+//      message (a throw from queue() redelivers it). A permanent outcome
+//      (unsupported PDF / forged key) lands as terminal `failed` and is NOT retried.
 //
 // The handler is split into a pure `handleParseMessage(message, deps)` core with
 // every external dependency injected, and a `queueHandler(batch, env)` that
-// resolves the real bindings and acks/retries per message. The split is what lets
-// the tests drive the full round-trip with the container/ParserService MOCKED and
-// miniflare R2 + a real per-user DO, without a live Worker.
+// resolves the real bindings OFF `env` (PDF_BUCKET, PARSE_JOBS, PARSER, USER_DATA)
+// and acks/retries per message. Resolving off env (not getCloudflareContext /
+// process.env) is essential: inside a Cloudflare queue() invocation neither is
+// reliably available. The split lets the tests drive the full round-trip with the
+// container/ParserService MOCKED and miniflare R2 + a real per-user DO.
 // ---------------------------------------------------------------------------
 
-import { computeDedupKey } from "../db/transactions";
-import type { Repo, NewTransaction } from "../repo/types";
+import type { Repo } from "../repo/types";
+import { insertParsedStatement } from "../repo/insert-parsed";
 import type { ParserService, ParseResult } from "../parser/service";
 import type { PdfStore } from "../storage/pdf-store";
 import { keyBelongsToUser, shouldPersistAfterParse } from "../storage/pdf-store";
@@ -54,15 +57,29 @@ export class CrossUserKeyError extends Error {
   }
 }
 
+// Read-after-write tolerance for an R2 get() that returns null. R2 is
+// strongly-consistent for read-after-PUT, but a delivered message could in
+// principle race ahead of the object becoming visible. Rather than orphan the PDF
+// on a single transient miss, treat null as a RETRYABLE miss for the first few
+// delivery attempts (rethrow -> Queue redelivers); only past this bound do we
+// conclude the object is truly gone and fail permanently (the bytes can never be
+// recovered, so retrying forever is pointless). `attempts` starts at 1.
+const R2_MISS_MAX_ATTEMPTS = 5;
+
 /**
- * Process ONE parse-job message end to end. Resolves normally on success (the
- * caller acks); THROWS on a parse/transport/DB failure (the caller lets the Queue
- * retry). A CrossUserKeyError is thrown for an isolation violation — the caller
- * treats it as a permanent drop (ack), not a retry.
+ * Process ONE parse-job message end to end. Resolves normally on a SUCCESS or a
+ * PERMANENT outcome (the caller acks). THROWS on a TRANSIENT failure (the caller
+ * lets the Queue retry) — the job is left `retrying` (non-terminal). A
+ * CrossUserKeyError is thrown for an isolation violation; the caller treats it as
+ * a permanent drop (ack), not a retry.
+ *
+ * `attempts` is the message's delivery-attempt count (msg.attempts; starts at 1).
+ * It drives the bounded read-after-write retry policy for an R2 miss.
  */
 export async function handleParseMessage(
   message: ParseJobMessage,
-  deps: ConsumerDeps
+  deps: ConsumerDeps,
+  attempts = 1
 ): Promise<{ inserted: number; skipped: number }> {
   const { userId, r2Key, filename, jobId } = message;
   const { pdfStore, parser, jobStore, getRepoForUser } = deps;
@@ -82,14 +99,28 @@ export async function handleParseMessage(
     // (2) Fetch the PDF bytes from R2.
     const bytes = await pdfStore.get(r2Key);
     if (!bytes) {
-      // The object is gone (already parsed+deleted, or never stored). Nothing to
-      // retry against — fail the job permanently but do NOT throw, so the Queue
-      // doesn't redeliver a message whose payload can never be recovered.
-      await jobStore.markFailed(userId, jobId, "PDF not found in storage");
+      // R2 returned null. For the first few delivery attempts treat this as a
+      // possibly-transient read-after-write miss: rethrow so the Queue retries
+      // (job left `retrying`, PDF — if it exists — retained). Only once attempts
+      // are exhausted do we conclude the object is truly gone and fail
+      // PERMANENTLY (no throw): a message whose payload can never be recovered
+      // must not redeliver forever.
+      if (attempts < R2_MISS_MAX_ATTEMPTS) {
+        // Rethrow: the unified catch below marks the job `retrying` and the Queue
+        // redelivers (read-after-write tolerance).
+        throw new Error(
+          `PDF not yet visible in storage (attempt ${attempts}); retrying`
+        );
+      }
+      await jobStore.markFailed(
+        userId,
+        jobId,
+        `PDF not found in storage after ${attempts} attempts`
+      );
       return { inserted: 0, skipped: 0 };
     }
 
-    // (3) Parse (RemoteParser -> container in prod; mocked in tests).
+    // (3) Parse (ContainerParser -> container in prod; mocked in tests).
     const result: ParseResult = await parser.parse(bytes);
     const rows = result.transactions;
     const metas = result.statements;
@@ -103,109 +134,108 @@ export async function handleParseMessage(
         jobId,
         "No transactions found in PDF (unsupported statement format?)"
       );
-      if (!shouldPersistAfterParse()) await pdfStore.delete(r2Key);
+      await deletePdfBestEffort(pdfStore, r2Key, jobId);
       return { inserted: 0, skipped: 0 };
     }
 
-    // (4) Insert + recategorize in ONE repo.batch() — the EXACT pattern from
-    // app/api/upload/route.ts (do NOT diverge; P5 owns that route). Read the
-    // counts off the batch return, NOT off a write's return mid-closure.
+    // (4) Insert + recategorize via the ONE shared helper app/api/upload/route.ts
+    // also uses (do NOT diverge). Counts come off the batch return, never off a
+    // buffered write mid-closure.
     const repo = await getRepoForUser(userId);
     await repo.categories.seed();
+    const { inserted, skipped } = await insertParsedStatement(repo, filename, rows, metas);
 
-    const source = rows[0].source;
-    const account = rows[0].account;
-    const period = rows[0].period;
-    const meta = metas[0];
-
-    const statementId = await repo.statements.insert({
-      filename,
-      source,
-      account,
-      period,
-      row_count: rows.length,
-      closing_balance: meta?.closing_balance ?? null,
-      closing_date: meta?.closing_date ?? null,
-    });
-
-    const seqMap = new Map<string, number>();
-    const newTxns: NewTransaction[] = rows.map((row) => {
-      const seqKey = `${row.source}|${row.txn_date}|${row.description}|${row.amount}`;
-      const seq = (seqMap.get(seqKey) || 0) + 1;
-      seqMap.set(seqKey, seq);
-
-      return {
-        statement_id: statementId || null,
-        source: row.source,
-        account: row.account,
-        period: row.period,
-        txn_date: row.txn_date,
-        description: row.description,
-        amount: row.amount,
-        category: row.category,
-        flow: row.flow,
-        dedup_key: computeDedupKey(row.source, row.txn_date, row.description, row.amount, seq),
-      };
-    });
-
-    const { inserted, skipped } = await repo.batch(async () => {
-      const res = await repo.transactions.insertMany(newTxns);
-      // recategorizeAll runs unconditionally: inside batch() on the DO backend the
-      // insertMany result is a placeholder, so we cannot branch on it here (the
-      // hosted-pattern fix). recategorizeAll is idempotent + cheap. The batch's
-      // return value (insertMany's real result, returnIndex 0) supplies the counts.
-      await repo.categories.recategorizeAll();
-      return res;
-    });
-
-    // (5) Success: mark done with the counts, then drop the PDF (retention default).
+    // (5) Success: mark done with the counts (idempotent: a redelivery whose insert
+    // already committed won't clobber these with {0,0}), then drop the PDF.
     await jobStore.markDone(userId, jobId, { inserted, skipped });
-    if (!shouldPersistAfterParse()) await pdfStore.delete(r2Key);
+    await deletePdfBestEffort(pdfStore, r2Key, jobId);
 
     return { inserted, skipped };
   } catch (err) {
-    // (6) Transient/parse/DB failure: record it, KEEP the PDF (so the retry can
-    // re-fetch the bytes), and rethrow so the Queue redelivers per its retry
-    // policy. CrossUserKeyError is handled upstream; everything else lands here.
+    // (6) Transient/parse/DB failure: record it as `retrying` (NON-terminal — the
+    // client keeps polling), KEEP the PDF (so the retry can re-fetch the bytes),
+    // and rethrow so the Queue redelivers per its retry policy. We use `retrying`
+    // (not terminal `failed`) for every rethrow path because attempts/max aren't
+    // reliably distinguishable here — the client treats only done/failed as
+    // terminal, so a transient blip never prematurely looks permanent.
+    // CrossUserKeyError is handled upstream; everything else lands here.
     const detail = err instanceof Error ? err.message : String(err);
-    await jobStore.markFailed(userId, jobId, detail);
+    await jobStore.markRetrying(userId, jobId, detail);
     throw err;
   }
 }
 
+// Delete the PDF after a recorded SUCCESS/permanent outcome, best-effort. The job
+// status is already written, so a transient R2 delete failure must NOT flip a done
+// job to failed or trigger a retry — log and leave the orphan; the success stands.
+async function deletePdfBestEffort(
+  pdfStore: PdfStore,
+  r2Key: string,
+  jobId: string
+): Promise<void> {
+  if (shouldPersistAfterParse()) return;
+  try {
+    await pdfStore.delete(r2Key);
+  } catch (err) {
+    console.error(
+      `parse consumer: post-success PDF delete failed for job ${jobId} (leaving orphan ${r2Key}):`,
+      err instanceof Error ? err.message : err
+    );
+  }
+}
+
+// The Worker `env` slice the queue consumer resolves its bindings from. Declared
+// structurally (the codebase ships no @cloudflare/workers-types). Every binding
+// MUST come off this `env` — NOT off process.env or getCloudflareContext(), which
+// are not reliably available inside a Cloudflare queue() invocation. The bindings:
+//   PDF_BUCKET  — R2 (PDF bytes)              -> PdfStore
+//   PARSE_JOBS  — KV (job-status records)     -> JobStore
+//   PARSER      — Container DO namespace       -> ContainerParser (parse via container)
+//   USER_DATA   — per-user Durable Object ns   -> getRepoForUser(userId, USER_DATA)
+export interface QueueConsumerEnv {
+  PDF_BUCKET: unknown;
+  PARSE_JOBS: unknown;
+  PARSER: unknown;
+  USER_DATA: unknown;
+}
+
 /**
  * queueHandler — the Worker's `queue` consumer. Resolves the real bindings off
- * `env` and processes each message in the batch independently: ack on success or
- * a permanent drop (cross-user key / missing PDF resolve normally), retry on a
- * transient failure (thrown). Per-message ack/retry (not ackAll/retryAll) so one
- * poison message can't fail its whole batch's worth of healthy siblings.
+ * `env` (see QueueConsumerEnv — the masking bug was resolving the parser off
+ * process.env.PARSER_SERVICE_URL and the repo off getCloudflareContext(), neither
+ * available in a queue() invocation). Processes each message independently: ack on
+ * success or a permanent outcome (cross-user key / exhausted-miss resolve
+ * normally), retry on a transient failure (thrown). Per-message ack/retry (not
+ * ackAll/retryAll) so one poison message can't fail its whole batch's siblings.
  *
- * `env` is typed structurally (the codebase ships no @cloudflare/workers-types);
- * the bindings (PDF_BUCKET, PARSE_JOBS, PARSE_QUEUE consumer) are wired in P6. The
- * factories are imported lazily so this module stays import-safe off-Workers.
+ * Factories are imported lazily so this module stays import-safe off-Workers.
  */
 export async function queueHandler(
   batch: QueueMessageBatchLike<ParseJobMessage>,
-  env: Record<string, unknown>
+  env: QueueConsumerEnv
 ): Promise<void> {
-  // Resolve the per-request-independent dependencies once for the batch. Imported
-  // lazily (and via the explicit-binding factories) so plain Node/dev never loads
-  // the Workers-only resolution path.
+  // Resolve the per-batch dependencies once, ALL off `env`. Imported lazily so
+  // plain Node/dev never loads the Workers-only resolution path.
   const { pdfStoreOverBucket } = await import("../storage/pdf-store");
   const { jobStoreOverKv } = await import("./job-store");
-  const { getParserService } = await import("../parser/service");
+  const { ContainerParser } = await import("../parser/service");
   const { getRepoForUser } = await import("../repo");
 
   const deps: ConsumerDeps = {
     pdfStore: pdfStoreOverBucket(env.PDF_BUCKET as never),
     jobStore: jobStoreOverKv(env.PARSE_JOBS as never),
-    parser: getParserService(),
-    getRepoForUser,
+    // Parse via the PARSER Container binding — the ONE canonical container path.
+    parser: new ContainerParser(env.PARSER as never),
+    // Thread env.USER_DATA into repo resolution (do NOT reach getCloudflareContext
+    // here — it's not available in queue()). getRepoForUser falls back to the
+    // request-path resolver when ns is omitted, so the fetch-path callers are
+    // unchanged.
+    getRepoForUser: (userId: string) => getRepoForUser(userId, env.USER_DATA as never),
   };
 
   for (const msg of batch.messages) {
     try {
-      await handleParseMessage(msg.body, deps);
+      await handleParseMessage(msg.body, deps, msg.attempts);
       msg.ack();
     } catch (err) {
       if (err instanceof CrossUserKeyError) {
@@ -214,7 +244,7 @@ export async function queueHandler(
         msg.ack();
       } else {
         // Transient: let the Queue redeliver this message (its retry policy
-        // applies). The job is already marked failed + the PDF is retained.
+        // applies). The job is already marked `retrying` + the PDF is retained.
         console.error(
           `parse consumer: job ${msg.body.jobId} failed (attempt ${msg.attempts}):`,
           err instanceof Error ? err.message : err

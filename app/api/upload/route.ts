@@ -5,6 +5,7 @@ import os from "os";
 import { parsePdf } from "@/lib/parser/run-parser";
 import { computeDedupKey } from "@/lib/db/transactions";
 import { getScopedRepo, unauthorized } from "@/lib/repo/scoped";
+import { insertParsedStatement } from "@/lib/repo/insert-parsed";
 import { isHostedMode, resolveUser } from "@/lib/auth/resolve";
 import type { Repo } from "@/lib/repo";
 
@@ -43,9 +44,12 @@ import type { Repo } from "@/lib/repo";
 //     401 { error: "Unauthorized" }          — missing/invalid credential
 //     500 { error }                          — infra failure (R2/Queue/KV)
 //
-//   The caller then polls GET /api/upload/status?jobId=<jobId> (same auth) until
-//   status is "done" (with { inserted, skipped }) or "failed" (with { error }).
-//   A caller can only read jobs it owns — see app/api/upload/status/route.ts.
+//   The caller then polls GET /api/upload/status?jobId=<jobId> (same auth) until a
+//   TERMINAL status: "done" (with { inserted, skipped }) or "failed" (with
+//   { error }). The non-terminal statuses "queued" / "parsing" / "retrying" all
+//   mean "keep polling" — "retrying" is a transient error the consumer rethrew for
+//   a Queue retry, NOT a permanent failure. A caller can only read jobs it owns —
+//   see app/api/upload/status/route.ts.
 // ===========================================================================
 
 export async function POST(request: NextRequest) {
@@ -92,57 +96,10 @@ async function handleSelfHostUpload(request: NextRequest) {
         );
       }
 
-      const source = rows[0].source;
-      const account = rows[0].account;
-      const period = rows[0].period;
-      const meta = metas[0];
-
-      const statementId = await repo.statements.insert({
-        filename: file.name,
-        source,
-        account,
-        period,
-        row_count: rows.length,
-        closing_balance: meta?.closing_balance ?? null,
-        closing_date: meta?.closing_date ?? null,
-      });
-
-      const seqMap = new Map<string, number>();
-      const newTxns = rows.map((row) => {
-        const seqKey = `${row.source}|${row.txn_date}|${row.description}|${row.amount}`;
-        const seq = (seqMap.get(seqKey) || 0) + 1;
-        seqMap.set(seqKey, seq);
-
-        return {
-          statement_id: statementId || null,
-          source: row.source,
-          account: row.account,
-          period: row.period,
-          txn_date: row.txn_date,
-          description: row.description,
-          amount: row.amount,
-          category: row.category,
-          flow: row.flow,
-          dedup_key: computeDedupKey(row.source, row.txn_date, row.description, row.amount, seq),
-        };
-      });
-
-      // One write boundary: insert every row, then recategorize once. On the
-      // encrypted/DO backend this serialises+encrypts a single time instead of
-      // per row. The recategorize applies the DB's full rule set (incl. the
-      // gitignored personal taxonomy) since the parser taxonomy is generic.
-      const { inserted, skipped } = await repo.batch(async () => {
-        const result = await repo.transactions.insertMany(newTxns);
-        // Recategorize unconditionally. On the DO backend, writes inside batch()
-        // are buffered and return a placeholder (the real result only exists once
-        // the batch is shipped), so we CANNOT branch on result.inserted here — the
-        // old `if (result.inserted > 0)` dereferenced undefined and 500'd every
-        // hosted upload. recategorizeAll() is idempotent and cheap, so running it
-        // every time is correct. The batch's return value (insertMany's real
-        // result, returnIndex 0) supplies the counts on both backends.
-        await repo.categories.recategorizeAll();
-        return result;
-      });
+      // Insert + dedup + batch(insertMany + recategorizeAll) via the ONE shared
+      // helper the queue consumer also uses (lib/repo/insert-parsed.ts) — do NOT
+      // re-inline this logic here; the two paths must never diverge.
+      const { inserted, skipped } = await insertParsedStatement(repo, file.name, rows, metas);
 
       return Response.json({ inserted, skipped, total: rows.length, filename: file.name });
     } finally {

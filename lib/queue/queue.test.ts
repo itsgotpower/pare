@@ -115,6 +115,53 @@ test("KvJobStore: a caller can only read their OWN jobs (cross-user isolation)",
   }
 });
 
+test("KvJobStore: markDone is idempotent — a redelivery's {0,0} can't clobber a prior done", async () => {
+  const mf = newMiniflareKv();
+  try {
+    const kv = (await mf.getKVNamespace("PARSE_JOBS")) as unknown as KvNamespaceLike;
+    const store = jobStoreOverKv(kv);
+    await store.create({ jobId: "jd", userId: "alice", filename: "s.pdf" });
+
+    // First run records the real counts.
+    await store.markDone("alice", "jd", { inserted: 7, skipped: 1 });
+    // A Queue redelivery re-runs; the second insert all-dedups -> {0,0}. markDone
+    // must NOT overwrite the already-done record.
+    await store.markDone("alice", "jd", { inserted: 0, skipped: 8 });
+
+    const job = await store.get("alice", "jd");
+    assert.equal(job?.status, "done");
+    assert.equal(job?.inserted, 7, "kept the first run's inserted count");
+    assert.equal(job?.skipped, 1, "kept the first run's skipped count");
+  } finally {
+    await mf.dispose();
+  }
+});
+
+test("KvJobStore: markRetrying is non-terminal and never overwrites a done job", async () => {
+  const mf = newMiniflareKv();
+  try {
+    const kv = (await mf.getKVNamespace("PARSE_JOBS")) as unknown as KvNamespaceLike;
+    const store = jobStoreOverKv(kv);
+
+    // A transient failure marks the job `retrying` (the client keeps polling).
+    await store.create({ jobId: "jr", userId: "alice", filename: "s.pdf" });
+    await store.markRetrying("alice", "jr", "container 502");
+    const retrying = await store.get("alice", "jr");
+    assert.equal(retrying?.status, "retrying");
+    assert.match(retrying?.error ?? "", /container 502/);
+
+    // A late retry arriving after success must not flip done -> retrying.
+    await store.create({ jobId: "jr2", userId: "alice", filename: "s.pdf" });
+    await store.markDone("alice", "jr2", { inserted: 3, skipped: 0 });
+    await store.markRetrying("alice", "jr2", "late blip");
+    const stillDone = await store.get("alice", "jr2");
+    assert.equal(stillDone?.status, "done");
+    assert.equal(stillDone?.inserted, 3);
+  } finally {
+    await mf.dispose();
+  }
+});
+
 test("KvJobStore: advancing a non-existent job is a no-op (never resurrects)", async () => {
   const mf = newMiniflareKv();
   try {
