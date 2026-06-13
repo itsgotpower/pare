@@ -11,7 +11,8 @@ function LoginForm() {
   const searchParams = useSearchParams();
   const rawFrom = searchParams.get("from");
   // Only follow in-app paths — never an absolute URL from the query string.
-  const from = rawFrom && rawFrom.startsWith("/") && !rawFrom.startsWith("//") ? rawFrom : "/";
+  // Default to /dashboard (the app entry); "/" is the public marketing page.
+  const from = rawFrom && rawFrom.startsWith("/") && !rawFrom.startsWith("//") ? rawFrom : "/dashboard";
 
   const [configured, setConfigured] = useState<boolean | null>(null);
   const [displayName, setDisplayName] = useState("");
