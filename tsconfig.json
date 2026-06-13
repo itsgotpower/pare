@@ -33,6 +33,7 @@
   "exclude": [
     "node_modules",
     "lib/repo/test-worker.ts",
-    "lib/repo/**/*.workers-spec.ts"
+    "lib/repo/**/*.workers-spec.ts",
+    "lib/queue/**/*.workers-spec.ts"
   ]
 }
