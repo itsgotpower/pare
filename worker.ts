@@ -27,6 +27,12 @@ import type { AnyRepoCall } from "./lib/repo/repo-rpc";
 // @ts-expect-error — `.open-next/worker.js` exists only after `opennextjs-cloudflare build`.
 export { default } from "./.open-next/worker.js";
 
+// The PDF parser runs in a Cloudflare Container (Python + poppler — unavailable in
+// the Workers runtime). Like UserDataObject, the Container-backed Durable Object
+// class must be exported from the entry module so wrangler can register it
+// (wrangler.toml [[containers]] + [[durable_objects.bindings]] class_name = "ParserContainer").
+export { ParserContainer } from "./lib/parser/parser-container";
+
 // The registered Durable Object. Extends the Workers DurableObject base (so the
 // platform recognises it as a DO with storage + an input gate) and delegates all
 // data work to UserDataImpl, which owns the SqliteRepo/DoBackend over ctx.storage.
