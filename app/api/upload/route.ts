@@ -85,7 +85,14 @@ export async function POST(request: NextRequest) {
       // gitignored personal taxonomy) since the parser taxonomy is generic.
       const { inserted, skipped } = await repo.batch(async () => {
         const result = await repo.transactions.insertMany(newTxns);
-        if (result.inserted > 0) await repo.categories.recategorizeAll();
+        // Recategorize unconditionally. On the DO backend, writes inside batch()
+        // are buffered and return a placeholder (the real result only exists once
+        // the batch is shipped), so we CANNOT branch on result.inserted here — the
+        // old `if (result.inserted > 0)` dereferenced undefined and 500'd every
+        // hosted upload. recategorizeAll() is idempotent and cheap, so running it
+        // every time is correct. The batch's return value (insertMany's real
+        // result, returnIndex 0) supplies the counts on both backends.
+        await repo.categories.recategorizeAll();
         return result;
       });
 

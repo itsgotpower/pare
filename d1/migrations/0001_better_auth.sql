@@ -1,9 +1,15 @@
 -- Hosted-mode account system: better-auth's core schema (email + password,
 -- sessions, password-reset verification, bearer tokens for the Expo app).
 --
--- This is the HOSTED path only. Self-hosted mode keeps the single-user gate
--- (app_user, migration 002). These tables are inert in self-hosted mode; the
--- single-user gate never reads them.
+-- This lives in the D1 AUTH database ONLY (binding `DB`, database `parse-auth`),
+-- applied via `wrangler d1 migrations apply parse-auth` (see DEPLOY.md). It is
+-- deliberately NOT in lib/db/migrations/ (the bundled MIGRATIONS array that runs
+-- against the per-user Durable Object data DBs and the self-host file DB) — auth
+-- tables must never be created inside a user's data DB, and the app schema must
+-- never be created in the auth DB. Two databases, two migration sets.
+--
+-- Self-hosted mode does not use better-auth (it keeps the single-user gate,
+-- app_user / migration 002) and so never applies this file.
 --
 -- Generated from better-auth 1.6.x (`@better-auth/cli generate`) for the
 -- emailAndPassword + bearer() configuration in lib/auth/hosted.ts, then
