@@ -40,7 +40,11 @@ binding = "ASSETS"
 binding = "WORKER_SELF_REFERENCE"
 service = "parse"
 
-# --- Stubbed bindings (declared now, wired in later phases) ---
+# --- Phase 3 data-plane bindings (all LIVE as of P6) ---
+# DB (D1), USER_DATA + ParserContainer (DOs), PARSE_QUEUE (Queue producer +
+# consumer), PARSE_JOBS (KV), PDF_BUCKET (R2). The ids/names below marked
+# "placeholder" need the real values from the provisioning commands in DEPLOY.md
+# pasted in before the first real deploy.
 
 # Auth database (D1) — accounts/sessions for multi-user mode (Phase 2, better-auth).
 # Replace database_id with the real id from `wrangler d1 create parse-auth`.
@@ -62,6 +66,85 @@ migrations_dir = "d1/migrations"
 name = "USER_DATA"
 class_name = "UserDataObject"
 
+# Per-user data store (registered above) plus the parser Container — both are
+# SQLite-backed Durable Object classes, so both go in new_sqlite_classes.
 [[migrations]]
 tag = "v1"
-new_sqlite_classes = ["UserDataObject"]
+new_sqlite_classes = ["UserDataObject", "ParserContainer"]
+
+# --- PDF parser container (hosted parsing path) ---
+#
+# Workers can't run Python/poppler/child_process, so PDF parsing runs in a
+# Cloudflare Container: the image is lib/parser/Dockerfile (Python http.server +
+# the unchanged parser). The ParserContainer class (lib/parser/parser-container.ts,
+# re-exported from worker.ts) extends @cloudflare/containers' Container base; the
+# request side routes a PDF to it via PARSER.getByName("default") (see
+# parsePdfViaContainer). A real deploy builds + pushes the image automatically on
+# `wrangler deploy`; locally the image is runnable standalone with Docker.
+[[containers]]
+class_name = "ParserContainer"
+image = "./lib/parser/Dockerfile"
+# Build context must be the repo root so the Dockerfile can COPY lib/parser/*.
+image_build_context = "."
+max_instances = 5
+instance_type = "basic"
+
+[[durable_objects.bindings]]
+name = "PARSER"
+class_name = "ParserContainer"
+
+# --- Async parse pipeline (P4 — Cloudflare Queues) ---
+#
+# Uploads (P5) don't parse inline on the hosted target: the route stores the PDF
+# in R2 (PDF_BUCKET, P3), records a `queued` job (PARSE_JOBS KV, below), and
+# enqueues ONE `{ userId, r2Key, filename, jobId }` message on PARSE_QUEUE. The
+# SAME Worker is the queue's consumer: worker.ts's default export carries a
+# `queue` handler (lib/queue/consumer.ts) that fetches the bytes, parses via the
+# ParserContainer, writes the rows to the owner's USER_DATA DO, deletes the PDF
+# (retention default), and marks the job done|failed.
+#
+# Real ids/queue provisioned in P6:
+#   npx wrangler queues create parse-jobs
+#   npx wrangler kv namespace create PARSE_JOBS   # -> paste id below
+
+# Producer binding (env.PARSE_QUEUE) — the upload route sends parse jobs here.
+[[queues.producers]]
+binding = "PARSE_QUEUE"
+queue = "parse-jobs"
+
+# Consumer registration — deliver parse-jobs messages to THIS Worker's `queue`
+# handler. max_retries bounds redelivery of a transiently-failing message (the
+# job is marked `failed` + the PDF retained on each failure, so a retry can
+# re-fetch the bytes); after that it's dropped (a dead-letter queue can be added
+# later via dead_letter_queue = "...").
+[[queues.consumers]]
+queue = "parse-jobs"
+max_batch_size = 10
+max_batch_timeout = 5
+max_retries = 3
+
+# Parse-job status records (KV) — the P5 status endpoint reads these. Keyed
+# `job/<userId>/<jobId>` so a caller can only ever read their own jobs; records
+# carry a 24h TTL (ephemeral status, not data of record).
+#
+# Real id provisioned in P6:
+#   npx wrangler kv namespace create PARSE_JOBS   # -> paste id below
+[[kv_namespaces]]
+binding = "PARSE_JOBS"
+id = "00000000000000000000000000000000"
+
+# --- Uploaded PDF object storage (P3 — R2) ---
+#
+# Uploads land here, NOT inline-parsed: the hosted upload route (P5) writes the
+# raw PDF bytes to this bucket via getPdfStore() (lib/storage/pdf-store.ts reads
+# env.PDF_BUCKET), keyed per user `u/<userId>/<uuid>-<filename>`, and enqueues a
+# parse job carrying the r2Key. The queue consumer (P4) fetches the bytes back,
+# parses, writes the rows to the owner's DO, then DELETES the object (retention
+# default — ephemeral PDFs, per the compliance posture). The binding NAME must be
+# exactly PDF_BUCKET to match getPdfBucket()'s `ctx.env.PDF_BUCKET` lookup.
+#
+# Real bucket provisioned in P6 (no id to paste — R2 binds by bucket_name):
+#   npx wrangler r2 bucket create parse-pdfs
+[[r2_buckets]]
+binding = "PDF_BUCKET"
+bucket_name = "parse-pdfs"

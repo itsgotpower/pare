@@ -37,16 +37,14 @@ export function getRepo(): Repo {
 }
 
 // Resolve the USER_DATA Durable Object namespace binding for the current request
-// (Workers only). Imported lazily so the package is absent in plain Node/dev.
-async function getUserDataNamespace(): Promise<DoNamespaceLike | null> {
-  try {
-    const mod = await import("@opennextjs/cloudflare");
-    const ctx = await mod.getCloudflareContext({ async: true });
-    const ns = (ctx?.env as Record<string, unknown> | undefined)?.USER_DATA;
-    return (ns as DoNamespaceLike | undefined) ?? null;
-  } catch {
-    return null;
-  }
+// (Workers only) via the shared getBinding helper. Imported lazily so the package
+// is absent in plain Node/dev. Exported so callers that already hold `env`
+// (the queue consumer) can thread env.USER_DATA into getRepoForUser directly,
+// rather than reaching back into getCloudflareContext() — which is not reliably
+// available inside a Cloudflare queue() invocation.
+export async function getUserDataNamespace(): Promise<DoNamespaceLike | null> {
+  const { getBinding } = await import("../cf-bindings");
+  return getBinding<DoNamespaceLike>("USER_DATA");
 }
 
 // Minimal slice of DurableObjectNamespace / stub we use — declared structurally so
@@ -66,15 +64,23 @@ export function repoOverDoStub(stub: DoStubLike): Repo {
   return new DoRepoClient((call) => stub.call(call));
 }
 
-export async function getRepoForUser(userId: string): Promise<Repo> {
-  const ns = await getUserDataNamespace();
-  if (!ns) {
+// Resolve a per-user Repo. `ns` is the USER_DATA Durable Object namespace; it
+// defaults to getUserDataNamespace() (the fetch/request path: getCloudflareContext)
+// but can be passed EXPLICITLY by a caller that already holds `env` — notably the
+// queue consumer, which runs in a Cloudflare queue() invocation where
+// getCloudflareContext() is not reliably available, so it threads env.USER_DATA in.
+export async function getRepoForUser(
+  userId: string,
+  ns?: DoNamespaceLike | null
+): Promise<Repo> {
+  const namespace = ns ?? (await getUserDataNamespace());
+  if (!namespace) {
     throw new Error(
       "getRepoForUser: USER_DATA Durable Object binding unavailable (hosted mode requires the Workers runtime)"
     );
   }
-  const id = ns.idFromName(userId);
-  return repoOverDoStub(ns.get(id));
+  const id = namespace.idFromName(userId);
+  return repoOverDoStub(namespace.get(id));
 }
 
 // In-process scoped repo used by tests (and any non-Worker hosted-mode harness):
