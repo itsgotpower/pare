@@ -19,6 +19,11 @@ preferred path for Next.js. Later phases wire real auth (D1), per-user data
   - `USER_DATA` — a Durable Object (`UserDataObject`) for per-user data
     (Phase 2, one DO per user). Implemented in `worker.ts` →
     `lib/repo/user-data-object.ts`.
+  - **Phase 3 data plane (all LIVE as of P6):** `PARSER`/`ParserContainer`
+    (Cloudflare Container running the Python parser), `PDF_BUCKET` (R2 — uploaded
+    PDF bytes, `lib/storage/pdf-store.ts`), `PARSE_QUEUE` (Queue producer +
+    consumer — the async parse pipeline, `lib/queue/`), and `PARSE_JOBS` (KV —
+    job-status records). See the provisioning sequence below.
 - `PARSE_DEPLOY_TARGET = "hosted"` in `[vars]` — selects hosted mode at runtime
   (per-user DOs + better-auth; retires the single-user proxy gate).
 - `next.config.ts` calls `initOpenNextCloudflareForDev()` so the bindings are
@@ -53,22 +58,63 @@ export CLOUDFLARE_API_TOKEN=...         # CI / non-interactive
 
 The app serves on `https://parse.<your-subdomain>.workers.dev` after deploy.
 
-### Before the first real deploy
+### Before the first real deploy — full hosted provisioning (Phase 3 / P6)
+
+Run these once to stand up the Phase 3 data plane. Resources that mint an **id**
+(D1, KV) require you to paste that id back into `wrangler.toml`; R2 and the Queue
+bind by **name**, so there's nothing to paste — just keep the names in sync.
 
 ```bash
-# 1. Create the D1 auth DB; paste the returned database_id into wrangler.toml.
+# 1. Auth database (D1) — accounts/sessions.
+#    ⚠️ PASTE the returned database_id into wrangler.toml [[d1_databases]].database_id.
 npx wrangler d1 create parse-auth
 
 # 2. Apply the better-auth schema to that D1 DB (d1/migrations/0001_better_auth.sql).
 #    Without this, every getSession() throws "no such table: user".
 npx wrangler d1 migrations apply parse-auth --remote
 
-# 3. Provision the auth secrets (NOT stored in wrangler.toml).
+# 3. Uploaded-PDF object storage (R2). Binds by bucket_name in wrangler.toml
+#    ([[r2_buckets]] binding = "PDF_BUCKET", bucket_name = "parse-pdfs") — NO id
+#    to paste; just keep the name identical.
+npx wrangler r2 bucket create parse-pdfs
+
+# 4. Async parse pipeline — the Queue. Binds by queue name ("parse-jobs") for both
+#    the producer ([[queues.producers]]) and consumer ([[queues.consumers]]) — NO
+#    id to paste.
+npx wrangler queues create parse-jobs
+
+# 5. Parse-job status records (KV).
+#    ⚠️ PASTE the returned id into wrangler.toml [[kv_namespaces]].id (binding = "PARSE_JOBS").
+npx wrangler kv namespace create PARSE_JOBS
+
+# 6. Provision the auth secrets (NOT stored in wrangler.toml).
 openssl rand -base64 32 | npx wrangler secret put BETTER_AUTH_SECRET
 npx wrangler secret put BETTER_AUTH_URL      # e.g. https://parse.<sub>.workers.dev
 npx wrangler secret put RESEND_API_KEY       # password-reset email
 npx wrangler secret put AUTH_EMAIL_FROM      # From: address
+
+# 7. Deploy. The Durable Objects (USER_DATA, ParserContainer) and the parser
+#    CONTAINER IMAGE (lib/parser/Dockerfile) are built + pushed automatically by
+#    this one command — `wrangler deploy` reads [[containers]] in wrangler.toml,
+#    builds the image (needs a working local Docker daemon), and registers it
+#    alongside the Worker. There is no separate "deploy the container" step.
+npm run cf:deploy
 ```
+
+**Which resources need real ids pasted into `wrangler.toml`:**
+
+| Resource | Binding | Provisioned by | Paste back? |
+|----------|---------|----------------|-------------|
+| D1 auth DB | `DB` | `wrangler d1 create parse-auth` | **YES** — `database_id` |
+| KV job store | `PARSE_JOBS` | `wrangler kv namespace create PARSE_JOBS` | **YES** — `id` |
+| R2 PDF bucket | `PDF_BUCKET` | `wrangler r2 bucket create parse-pdfs` | No — binds by `bucket_name` |
+| Queue | `PARSE_QUEUE` (+ consumer) | `wrangler queues create parse-jobs` | No — binds by `queue` name |
+| USER_DATA DO | `USER_DATA` | created on deploy (`[[migrations]]`) | No |
+| ParserContainer | `PARSER` | built + pushed on deploy (`[[containers]]`) | No |
+
+Until the placeholder ids (`database_id`/KV `id` = all-zeros in the committed
+`wrangler.toml`) are replaced, those bindings resolve to non-existent resources
+and the corresponding requests fail at runtime.
 
 `BETTER_AUTH_SECRET` is mandatory — hosted auth (`lib/auth/hosted.ts`) **throws on
 startup** if it's unset rather than fall back to better-auth's public default
@@ -76,11 +122,12 @@ secret (which would make every session/bearer token forgeable). The `USER_DATA`
 Durable Object (`UserDataObject`) is exported from `worker.ts`, so the
 `[[durable_objects.bindings]]` / `[[migrations]]` blocks deploy as-is.
 
-> **Still required before hosted mode actually serves data:** `UserDataObject`
-> loads the native `better-sqlite3` module, which **does not run on workerd**
-> (Phase 3 swaps in a WASM SQLite behind the same `DoBackend` seam). Until then,
-> the build/deploy succeeds and auth works, but per-user data requests fail at
-> runtime. Tracked as Phase 3.
+> **Resolved in Phase 3:** `UserDataObject` no longer loads native
+> `better-sqlite3` (which can't run on workerd). It now runs `SqliteRepo` over a
+> `DoSqlBackend` against the DO's **native** SQLite (`ctx.storage.sql`), proven
+> against a real DO in `lib/repo/do-sql-backend.workers-spec.ts` and end-to-end
+> through the upload pipeline in `lib/queue/e2e.workers-spec.ts`. Per-user data
+> requests now serve live in hosted mode.
 
 ## Resolved: Node-runtime `proxy.ts` (the auth gate)
 

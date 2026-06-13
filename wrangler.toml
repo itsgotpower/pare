@@ -40,7 +40,11 @@ binding = "ASSETS"
 binding = "WORKER_SELF_REFERENCE"
 service = "parse"
 
-# --- Stubbed bindings (declared now, wired in later phases) ---
+# --- Phase 3 data-plane bindings (all LIVE as of P6) ---
+# DB (D1), USER_DATA + ParserContainer (DOs), PARSE_QUEUE (Queue producer +
+# consumer), PARSE_JOBS (KV), PDF_BUCKET (R2). The ids/names below marked
+# "placeholder" need the real values from the provisioning commands in DEPLOY.md
+# pasted in before the first real deploy.
 
 # Auth database (D1) — accounts/sessions for multi-user mode (Phase 2, better-auth).
 # Replace database_id with the real id from `wrangler d1 create parse-auth`.
@@ -122,6 +126,25 @@ max_retries = 3
 # Parse-job status records (KV) — the P5 status endpoint reads these. Keyed
 # `job/<userId>/<jobId>` so a caller can only ever read their own jobs; records
 # carry a 24h TTL (ephemeral status, not data of record).
+#
+# Real id provisioned in P6:
+#   npx wrangler kv namespace create PARSE_JOBS   # -> paste id below
 [[kv_namespaces]]
 binding = "PARSE_JOBS"
 id = "00000000000000000000000000000000"
+
+# --- Uploaded PDF object storage (P3 — R2) ---
+#
+# Uploads land here, NOT inline-parsed: the hosted upload route (P5) writes the
+# raw PDF bytes to this bucket via getPdfStore() (lib/storage/pdf-store.ts reads
+# env.PDF_BUCKET), keyed per user `u/<userId>/<uuid>-<filename>`, and enqueues a
+# parse job carrying the r2Key. The queue consumer (P4) fetches the bytes back,
+# parses, writes the rows to the owner's DO, then DELETES the object (retention
+# default — ephemeral PDFs, per the compliance posture). The binding NAME must be
+# exactly PDF_BUCKET to match getPdfBucket()'s `ctx.env.PDF_BUCKET` lookup.
+#
+# Real bucket provisioned in P6 (no id to paste — R2 binds by bucket_name):
+#   npx wrangler r2 bucket create parse-pdfs
+[[r2_buckets]]
+binding = "PDF_BUCKET"
+bucket_name = "parse-pdfs"
