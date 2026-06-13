@@ -10,7 +10,10 @@
 # stable so app code can reference `env.AUTH_DB` / `env.USER_DATA` once implemented.
 
 name = "parse"
-main = ".open-next/worker.js"
+# Custom entrypoint (worker.ts) re-exports OpenNext's generated fetch handler
+# (.open-next/worker.js) AND the UserDataObject Durable Object class, so both are
+# registered on the same Worker (the OpenNext convention for app-owned DOs).
+main = "worker.ts"
 compatibility_date = "2024-12-30"
 compatibility_flags = ["nodejs_compat", "global_fetch_strictly_public"]
 
@@ -33,8 +36,10 @@ binding = "DB"
 database_name = "parse-auth"
 database_id = "00000000-0000-0000-0000-000000000000"
 
-# Per-user data store (Durable Object, SQLite-backed) — one DO per user (Phase 1/2,
-# DoRepo). The class is not implemented yet; the migration tag reserves the name.
+# Per-user data store (Durable Object, SQLite-backed) — one DO per user. The
+# UserDataObject class is implemented in worker.ts (delegating to
+# lib/repo/user-data-object.ts); getRepoForUser(userId) routes to it via
+# USER_DATA.idFromName(userId). Tenant isolation is by construction.
 [[durable_objects.bindings]]
 name = "USER_DATA"
 class_name = "UserDataObject"

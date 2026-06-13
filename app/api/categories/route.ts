@@ -1,8 +1,9 @@
 import { NextRequest } from "next/server";
-import { getRepo } from "@/lib/repo";
+import { getScopedRepo, unauthorized } from "@/lib/repo/scoped";
 
-export async function GET() {
-  const repo = getRepo();
+export async function GET(request: NextRequest) {
+  const repo = await getScopedRepo(request);
+  if (!repo) return unauthorized();
   await repo.categories.seed();
 
   const rules = await repo.categories.listRules();
@@ -13,7 +14,8 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
-  const repo = getRepo();
+  const repo = await getScopedRepo(request);
+  if (!repo) return unauthorized();
   await repo.categories.seed();
   const body = await request.json();
 
@@ -42,10 +44,12 @@ export async function POST(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
+  const repo = await getScopedRepo(request);
+  if (!repo) return unauthorized();
   const { searchParams } = request.nextUrl;
   const id = searchParams.get("id");
   if (!id) return Response.json({ error: "id required" }, { status: 400 });
 
-  await getRepo().categories.deleteRule(parseInt(id));
+  await repo.categories.deleteRule(parseInt(id));
   return Response.json({ success: true });
 }

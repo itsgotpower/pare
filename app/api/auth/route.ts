@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { cookies } from "next/headers";
-import { getRepo } from "@/lib/repo";
+import { getScopedRepo } from "@/lib/repo/scoped";
 import {
   createSessionToken,
   verifySessionToken,
@@ -28,7 +28,7 @@ async function isAuthenticated(): Promise<boolean> {
   return verifySessionToken(store.get(SESSION_COOKIE)?.value);
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   const configured = isConfigured();
   const authenticated = configured && (await isAuthenticated());
 
@@ -36,11 +36,15 @@ export async function GET() {
     return Response.json({ configured, authenticated: false });
   }
 
+  // Self-hosted single-user profile + data-health. getScopedRepo returns the
+  // file-backed repo here (this GET runs behind the self-hosted gate); in hosted
+  // mode the dashboard reads health via the per-user routes instead.
+  const repo = await getScopedRepo(request);
   const user = getUser()!;
   return Response.json({
     configured: true,
     authenticated: true,
-    profile: { ...user, health: await getRepo().profile.dataHealth() },
+    profile: { ...user, health: repo ? await repo.profile.dataHealth() : null },
   });
 }
 

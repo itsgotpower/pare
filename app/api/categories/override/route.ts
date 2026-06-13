@@ -1,7 +1,10 @@
 import { NextRequest } from "next/server";
-import { getRepo } from "@/lib/repo";
+import { getScopedRepo, unauthorized } from "@/lib/repo/scoped";
 
 export async function POST(request: NextRequest) {
+  const repo = await getScopedRepo(request);
+  if (!repo) return unauthorized();
+
   const body = await request.json();
   const transactionId = Number(body.transaction_id);
   const newCategory = typeof body.new_category === "string" ? body.new_category.trim() : "";
@@ -13,7 +16,6 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const repo = getRepo();
   const tx = await repo.transactions.categoryOf(transactionId);
   if (!tx) {
     return Response.json({ error: "transaction not found" }, { status: 404 });
@@ -24,11 +26,13 @@ export async function POST(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
+  const repo = await getScopedRepo(request);
+  if (!repo) return unauthorized();
   const id = request.nextUrl.searchParams.get("transaction_id");
   if (!id) {
     return Response.json({ error: "transaction_id required" }, { status: 400 });
   }
 
-  await getRepo().categories.removeOverride(parseInt(id));
+  await repo.categories.removeOverride(parseInt(id));
   return Response.json({ success: true });
 }
