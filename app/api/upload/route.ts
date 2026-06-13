@@ -5,9 +5,61 @@ import os from "os";
 import { parsePdf } from "@/lib/parser/run-parser";
 import { computeDedupKey } from "@/lib/db/transactions";
 import { getScopedRepo, unauthorized } from "@/lib/repo/scoped";
+import { insertParsedStatement } from "@/lib/repo/insert-parsed";
+import { isHostedMode, resolveUser } from "@/lib/auth/resolve";
 import type { Repo } from "@/lib/repo";
 
+// ===========================================================================
+// POST /api/upload — ingest a bank/CC statement. TWO modes, gated on
+// isHostedMode() (PARSE_DEPLOY_TARGET === "hosted"):
+//
+// SELF-HOST (default / local / MCP host): UNCHANGED. The single-user proxy gate
+// fronts the route; the PDF is written to a temp file and parsed in-process
+// (child_process Python) SYNCHRONOUSLY, rows are inserted, and the response is
+// { inserted, skipped, total, filename } — the shape the existing /upload UI
+// expects. No R2/Queue/job-store involved.
+//
+// HOSTED (Cloudflare): the request does NOT parse inline. It authenticates the
+// caller, stores the PDF in R2, records a `queued` job, enqueues a parse message,
+// and returns 202 { jobId } immediately. The queue consumer (P4) parses in the
+// background; the client polls GET /api/upload/status?jobId=… for completion.
+//
+// ---------------------------------------------------------------------------
+// UPLOAD CONTRACT (hosted) — the Expo mobile app depends on this. [Mobile app only]
+//
+//   POST /api/upload
+//   Authorization: Bearer <better-auth session token>   (OR the session cookie)
+//   Content-Type: multipart/form-data
+//     file=<the .pdf>            (a File part named "file"; .pdf required)
+//
+//   The SAME endpoint serves the web drag-drop (cookie + multipart) and the
+//   future Expo share-sheet flow (bearer token + multipart). resolveUser() reads
+//   EITHER credential from the request headers, so the only difference for the
+//   mobile client is sending `Authorization: Bearer` instead of relying on the
+//   cookie. Pick whichever the platform makes easy.
+//
+//   Responses:
+//     202 { jobId }                          — accepted, parsing queued
+//     400 { error }                          — no file / non-PDF
+//     401 { error: "Unauthorized" }          — missing/invalid credential
+//     500 { error }                          — infra failure (R2/Queue/KV)
+//
+//   The caller then polls GET /api/upload/status?jobId=<jobId> (same auth) until a
+//   TERMINAL status: "done" (with { inserted, skipped }) or "failed" (with
+//   { error }). The non-terminal statuses "queued" / "parsing" / "retrying" all
+//   mean "keep polling" — "retrying" is a transient error the consumer rethrew for
+//   a Queue retry, NOT a permanent failure. A caller can only read jobs it owns —
+//   see app/api/upload/status/route.ts.
+// ===========================================================================
+
 export async function POST(request: NextRequest) {
+  if (isHostedMode()) {
+    return handleHostedUpload(request);
+  }
+  return handleSelfHostUpload(request);
+}
+
+async function handleSelfHostUpload(request: NextRequest) {
   try {
     const repo = await getScopedRepo(request);
     if (!repo) return unauthorized();
@@ -44,62 +96,70 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      const source = rows[0].source;
-      const account = rows[0].account;
-      const period = rows[0].period;
-      const meta = metas[0];
-
-      const statementId = await repo.statements.insert({
-        filename: file.name,
-        source,
-        account,
-        period,
-        row_count: rows.length,
-        closing_balance: meta?.closing_balance ?? null,
-        closing_date: meta?.closing_date ?? null,
-      });
-
-      const seqMap = new Map<string, number>();
-      const newTxns = rows.map((row) => {
-        const seqKey = `${row.source}|${row.txn_date}|${row.description}|${row.amount}`;
-        const seq = (seqMap.get(seqKey) || 0) + 1;
-        seqMap.set(seqKey, seq);
-
-        return {
-          statement_id: statementId || null,
-          source: row.source,
-          account: row.account,
-          period: row.period,
-          txn_date: row.txn_date,
-          description: row.description,
-          amount: row.amount,
-          category: row.category,
-          flow: row.flow,
-          dedup_key: computeDedupKey(row.source, row.txn_date, row.description, row.amount, seq),
-        };
-      });
-
-      // One write boundary: insert every row, then recategorize once. On the
-      // encrypted/DO backend this serialises+encrypts a single time instead of
-      // per row. The recategorize applies the DB's full rule set (incl. the
-      // gitignored personal taxonomy) since the parser taxonomy is generic.
-      const { inserted, skipped } = await repo.batch(async () => {
-        const result = await repo.transactions.insertMany(newTxns);
-        // Recategorize unconditionally. On the DO backend, writes inside batch()
-        // are buffered and return a placeholder (the real result only exists once
-        // the batch is shipped), so we CANNOT branch on result.inserted here — the
-        // old `if (result.inserted > 0)` dereferenced undefined and 500'd every
-        // hosted upload. recategorizeAll() is idempotent and cheap, so running it
-        // every time is correct. The batch's return value (insertMany's real
-        // result, returnIndex 0) supplies the counts on both backends.
-        await repo.categories.recategorizeAll();
-        return result;
-      });
+      // Insert + dedup + batch(insertMany + recategorizeAll) via the ONE shared
+      // helper the queue consumer also uses (lib/repo/insert-parsed.ts) — do NOT
+      // re-inline this logic here; the two paths must never diverge.
+      const { inserted, skipped } = await insertParsedStatement(repo, file.name, rows, metas);
 
       return Response.json({ inserted, skipped, total: rows.length, filename: file.name });
     } finally {
       rmSync(tmpDir, { recursive: true, force: true });
     }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Upload failed";
+    return Response.json({ error: message }, { status: 500 });
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Hosted branch: authenticate (cookie OR bearer), accept a multipart PDF, store
+// it in R2, record a queued job, enqueue the parse message, return 202 { jobId }.
+// Parsing happens off-request in the queue consumer (P4). See the contract block
+// at the top of this file — the Expo app POSTs here with a bearer token.
+// ---------------------------------------------------------------------------
+async function handleHostedUpload(request: NextRequest) {
+  try {
+    // Resolve the caller from the request-scoped better-auth (D1 binding only
+    // exists inside the Worker), exactly how getScopedRepo wires it. resolveUser
+    // reads EITHER the session cookie or an `Authorization: Bearer` token.
+    const { createHostedAuth } = await import("@/lib/auth/hosted");
+    const { getD1 } = await import("@/lib/auth/d1");
+    const auth = createHostedAuth(await getD1());
+    const resolved = await resolveUser(request, auth);
+    if (!resolved) return unauthorized();
+
+    const formData = await request.formData();
+    const file = formData.get("file") as File | null;
+    if (!file) {
+      return Response.json({ error: "No file provided" }, { status: 400 });
+    }
+    if (!file.name.endsWith(".pdf")) {
+      return Response.json({ error: "Only PDF files accepted" }, { status: 400 });
+    }
+
+    const bytes = new Uint8Array(await file.arrayBuffer());
+
+    // Resolve the hosted-only bindings (fail-closed if unavailable) and run the
+    // dependency-injected pipeline. userId is the AUTHENTICATED caller's id — it
+    // is never read from the request body, so the upload can only write to the
+    // caller's own R2/KV/DO tenant.
+    const { getPdfStore } = await import("@/lib/storage/pdf-store");
+    const { getJobStore } = await import("@/lib/queue/job-store");
+    const { getParseQueue } = await import("@/lib/queue/producer");
+    const { handleHostedUpload: runHostedUpload } = await import("@/lib/queue/upload-handler");
+
+    const [pdfStore, jobStore, queue] = await Promise.all([
+      getPdfStore(),
+      getJobStore(),
+      getParseQueue(),
+    ]);
+
+    const { jobId } = await runHostedUpload(
+      { userId: resolved.userId, filename: file.name, bytes },
+      { pdfStore, jobStore, queue }
+    );
+
+    return Response.json({ jobId }, { status: 202 });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Upload failed";
     return Response.json({ error: message }, { status: 500 });

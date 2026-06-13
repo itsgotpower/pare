@@ -1,0 +1,29 @@
+{
+  // Type-check gate for the Workers-runtime test files that the main tsconfig
+  // EXCLUDES (they reference cloudflare:test / cloudflare:workers and the
+  // Cloudflare global types, which the app's DOM/Node config can't resolve). The
+  // main `npx tsc --noEmit` therefore can't catch a type error in them — this
+  // project does. Wired as `npm run typecheck:workers`.
+  //
+  // It includes ONLY those excluded files and swaps the lib set: the Workers
+  // runtime globals (@cloudflare/workers-types) plus the cloudflare:test module
+  // ambient declarations (@cloudflare/vitest-pool-workers) and vitest globals.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "types": [
+      "node",
+      "@cloudflare/workers-types",
+      "@cloudflare/vitest-pool-workers"
+    ],
+    "noEmit": true,
+    // The workers-spec files run in workerd, not the DOM — drop the DOM libs so a
+    // browser-only global can't accidentally type-check here.
+    "lib": ["esnext"]
+  },
+  "include": [
+    "lib/repo/test-worker.ts",
+    "lib/repo/**/*.workers-spec.ts",
+    "lib/queue/**/*.workers-spec.ts"
+  ],
+  "exclude": ["node_modules"]
+}
