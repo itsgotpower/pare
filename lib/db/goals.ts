@@ -37,6 +37,31 @@ export function deleteGoal(id: number): void {
   db.prepare("UPDATE spending_goals SET active = 0 WHERE id = ?").run(id);
 }
 
+export interface CategoryAverage {
+  category: string;
+  avg_monthly: number;
+}
+
+// Per-category average monthly card spend over the data window — the source for
+// suggested goal limits.
+export function getCategoryAverages(): CategoryAverage[] {
+  const db = getDb();
+  return db
+    .prepare(
+      `SELECT effective_category AS category,
+              AVG(monthly_total) AS avg_monthly
+       FROM (
+         SELECT effective_category, substr(txn_date, 1, 7) AS month, SUM(amount) AS monthly_total
+         FROM v_transactions
+         WHERE flow = 'spend' AND source IN ('amex', 'cibc_visa')
+         GROUP BY effective_category, month
+       )
+       GROUP BY category
+       ORDER BY avg_monthly DESC`
+    )
+    .all() as CategoryAverage[];
+}
+
 export function getCurrentProgress(): GoalProgress[] {
   const db = getDb();
   // Use the latest month that actually has spend data, not the calendar month —
