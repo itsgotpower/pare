@@ -63,6 +63,47 @@ export function insertTransaction(tx: {
   return result.changes > 0;
 }
 
+export function insertManyTransactions(
+  txs: {
+    statement_id: number | null;
+    source: string;
+    account: string;
+    period: string;
+    txn_date: string;
+    description: string;
+    amount: number;
+    category: string;
+    flow: string;
+    dedup_key: string;
+  }[]
+): { inserted: number; skipped: number } {
+  const db = getDb();
+  const stmt = db.prepare(`
+    INSERT OR IGNORE INTO transactions
+      (statement_id, source, account, period, txn_date, description, amount, category, flow, dedup_key)
+    VALUES
+      (@statement_id, @source, @account, @period, @txn_date, @description, @amount, @category, @flow, @dedup_key)
+  `);
+
+  let inserted = 0;
+  const run = db.transaction((rows: typeof txs) => {
+    for (const row of rows) {
+      if (stmt.run(row).changes > 0) inserted++;
+    }
+  });
+  run(txs);
+
+  return { inserted, skipped: txs.length - inserted };
+}
+
+export function getTransactionCategory(id: number): { category: string } | null {
+  const db = getDb();
+  const row = db
+    .prepare("SELECT category FROM transactions WHERE id = ?")
+    .get(id) as { category: string } | undefined;
+  return row ?? null;
+}
+
 export function listTransactions(filters: TransactionFilters = {}): {
   rows: TransactionRow[];
   total: number;
