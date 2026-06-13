@@ -29,7 +29,7 @@ service = "parse"
 # Auth database (D1) — accounts/sessions for multi-user mode (Phase 2, better-auth).
 # Replace database_id with the real id from `wrangler d1 create parse-auth`.
 [[d1_databases]]
-binding = "AUTH_DB"
+binding = "DB"
 database_name = "parse-auth"
 database_id = "00000000-0000-0000-0000-000000000000"
 
