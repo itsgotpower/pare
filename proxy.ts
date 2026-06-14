@@ -2,8 +2,13 @@ import { NextResponse, type NextRequest } from "next/server";
 import { verifySessionToken, SESSION_COOKIE } from "@/lib/auth/session";
 
 // Public paths: the login page (checks setup state + signs in), its auth API,
-// and the marketing homepage's waitlist signup (posted while signed out).
-const PUBLIC_PATHS = ["/login", "/api/auth", "/api/waitlist"];
+// the marketing homepage's waitlist signup (posted while signed out), and the
+// public privacy policy (a legal page that must be readable signed-out).
+// NOTE (Phase 4 merge): the parallel Edge-runtime port renames this file to
+// middleware.ts — when these land together, "/privacy" must be added to that
+// file's PUBLIC_PATHS too (in hosted mode the gate is retired, so this only
+// matters for self-host).
+const PUBLIC_PATHS = ["/login", "/api/auth", "/api/waitlist", "/privacy"];
 
 // Hosted mode is selected at build/deploy time (PARSE_DEPLOY_TARGET=hosted).
 const HOSTED = process.env.PARSE_DEPLOY_TARGET === "hosted";
