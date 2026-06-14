@@ -6,6 +6,8 @@ import {
   buildPdfKey,
   keyBelongsToUser,
   shouldPersistAfterParse,
+  purgeUserPdfs,
+  userPdfPrefix,
   type R2BucketLike,
 } from "./pdf-store";
 
@@ -101,4 +103,38 @@ test("get returns null for an absent key", async () => {
 
 test("shouldPersistAfterParse defaults to false (delete-after-parse retention)", () => {
   assert.equal(shouldPersistAfterParse(), false);
+});
+
+test("userPdfPrefix is the per-user object boundary", () => {
+  assert.equal(userPdfPrefix("user-1"), "u/user-1/");
+  // userIds are URL-encoded so a slash/space can't widen the prefix.
+  assert.equal(userPdfPrefix("a/b"), "u/a%2Fb/");
+});
+
+test("purgeUserPdfs deletes ONLY the target user's objects (account deletion)", async () => {
+  const mf = newMiniflareR2();
+  try {
+    const bucket = (await mf.getR2Bucket("PDF_BUCKET")) as unknown as R2BucketLike;
+    const store = pdfStoreOverBucket(bucket);
+    const bytes = new Uint8Array([0x25, 0x50, 0x44, 0x46, 9]);
+
+    // user-1 has three objects, user-2 has one.
+    const a1 = await store.put("user-1", "jan.pdf", bytes);
+    const a2 = await store.put("user-1", "feb.pdf", bytes);
+    const a3 = await store.put("user-1", "mar.pdf", bytes);
+    const b1 = await store.put("user-2", "jan.pdf", bytes);
+
+    const deleted = await purgeUserPdfs(bucket, "user-1");
+    assert.equal(deleted, 3, "all three of user-1's objects are deleted");
+
+    assert.equal(await store.get(a1), null);
+    assert.equal(await store.get(a2), null);
+    assert.equal(await store.get(a3), null);
+    assert.ok(await store.get(b1), "user-2's object is untouched");
+
+    // Idempotent: a second purge finds nothing and reports zero.
+    assert.equal(await purgeUserPdfs(bucket, "user-1"), 0);
+  } finally {
+    await mf.dispose();
+  }
 });

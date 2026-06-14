@@ -63,10 +63,16 @@ export interface ParseJobRecord {
 // Minimal structural slice of KVNamespace we use — declared structurally (like
 // R2BucketLike in lib/storage/pdf-store.ts) so this file needs no
 // @cloudflare/workers-types and tests can inject a stand-in (miniflare's KV).
+export interface KvListResultLike {
+  keys: { name: string }[];
+  list_complete: boolean;
+  cursor?: string;
+}
 export interface KvNamespaceLike {
   get(key: string): Promise<string | null>;
   put(key: string, value: string, options?: { expirationTtl?: number }): Promise<void>;
   delete(key: string): Promise<void>;
+  list(options?: { prefix?: string; cursor?: string; limit?: number }): Promise<KvListResultLike>;
 }
 
 const JOB_PREFIX = "job";
@@ -88,6 +94,32 @@ export function jobKey(userId: string, jobId: string): string {
  */
 export function jobBelongsToUser(key: string, userId: string): boolean {
   return key.startsWith(`${JOB_PREFIX}/${encodeURIComponent(userId)}/`);
+}
+
+/** The KV key prefix holding ALL of a user's job records: `job/<userId>/`. */
+export function userJobPrefix(userId: string): string {
+  return `${JOB_PREFIX}/${encodeURIComponent(userId)}/`;
+}
+
+/**
+ * Hard-delete every job record under a user's prefix (account deletion). These
+ * records are already TTL-ephemeral, but account deletion removes them eagerly so
+ * nothing of the user lingers. Idempotent; cursor-paginated. Returns the count
+ * deleted. (KV deletes one key at a time — there is no bulk-delete API.)
+ */
+export async function purgeUserJobs(kv: KvNamespaceLike, userId: string): Promise<number> {
+  const prefix = userJobPrefix(userId);
+  let cursor: string | undefined;
+  let deleted = 0;
+  do {
+    const page = await kv.list({ prefix, cursor });
+    for (const k of page.keys) {
+      await kv.delete(k.name);
+      deleted++;
+    }
+    cursor = page.list_complete ? undefined : page.cursor;
+  } while (cursor);
+  return deleted;
 }
 
 /**
