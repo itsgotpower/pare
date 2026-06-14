@@ -2,7 +2,7 @@
 // session-token.ts — runtime-agnostic stateless session token (WebCrypto).
 //
 // This module is the Edge/Workers-safe core of the self-hosted session gate. It
-// uses ONLY globalThis.crypto (WebCrypto SubtleCrypto + getRandomValues), so the
+// uses ONLY the WebCrypto global `crypto` (SubtleCrypto + getRandomValues), so the
 // SAME code runs in Node 20+ (self-host / dev / tests) AND in the Cloudflare
 // Workers runtime — no node:crypto, no node:fs, nothing the @opennextjs/cloudflare
 // bundler has to polyfill. That's what lets proxy.ts (a Node-runtime Proxy that
@@ -22,7 +22,7 @@
 export const SESSION_COOKIE = "pare_session";
 export const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 
-const subtle = globalThis.crypto.subtle;
+const subtle = crypto.subtle;
 const utf8 = new TextEncoder();
 
 // WebCrypto wants an ArrayBuffer-backed view; a bare Uint8Array types as
@@ -53,7 +53,7 @@ function fromHex(hex: string): Uint8Array | null {
 
 // Random hex string of `bytes` bytes (2*bytes chars). WebCrypto CSPRNG.
 export function randomHex(bytes: number): string {
-  return toHex(globalThis.crypto.getRandomValues(new Uint8Array(bytes)));
+  return toHex(crypto.getRandomValues(new Uint8Array(bytes)));
 }
 
 async function importKey(secret: string, usage: "sign" | "verify"): Promise<CryptoKey> {
