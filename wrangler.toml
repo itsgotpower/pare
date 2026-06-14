@@ -23,12 +23,38 @@ compatibility_flags = ["nodejs_compat", "global_fetch_strictly_public"]
 [vars]
 PARE_DEPLOY_TARGET = "hosted"
 
+# --- Custom domain (Phase 4) -------------------------------------------------
+#
+# DEFERRED for the closed beta: the Worker serves on its
+# `pare.<your-subdomain>.workers.dev` URL (the Workers dev subdomain stays enabled
+# because no `[[routes]]` capture the apex). When ready to move to the real domain
+# (pare.money), UNCOMMENT the block below and deploy. A Worker custom domain created
+# this way provisions the DNS record + edge cert AUTOMATICALLY — no separate
+# dashboard DNS step — BUT the zone (pare.money) must already be active on this
+# Cloudflare account first. See DEPLOY.md → "Custom domain (Phase 4)".
+#
+# After enabling, ALSO update the BETTER_AUTH_URL secret to the new origin
+# (`wrangler secret put BETTER_AUTH_URL` -> https://app.pare.money) or sign-in
+# cookies/links get issued for the wrong origin.
+#
+# [[routes]]
+# pattern = "app.pare.money"
+# custom_domain = true
+
 # Secrets (NOT set here — provision with `wrangler secret put <NAME>`):
-#   BETTER_AUTH_SECRET  — required; session/token signing (hosted.ts fails closed
-#                         without it). Generate: `openssl rand -base64 32`.
-#   BETTER_AUTH_URL     — the deployed origin, e.g. https://parse.<sub>.workers.dev
-#   RESEND_API_KEY      — password-reset email (optional in dev).
-#   AUTH_EMAIL_FROM     — From: address for reset email.
+#   BETTER_AUTH_SECRET   — required; session/token signing (hosted.ts fails closed
+#                          without it). Generate: `openssl rand -base64 32`.
+#   BETTER_AUTH_URL      — the deployed origin, e.g. https://pare.<sub>.workers.dev
+#   RESEND_API_KEY       — password-reset email (optional in dev).
+#   AUTH_EMAIL_FROM      — From: address for reset email.
+#   TURNSTILE_SECRET_KEY — Cloudflare Turnstile server secret (Phase 4). When SET,
+#                          the waitlist + auth endpoints require a valid Turnstile
+#                          token; when UNSET they skip the check (fail-open, so dev
+#                          and self-host are unaffected). Pair with the public site
+#                          key in NEXT_PUBLIC_TURNSTILE_SITE_KEY (a build-time var,
+#                          set in the build env — public, so not a secret).
+#   SENTRY_DSN           — error-tracking sink (Phase 4). When UNSET, Sentry is a
+#                          no-op; nothing is sent. Not committed.
 
 # Static assets emitted by the OpenNext build.
 [assets]
@@ -38,7 +64,7 @@ binding = "ASSETS"
 # OpenNext needs a self-reference service binding for cache revalidation / RSC.
 [[services]]
 binding = "WORKER_SELF_REFERENCE"
-service = "parse"
+service = "pare"
 
 # --- Phase 3 data-plane bindings (all LIVE as of P6) ---
 # DB (D1), USER_DATA + ParserContainer (DOs), PARSE_QUEUE (Queue producer +
@@ -148,3 +174,30 @@ id = "00000000000000000000000000000000"
 [[r2_buckets]]
 binding = "PDF_BUCKET"
 bucket_name = "pare-pdfs"
+
+# --- Per-IP rate limiting (Phase 4 — Workers Rate Limiting API) ---------------
+#
+# The native Cloudflare Rate Limiting binding (`env.<NAME>.limit({ key })`).
+# Counting is per-colo and best-effort — exactly right for abuse mitigation on the
+# unauthenticated public endpoints (NOT a billing-grade global counter). Used by
+# lib/ratelimit.ts; resolved via getBinding(), so when these bindings are absent
+# (plain Node/dev, self-host) the limiter FAILS OPEN and requests pass through.
+#
+# `namespace_id` is an arbitrary, stable integer you assign per limiter (it scopes
+# the counter — reusing one across limiters shares the budget). `period` MUST be
+# 10 or 60 (seconds). These are `[[unsafe.bindings]]` because the API is still in
+# open beta; they deploy fine.
+#
+# RL_AUTH — sign-in / sign-up / password-reset (/api/auth/*): 20 requests / 60s/IP.
+[[unsafe.bindings]]
+name = "RL_AUTH"
+type = "ratelimit"
+namespace_id = "2001"
+simple = { limit = 20, period = 60 }
+
+# RL_WAITLIST — marketing waitlist signup (/api/waitlist): 10 requests / 60s/IP.
+[[unsafe.bindings]]
+name = "RL_WAITLIST"
+type = "ratelimit"
+namespace_id = "2002"
+simple = { limit = 10, period = 60 }

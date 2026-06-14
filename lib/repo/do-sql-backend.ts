@@ -96,4 +96,65 @@ export class DoSqlBackend implements DbBackend {
     useConnection(null);
     this.db = null;
   }
+
+  // Hard-delete EVERY app table + view from this DO's native SQLite (account
+  // deletion). `ctx.storage.deleteAll()` does NOT remove SQL-API data on a
+  // SQLite-backed DO — only DROP does — so this is how a user's database is truly
+  // erased. Idempotent (IF EXISTS + re-runnable). After this the DO holds no
+  // stored SQL data.
+  //
+  // FK enforcement is ON by DO default, so dropping a parent whose rows are still
+  // referenced raises a constraint error. We drop views first (no FKs), then
+  // tables in repeated passes — each pass drops whatever currently has no blocking
+  // reference — until none remain. If a pass makes no progress (a cycle), we clear
+  // rows then force the drop, swallowing per-statement errors.
+  async destroy(): Promise<void> {
+    const sql = this.storage.sql;
+    const objects = sql
+      .exec<{ name: string; type: string }>(
+        "SELECT name, type FROM sqlite_master " +
+          "WHERE type IN ('table','view') AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_cf_%'"
+      )
+      .toArray();
+
+    for (const v of objects.filter((o) => o.type === "view")) {
+      sql.exec(`DROP VIEW IF EXISTS "${v.name}"`);
+    }
+
+    let tables = objects.filter((o) => o.type === "table").map((o) => o.name);
+    while (tables.length > 0) {
+      const remaining: string[] = [];
+      let dropped = 0;
+      for (const t of tables) {
+        try {
+          sql.exec(`DROP TABLE IF EXISTS "${t}"`);
+          dropped++;
+        } catch {
+          remaining.push(t); // still referenced — retry next pass
+        }
+      }
+      if (dropped === 0) {
+        // No progress (FK cycle / stubborn refs): empty the rows, then drop.
+        for (const t of remaining) {
+          try {
+            sql.exec(`DELETE FROM "${t}"`);
+          } catch {
+            /* ignore */
+          }
+        }
+        for (const t of remaining) {
+          try {
+            sql.exec(`DROP TABLE IF EXISTS "${t}"`);
+          } catch {
+            /* ignore */
+          }
+        }
+        break;
+      }
+      tables = remaining;
+    }
+
+    useConnection(null);
+    this.db = null;
+  }
 }

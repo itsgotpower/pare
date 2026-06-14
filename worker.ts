@@ -34,6 +34,8 @@ import type { AnyRepoCall } from "./lib/repo/repo-rpc";
 import openNextHandler from "./.open-next/worker.js";
 import { queueHandler, type QueueConsumerEnv } from "./lib/queue/consumer";
 import type { ParseJobMessage, QueueMessageBatchLike } from "./lib/queue/types";
+import * as Sentry from "@sentry/cloudflare";
+import { sentryOptions } from "./lib/sentry";
 
 const handler = {
   // The Next.js app's fetch handler, untouched.
@@ -48,7 +50,17 @@ const handler = {
   },
 };
 
-export default handler;
+// PHASE 4 — error tracking. withSentry wraps BOTH the fetch and queue handlers,
+// capturing unhandled errors with request context. The options come from the
+// per-Worker env (SENTRY_DSN secret); when it's unset, Sentry is a no-op (nothing
+// sent), so dev/self-host/un-provisioned deploys behave exactly as before. PII is
+// stripped in lib/sentry.ts's beforeSend. The Durable Object classes are exported
+// separately below and are unaffected by the wrap.
+export default Sentry.withSentry(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (env: any) => sentryOptions(env),
+  handler
+);
 
 // The PDF parser runs in a Cloudflare Container (Python + poppler — unavailable in
 // the Workers runtime). Like UserDataObject, the Container-backed Durable Object
@@ -74,5 +86,12 @@ export class UserDataObject extends DurableObject {
   // (lib/repo/index.ts: `stub.call(call)`). The envelope is structured-clone-safe.
   async call(req: AnyRepoCall): Promise<unknown> {
     return this.impl.call(req);
+  }
+
+  // Account-deletion RPC: hard-delete this user's entire database (drop all SQL
+  // tables/views + clear KV storage). Called by destroyUserData() via the stub.
+  // Idempotent.
+  async destroy(): Promise<void> {
+    return this.impl.destroy();
   }
 }

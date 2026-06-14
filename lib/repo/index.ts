@@ -51,6 +51,9 @@ export async function getUserDataNamespace(): Promise<DoNamespaceLike | null> {
 // this file needs no @cloudflare/workers-types and tests can inject a stand-in.
 export interface DoStubLike {
   call(req: AnyRepoCall): Promise<unknown>;
+  // Account-deletion RPC (UserDataObject.destroy). Optional so the in-process test
+  // transport (which only implements `call`) still satisfies the interface.
+  destroy?(): Promise<void>;
 }
 export interface DoNamespaceLike {
   idFromName(name: string): unknown;
@@ -81,6 +84,28 @@ export async function getRepoForUser(
   }
   const id = namespace.idFromName(userId);
   return repoOverDoStub(namespace.get(id));
+}
+
+// Hard-delete a user's entire Durable Object database (account deletion). Routes
+// to the SAME DO as getRepoForUser (id derived from userId) and invokes its
+// destroy() RPC. Idempotent; throws only if the binding is unavailable or the DO
+// stub doesn't expose destroy() (e.g. an old deploy). `ns` can be threaded in by a
+// caller that already holds env.USER_DATA, exactly like getRepoForUser.
+export async function destroyUserData(
+  userId: string,
+  ns?: DoNamespaceLike | null
+): Promise<void> {
+  const namespace = ns ?? (await getUserDataNamespace());
+  if (!namespace) {
+    throw new Error(
+      "destroyUserData: USER_DATA Durable Object binding unavailable (hosted mode requires the Workers runtime)"
+    );
+  }
+  const stub = namespace.get(namespace.idFromName(userId));
+  if (typeof stub.destroy !== "function") {
+    throw new Error("destroyUserData: DO stub does not expose destroy()");
+  }
+  await stub.destroy();
 }
 
 // In-process scoped repo used by tests (and any non-Worker hosted-mode harness):
