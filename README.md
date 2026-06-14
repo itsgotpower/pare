@@ -117,4 +117,12 @@ Self-host mode and the MCP server stay green throughout — hosted is additive, 
 
 ## License
 
-MIT
+**Open core.** This repository — the entire self-hostable product — is licensed
+under the **GNU AGPL-3.0** ([LICENSE](LICENSE)). Run it, modify it, self-host it
+freely; if you offer a *modified* version as a network service, you must share
+your source with its users.
+
+The commercial layer that runs the paid hosted service (billing, metering,
+account lifecycle) lives in a separate private repository and is proprietary.
+See [LICENSING.md](LICENSING.md) for the full open-core boundary and the
+contributor (CLA) terms.
