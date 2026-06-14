@@ -159,8 +159,8 @@ export default function MarketingHome() {
           <span className="font-mono text-sm font-bold tracking-tight">
             <span aria-hidden="true">🍐</span> PARE
           </span>
-          <span className="hidden sm:block h-6 w-px bg-border" aria-hidden="true" />
-          <LocalClock className="hidden sm:flex" />
+          <span className="block h-6 w-px bg-border" aria-hidden="true" />
+          <LocalClock className="flex" />
         </div>
         <div className="flex items-center gap-5">
           <a
