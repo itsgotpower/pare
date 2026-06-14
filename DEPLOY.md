@@ -56,7 +56,7 @@ npx wrangler login                      # interactive OAuth, or
 export CLOUDFLARE_API_TOKEN=...         # CI / non-interactive
 ```
 
-The app serves on `https://parse.<your-subdomain>.workers.dev` after deploy.
+The app serves on `https://pare.<your-subdomain>.workers.dev` after deploy.
 
 ### Before the first real deploy — full hosted provisioning (Phase 3 / P6)
 
@@ -89,7 +89,7 @@ npx wrangler kv namespace create PARSE_JOBS
 
 # 6. Provision the auth secrets (NOT stored in wrangler.toml).
 openssl rand -base64 32 | npx wrangler secret put BETTER_AUTH_SECRET
-npx wrangler secret put BETTER_AUTH_URL      # e.g. https://parse.<sub>.workers.dev
+npx wrangler secret put BETTER_AUTH_URL      # e.g. https://pare.<sub>.workers.dev
 npx wrangler secret put RESEND_API_KEY       # password-reset email
 npx wrangler secret put AUTH_EMAIL_FROM      # From: address
 
@@ -128,6 +128,66 @@ Durable Object (`UserDataObject`) is exported from `worker.ts`, so the
 > against a real DO in `lib/repo/do-sql-backend.workers-spec.ts` and end-to-end
 > through the upload pipeline in `lib/queue/e2e.workers-spec.ts`. Per-user data
 > requests now serve live in hosted mode.
+
+## Phase 4 — production hardening (custom domain, rate limits, Turnstile, error tracking)
+
+Phase 4 layers on the hosted hardening. **Everything below is fail-open / inert
+until provisioned**, so an un-provisioned deploy behaves exactly like Phase 3.
+
+### New secrets / vars (none committed)
+
+```bash
+# Turnstile (bot protection on the waitlist + auth endpoints). When the SECRET is
+# set, those endpoints require a valid token; when unset, the check is skipped.
+# The SITE key is PUBLIC and is a BUILD-TIME var (baked into the client bundle),
+# so it goes in the build environment, NOT `wrangler secret`.
+export NEXT_PUBLIC_TURNSTILE_SITE_KEY=0x4AAA...      # public site key (build env)
+npx wrangler secret put TURNSTILE_SECRET_KEY          # server secret
+
+# Error tracking (Sentry). When unset, Sentry is a no-op (nothing is sent).
+npx wrangler secret put SENTRY_DSN
+```
+
+> Create the Turnstile widget (→ site key + secret key) under **Cloudflare
+> dashboard → Turnstile**. Create the Sentry project (→ DSN) at sentry.io; pick the
+> **Cloudflare Workers** platform.
+
+### Rate limiting — nothing to provision
+
+The per-IP limiters (`RL_AUTH`, `RL_WAITLIST`) are `[[unsafe.bindings]]` of type
+`ratelimit` in `wrangler.toml` — they deploy with the Worker, no resource to
+create and no id to paste. Counting is per-colo + best-effort (abuse mitigation,
+not a billing-grade counter). They fail OPEN when absent (dev/self-host), so they
+never break local work.
+
+### Custom domain (Phase 4)
+
+Deferred for the closed beta — the Worker serves on `pare.<sub>.workers.dev`.
+When ready to move to the real domain:
+
+1. Add the zone (e.g. `pare.money`) to this Cloudflare account (dashboard → Add a
+   site), and point your registrar's nameservers at Cloudflare.
+2. Uncomment the `[[routes]]` block in `wrangler.toml` (set `pattern` to the host,
+   e.g. `app.pare.money`, `custom_domain = true`).
+3. `npm run cf:deploy` — Wrangler provisions the DNS record + edge certificate
+   automatically (no manual DNS row to add).
+4. Update the origin secret so auth cookies/links match:
+   `npx wrangler secret put BETTER_AUTH_URL` → `https://app.pare.money`.
+
+### Account deletion
+
+No provisioning. The hosted **Delete account** flow (`DELETE /api/account`, surfaced
+in the profile Danger zone) hard-deletes across all four stores — the user's
+Durable Object database (drop all tables), their R2 PDFs, their KV job records, and
+their better-auth identity rows in D1 — and logs a PII-free audit line
+(`event: "account_deletion"` with a hashed userId). It's idempotent, so a retry
+after a partial failure is safe.
+
+### Privacy policy
+
+Served at `/privacy` (public, static) and linked from the landing-page footer. The
+contact address is `privacy@pare.money` — set up email forwarding for that alias
+when the domain is live.
 
 ## Resolved: Node-runtime `proxy.ts` (the auth gate)
 

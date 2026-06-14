@@ -1,5 +1,5 @@
 import { betterAuth, type BetterAuthOptions } from "better-auth";
-import { bearer } from "better-auth/plugins";
+import { bearer, captcha } from "better-auth/plugins";
 import { D1Dialect } from "kysely-d1";
 import { sendPasswordResetEmail } from "./email";
 
@@ -39,6 +39,21 @@ export function hostedAuthOptions(db: D1Like): BetterAuthOptions {
     );
   }
 
+  // bearer() lets the mobile client authenticate with an Authorization: Bearer
+  // header. PHASE 4: when TURNSTILE_SECRET_KEY is set, also enforce Cloudflare
+  // Turnstile on the auth mutations (sign-up/sign-in/forget-password) — the
+  // client sends the token as an `x-captcha-response` header. Gated on the secret
+  // so it's INERT until provisioned (dev/test/self-host and the current web UI,
+  // which doesn't send a token yet, are unaffected); enabling it without an
+  // updated client would (correctly) start rejecting tokenless auth POSTs.
+  const plugins: NonNullable<BetterAuthOptions["plugins"]> = [bearer()];
+  const turnstileSecret = process.env.TURNSTILE_SECRET_KEY;
+  if (turnstileSecret) {
+    plugins.push(
+      captcha({ provider: "cloudflare-turnstile", secretKey: turnstileSecret })
+    );
+  }
+
   return {
     // Kysely over the D1 dialect. better-auth detects this as a "sqlite"
     // dialect for query generation; the auth-D1 migration (d1/migrations/
@@ -60,10 +75,10 @@ export function hostedAuthOptions(db: D1Like): BetterAuthOptions {
         await sendPasswordResetEmail(user.email, url);
       },
     },
-    // bearer() lets the mobile client authenticate with an Authorization:
-    // Bearer header instead of a cookie. Sessions are still the underlying
-    // primitive — the token IS the session token, returned via set-auth-token.
-    plugins: [bearer()],
+    // Sessions are the underlying primitive — the bearer token IS the session
+    // token (returned via set-auth-token). Captcha (when configured) is appended
+    // above so it runs before the email/password handlers.
+    plugins,
   };
 }
 

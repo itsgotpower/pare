@@ -1,5 +1,8 @@
 "use client";
 
+import { useEffect } from "react";
+import { reportClientError } from "@/lib/report-error";
+
 export default function Error({
   error,
   reset,
@@ -7,6 +10,11 @@ export default function Error({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  // Report to the monitoring beacon (redacted server-side, forwarded to Sentry).
+  useEffect(() => {
+    reportClientError(error);
+  }, [error]);
+
   return (
     <div className="p-6 flex flex-col items-center justify-center min-h-[50vh]">
       <h2 className="font-mono text-xl font-bold tracking-tight uppercase mb-4">
