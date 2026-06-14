@@ -81,7 +81,7 @@ npm run mcp        # stdio MCP server over data/pare.db; see mcp/README.md
 
 ## Hosted deployment (Cloudflare)
 
-The hosted target is built and tested but **pre-launch** — see [DEPLOY.md](DEPLOY.md) for the full provisioning sequence (D1 + migrations, R2 bucket, queue, KV, secrets, container) and `npm run cf:deploy`. One blocker remains before a live deploy: porting the Node-runtime auth middleware (`proxy.ts`) to the Edge runtime so the OpenNext bundle builds (tracked for Phase 4).
+The hosted target is built and tested but **pre-launch**. It builds via [`@opennextjs/cloudflare`](https://opennext.js.org/cloudflare) (`npm run cf:deploy`) and requires the Cloudflare bindings provisioned — D1 (auth), R2 (PDF storage), Queues (parse pipeline), KV (job status), a Durable Object per user, and the parser Container — plus the auth secrets. One blocker remains before a live deploy: porting the Node-runtime auth middleware to the Edge runtime so the OpenNext bundle builds (tracked for Phase 4).
 
 ## Project structure
 
