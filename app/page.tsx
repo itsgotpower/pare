@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { PALETTE } from "@/lib/colors";
@@ -40,6 +40,32 @@ const FEATURES = [
 
 type Status = "idle" | "loading" | "done" | "error";
 
+// Count up to `target` once on mount (easeOutCubic), to sync with the bento's
+// bar reveal. Deps are stable, so it does NOT replay when the page re-renders on
+// every waitlist-input keystroke. Honours prefers-reduced-motion (jumps to the
+// final value). SSR renders 0 and the client's first paint also renders 0, so
+// there's no hydration mismatch — the rAF effect animates after hydration.
+function useCountUp(target: number, durationMs = 900) {
+  const [value, setValue] = useState(0);
+  useEffect(() => {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      setValue(target);
+      return;
+    }
+    let raf = 0;
+    let start = 0;
+    const tick = (t: number) => {
+      if (!start) start = t;
+      const p = Math.min(1, (t - start) / durationMs);
+      setValue(Math.round(target * (1 - Math.pow(1 - p, 3))));
+      if (p < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [target, durationMs]);
+  return value;
+}
+
 export default function MarketingHome() {
   const [email, setEmail] = useState("");
   const [status, setStatus] = useState<Status>("idle");
@@ -48,6 +74,7 @@ export default function MarketingHome() {
   // site key is configured; with no key the server skips verification, so an
   // empty token is fine in dev/self-host.
   const [turnstileToken, setTurnstileToken] = useState("");
+  const thisMonth = useCountUp(2466);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -175,15 +202,18 @@ export default function MarketingHome() {
               <span className="font-mono text-[10px] tracking-widest uppercase text-muted-foreground">
                 This month
               </span>
-              <span className="font-mono text-3xl font-bold tracking-tight mt-1">$2,466</span>
+              <span className="font-mono text-3xl font-bold tracking-tight mt-1 tabular-nums">
+                ${thisMonth.toLocaleString("en-US")}
+              </span>
               <div className="flex items-end gap-1 h-10 mt-3">
                 {PREVIEW_SPARK.map((h, i) => (
                   <div
                     key={i}
-                    className="flex-1"
+                    className="flex-1 pare-rise"
                     style={{
                       height: `${h}%`,
                       backgroundColor: i === PREVIEW_SPARK.length - 1 ? PALETTE.slate : "var(--muted)",
+                      animationDelay: `${i * 55}ms`,
                     }}
                   />
                 ))}
@@ -204,13 +234,20 @@ export default function MarketingHome() {
               <span className="font-mono text-[10px] tracking-widest uppercase text-muted-foreground mb-0.5">
                 Top categories
               </span>
-              {PREVIEW_CATEGORIES.map((c) => (
+              {PREVIEW_CATEGORIES.map((c, i) => (
                 <div key={c.name}>
                   <span className="font-mono text-[9px] tracking-wide text-muted-foreground">
                     {c.name}
                   </span>
                   <div className="h-1.5 bg-muted mt-0.5">
-                    <div className="h-full" style={{ width: `${c.pct}%`, backgroundColor: c.color }} />
+                    <div
+                      className="h-full pare-grow"
+                      style={{
+                        width: `${c.pct}%`,
+                        backgroundColor: c.color,
+                        animationDelay: `${250 + i * 120}ms`,
+                      }}
+                    />
                   </div>
                 </div>
               ))}
