@@ -240,7 +240,7 @@ export default function PrivacyPage() {
           href="/"
           className="font-mono text-[11px] tracking-wide uppercase text-muted-foreground hover:text-foreground transition-colors"
         >
-          parse
+          pare
         </Link>
       </footer>
     </div>
