@@ -1,14 +1,14 @@
 /**
- * Parse — finance MCP server (stdio).
+ * Pare — finance MCP server (stdio).
  *
- * Exposes the local SQLite finance data (data/parse.db) as MCP tools so an MCP
+ * Exposes the local SQLite finance data (data/pare.db) as MCP tools so an MCP
  * client (e.g. Claude) can query and lightly manage spending. Goes through the
  * app's Repo layer — single source of truth, no duplicated SQL.
  *
- * Privacy: reads/writes ONLY the local DB. Set PARSE_DB_PATH to the absolute DB
+ * Privacy: reads/writes ONLY the local DB. Set PARE_DB_PATH to the absolute DB
  * path (the server's cwd is whatever the MCP client launches it with).
  *
- * Run:  PARSE_DB_PATH=/abs/path/data/parse.db npx tsx mcp/server.ts
+ * Run:  PARE_DB_PATH=/abs/path/data/pare.db npx tsx mcp/server.ts
  */
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
@@ -23,7 +23,7 @@ const json = (data: unknown) => ({
   content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }],
 });
 
-const server = new McpServer({ name: "parse-finance", version: "0.1.0" });
+const server = new McpServer({ name: "pare-finance", version: "0.1.0" });
 
 // ---- Read tools -------------------------------------------------------------
 

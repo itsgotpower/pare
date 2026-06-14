@@ -26,7 +26,7 @@ const COOKIE_OPTS = {
 
 async function isAuthenticated(): Promise<boolean> {
   const store = await cookies();
-  return verifySessionToken(store.get(SESSION_COOKIE)?.value);
+  return await verifySessionToken(store.get(SESSION_COOKIE)?.value);
 }
 
 // This is the SELF-HOSTED single-user gate (scrypt + HMAC cookie, better-sqlite3,
@@ -79,7 +79,7 @@ export async function POST(request: NextRequest) {
         );
       }
       createUser(String(body.display_name || "").trim(), password);
-      store.set(SESSION_COOKIE, createSessionToken(), COOKIE_OPTS);
+      store.set(SESSION_COOKIE, await createSessionToken(), COOKIE_OPTS);
       return Response.json({ success: true });
     }
 
@@ -92,7 +92,7 @@ export async function POST(request: NextRequest) {
         await new Promise((r) => setTimeout(r, 500));
         return Response.json({ error: "Incorrect password" }, { status: 401 });
       }
-      store.set(SESSION_COOKIE, createSessionToken(), COOKIE_OPTS);
+      store.set(SESSION_COOKIE, await createSessionToken(), COOKIE_OPTS);
       return Response.json({ success: true });
     }
 
@@ -129,7 +129,7 @@ export async function POST(request: NextRequest) {
       }
       changePassword(next);
       // Rotation killed every session, including this one — re-issue.
-      store.set(SESSION_COOKIE, createSessionToken(), COOKIE_OPTS);
+      store.set(SESSION_COOKIE, await createSessionToken(), COOKIE_OPTS);
       return Response.json({ success: true });
     }
 

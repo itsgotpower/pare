@@ -7,7 +7,7 @@ import { sendPasswordResetEmail } from "./email";
 //
 // Self-hosted mode keeps the single-user gate (lib/auth/session.ts +
 // lib/auth/user.ts + proxy.ts). This module is the HOSTED path, selected by
-// PARSE_DEPLOY_TARGET=hosted (see lib/auth/resolve.ts). It covers:
+// PARE_DEPLOY_TARGET=hosted (see lib/auth/resolve.ts). It covers:
 //   - email + password
 //   - password reset via Resend (sendResetPassword -> lib/auth/email.ts)
 //   - bearer tokens for the Expo mobile app (bearer() plugin: sign-in returns a
@@ -42,7 +42,7 @@ export function hostedAuthOptions(db: D1Like): BetterAuthOptions {
   return {
     // Kysely over the D1 dialect. better-auth detects this as a "sqlite"
     // dialect for query generation; the auth-D1 migration (d1/migrations/
-    // 0001_better_auth.sql, applied via `wrangler d1 migrations apply parse-auth`)
+    // 0001_better_auth.sql, applied via `wrangler d1 migrations apply pare-auth`)
     // provides the schema (we do NOT let better-auth auto-create tables).
     database: {
       dialect: new D1Dialect({ database: db }),

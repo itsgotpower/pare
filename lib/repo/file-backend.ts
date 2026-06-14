@@ -3,7 +3,7 @@ import { getDb } from "../db";
 import type { DbBackend } from "./backend";
 
 // Local/self-host + MCP backend: the existing better-sqlite3 file singleton
-// (data/parse.db). SQLite's WAL handles durability, so persist() is a no-op and
+// (data/pare.db). SQLite's WAL handles durability, so persist() is a no-op and
 // behaviour is byte-for-byte identical to the pre-Repo getDb() singleton. The
 // connection lives for the process lifetime, so close() is a no-op too.
 //

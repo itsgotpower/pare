@@ -70,7 +70,7 @@ export default function MarketingHome() {
     <div className="h-full flex flex-col overflow-hidden">
       {/* Top bar */}
       <header className="shrink-0 flex items-center justify-between px-5 md:px-8 h-14 border-b border-border">
-        <span className="font-mono text-sm font-bold tracking-tight">PARSE</span>
+        <span className="font-mono text-sm font-bold tracking-tight">PARE</span>
         <div className="flex items-center gap-5">
           <a
             href={REPO_URL}
@@ -105,7 +105,7 @@ export default function MarketingHome() {
             finally legible.
           </h1>
           <p className="text-sm md:text-base text-muted-foreground mt-4 max-w-md leading-relaxed">
-            Drop in a PDF from your bank or credit card. Parse pulls out every
+            Drop in a PDF from your bank or credit card. Pare pulls out every
             transaction, categorizes it, and turns months of statements into
             spending trends, budgets, forecasts, and subscription alerts.
             Free and open source.

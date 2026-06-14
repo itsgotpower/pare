@@ -1,6 +1,6 @@
 /**
- * Smoke test for the Parse MCP server: spawns it over stdio against a THROWAWAY,
- * synthetically-seeded temp DB — NEVER the real data/parse.db — lists tools, and
+ * Smoke test for the Pare MCP server: spawns it over stdio against a THROWAWAY,
+ * synthetically-seeded temp DB — NEVER the real data/pare.db — lists tools, and
  * calls read tools plus the write tools (set_goal/delete_goal) so the write path
  * is exercised without touching real financial data. Run: npx tsx mcp/test-client.ts
  */
@@ -13,7 +13,7 @@ import path from "path";
 import { runMigrations } from "../lib/db/migrate";
 import { computeDedupKey } from "../lib/db/transactions";
 
-// Disposable DB under the OS temp dir; the server is pointed here via PARSE_DB_PATH.
+// Disposable DB under the OS temp dir; the server is pointed here via PARE_DB_PATH.
 const tmpDir = mkdtempSync(path.join(os.tmpdir(), "parse-mcp-test-"));
 const dbPath = path.join(tmpDir, "parse-test.db");
 
@@ -65,7 +65,7 @@ async function main() {
   const transport = new StdioClientTransport({
     command: "npx",
     args: ["tsx", "mcp/server.ts"],
-    env: { ...process.env, PARSE_DB_PATH: dbPath } as Record<string, string>,
+    env: { ...process.env, PARE_DB_PATH: dbPath } as Record<string, string>,
   });
 
   const client = new Client({ name: "parse-test", version: "0.0.1" });
