@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { PALETTE } from "@/lib/colors";
+import { Turnstile } from "@/components/turnstile";
 
 const REPO_URL = "https://github.com/itsgotpower/parse-fi";
 
@@ -38,6 +39,10 @@ export default function MarketingHome() {
   const [email, setEmail] = useState("");
   const [status, setStatus] = useState<Status>("idle");
   const [message, setMessage] = useState("");
+  // Turnstile token (empty until solved). The widget renders only when a public
+  // site key is configured; with no key the server skips verification, so an
+  // empty token is fine in dev/self-host.
+  const [turnstileToken, setTurnstileToken] = useState("");
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -48,7 +53,7 @@ export default function MarketingHome() {
       const res = await fetch("/api/waitlist", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ email, turnstileToken }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -132,6 +137,9 @@ export default function MarketingHome() {
                 {status === "loading" ? "…" : status === "done" ? "Joined ✓" : "Join waitlist"}
               </button>
             </div>
+            {/* Renders nothing unless NEXT_PUBLIC_TURNSTILE_SITE_KEY is set, so the
+                zero-scroll landing stays zero-scroll in dev / self-host. */}
+            <Turnstile onToken={setTurnstileToken} className="mt-2" />
             <p
               className={`text-xs mt-2 h-4 ${
                 status === "error" ? "text-[color:var(--destructive,#b3654a)]" : "text-muted-foreground"
@@ -220,6 +228,12 @@ export default function MarketingHome() {
             <GithubMark className="size-3.5" />
             Open source
           </a>
+          <Link
+            href="/privacy"
+            className="font-mono text-[11px] tracking-wide uppercase text-muted-foreground hover:text-foreground transition-colors"
+          >
+            Privacy
+          </Link>
           <span className="text-[11px] text-muted-foreground">Private by design.</span>
         </div>
       </footer>
