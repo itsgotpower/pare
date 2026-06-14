@@ -15,7 +15,8 @@ const jetbrainsMono = JetBrains_Mono({
 
 export const metadata: Metadata = {
   title: "PARE",
-  description: "Local-first personal spending analysis",
+  description:
+    "Turn bank and credit-card PDF statements into spending trends, forecasts, and budgets — private by design, free to start.",
 };
 
 // viewport-fit=cover so the bottom tab bar can pad into the home-indicator

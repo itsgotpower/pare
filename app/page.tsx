@@ -32,10 +32,10 @@ const PREVIEW_CATEGORIES = [
 const PREVIEW_SPARK = [62, 88, 54, 95, 70, 78, 60, 100];
 
 const FEATURES = [
-  { label: "Reads your PDFs", color: PALETTE.slate },
-  { label: "Categorizes automatically", color: PALETTE.celadon },
-  { label: "Forecasts your cash flow", color: PALETTE.dustyblue },
-  { label: "Flags recurring charges", color: PALETTE.terracotta },
+  { label: "Isolated per-user database", color: PALETTE.slate },
+  { label: "PDFs deleted after parsing", color: PALETTE.celadon },
+  { label: "Free to start", color: PALETTE.terracotta },
+  { label: "Monarch import — soon", color: PALETTE.dustyblue },
 ];
 
 type Status = "idle" | "loading" | "done" | "error";
@@ -134,7 +134,8 @@ export default function MarketingHome() {
         {/* Pitch + CTA */}
         <div className="flex flex-col justify-center px-5 md:px-12 py-6 md:py-0 min-h-0">
           <p className="font-mono text-[10px] md:text-xs tracking-[0.25em] uppercase text-muted-foreground">
-            Personal finance, parsed
+            <span aria-hidden="true" className="tracking-normal mr-2">✂️🍐💰</span>
+            Personal finance, pared down
           </p>
           <h1 className="font-mono font-bold tracking-tight leading-[0.95] mt-3 text-[2rem] sm:text-5xl xl:text-6xl">
             Your bank
@@ -144,10 +145,13 @@ export default function MarketingHome() {
             finally legible.
           </h1>
           <p className="text-sm md:text-base text-muted-foreground mt-4 max-w-md leading-relaxed">
-            Drop in a PDF from your bank or credit card. Pare pulls out every
-            transaction, categorizes it, and turns months of statements into
-            spending trends, budgets, forecasts, and subscription alerts.
-            Free and open source.
+            <span className="text-foreground font-medium">
+              The fastest way to have more money is to keep more.
+            </span>{" "}
+            Drop in a bank or credit-card PDF — no logins, no aggregators,
+            nothing to connect. Pare reads every transaction, categorizes it, and
+            turns months of statements into spending trends, forecasts, and
+            subscription alerts. Free to start; open source to self-host.
           </p>
 
           {/* Waitlist form */}
@@ -179,7 +183,7 @@ export default function MarketingHome() {
                 status === "error" ? "text-[color:var(--destructive,#b3654a)]" : "text-muted-foreground"
               }`}
             >
-              {message || "Join the waitlist for the hosted version."}
+              {message || "Free to start when the hosted version opens."}
             </p>
           </form>
 
@@ -280,7 +284,9 @@ export default function MarketingHome() {
           >
             Privacy
           </Link>
-          <span className="text-[11px] text-muted-foreground">Private by design.</span>
+          <span className="text-[11px] text-muted-foreground">
+            <span aria-hidden="true" className="mr-1.5">✂️🍐💰</span>Private by design.
+          </span>
         </div>
       </footer>
     </div>
