@@ -12,14 +12,14 @@ import Database from "better-sqlite3";
 // Runs without a Worker: an in-memory better-sqlite3 DB stands in for D1 via the
 // same shim the dev path uses, and the better-auth instance is built directly.
 // resolveUserHosted() is the production code under test (resolveUser() just
-// branches to it on PARSE_DEPLOY_TARGET=hosted).
+// branches to it on PARE_DEPLOY_TARGET=hosted).
 
 process.env.BETTER_AUTH_SECRET ||= "test-secret-please-only-for-tests-000000";
 process.env.BETTER_AUTH_URL ||= "http://localhost:3000";
 // Keep the single-user HMAC secret out of the repo's real data/ dir.
-process.env.PARSE_DB_PATH ||= path.join(
-  fs.mkdtempSync(path.join(os.tmpdir(), "parse-auth-test-")),
-  "parse.db"
+process.env.PARE_DB_PATH ||= path.join(
+  fs.mkdtempSync(path.join(os.tmpdir(), "pare-auth-test-")),
+  "pare.db"
 );
 
 import { createHostedAuth, type HostedAuth } from "./hosted";
@@ -152,18 +152,18 @@ test("register -> cookie login -> bearer token -> resolveUser for BOTH", async (
 });
 
 test("self-hosted resolver: valid HMAC cookie -> SINGLE_USER_ID, else null", async () => {
-  const token = createSessionToken();
-  const ok = resolveUserSelfHosted(
+  const token = await createSessionToken();
+  const ok = await resolveUserSelfHosted(
     new Request("http://localhost/", {
       headers: { cookie: `${SESSION_COOKIE}=${token}` },
     })
   );
   assert.deepEqual(ok, { userId: SINGLE_USER_ID }, "valid cookie -> single user");
 
-  const none = resolveUserSelfHosted(new Request("http://localhost/"));
+  const none = await resolveUserSelfHosted(new Request("http://localhost/"));
   assert.equal(none, null, "no cookie -> null");
 
-  const bad = resolveUserSelfHosted(
+  const bad = await resolveUserSelfHosted(
     new Request("http://localhost/", {
       headers: { cookie: `${SESSION_COOKIE}=garbage.token.here` },
     })

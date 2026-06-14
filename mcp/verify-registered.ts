@@ -16,7 +16,7 @@ async function main() {
     cwd: repo,
     env: {
       ...process.env,
-      PARSE_DB_PATH: path.join(repo, "data", "parse.db"),
+      PARE_DB_PATH: path.join(repo, "data", "pare.db"),
     } as Record<string, string>,
   });
   const client = new Client({ name: "verify", version: "0.0.1" });

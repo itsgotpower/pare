@@ -1,12 +1,12 @@
 # Security & Privacy
 
-Parse is a **local-first** personal finance tool. All financial data stays on your machine — there are no network calls, telemetry, or cloud sync.
+Pare is a **local-first** personal finance tool. All financial data stays on your machine — there are no network calls, telemetry, or cloud sync.
 
 ## What is sensitive (never committed)
 
 | Path / pattern | Contents |
 |---|---|
-| `data/parse.db` | Parsed transactions, personal category rules (e.g. e-transfer handles), manual overrides |
+| `data/pare.db` | Parsed transactions, personal category rules (e.g. e-transfer handles), manual overrides |
 | `data/user-rules.json` | Persisted user-defined category rules (survives DB wipes) |
 | `*.pdf` | Bank / credit-card statement PDFs |
 | `transactions.csv` | Exported or legacy CSV transaction data |
@@ -19,7 +19,7 @@ All of the above are listed in `.gitignore` and must never be tracked.
 ## Design rules that keep PII out of source
 
 1. **No personal identifiers in `lib/` or `app/`.** No real names, account numbers, transit numbers, e-transfer handles, or other PII hardcoded in any tracked file.
-2. **Personal rules live only in the gitignored DB.** Category rules that reference private info (e.g. a rent e-transfer handle) are added via the `/categories` UI and stored in `data/parse.db` + `data/user-rules.json` — both gitignored.
+2. **Personal rules live only in the gitignored DB.** Category rules that reference private info (e.g. a rent e-transfer handle) are added via the `/categories` UI and stored in `data/pare.db` + `data/user-rules.json` — both gitignored.
 3. **Real PDFs live outside the repo.** Statement PDFs belong in the parent directory (`../`), which is *not* a git repository. Never `git init` the parent folder.
 4. **No telemetry or network calls.** The app makes zero outbound requests. All parsing and categorisation happens locally.
 5. **Tests use synthetic fixtures only.** Test data must be fabricated — never copy real transaction descriptions or amounts into test files.

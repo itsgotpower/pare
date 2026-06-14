@@ -6,7 +6,7 @@ import type Database from "better-sqlite3";
 //
 // Two implementations:
 //
-//  - FileBackend (Step 2): opens data/parse.db directly, exactly like today's
+//  - FileBackend (Step 2): opens data/pare.db directly, exactly like today's
 //    getDb() singleton. SQLite's WAL handles durability, so persist() is a
 //    no-op — local/self-host + MCP behaviour is unchanged.
 //

@@ -37,18 +37,18 @@ const EXAMPLE_PROMPTS = [
 
 export default function ConnectPage() {
   const root = process.cwd();
-  const dbPath = process.env.PARSE_DB_PATH ?? path.join(root, "data", "parse.db");
+  const dbPath = process.env.PARE_DB_PATH ?? path.join(root, "data", "pare.db");
   const nodeBin = process.execPath;
   const tsxCli = path.join(root, "node_modules", "tsx", "dist", "cli.mjs");
   const serverEntry = path.join(root, "mcp", "server.ts");
 
   const serverConfig = {
-    "parse-finance": {
+    "pare-finance": {
       type: "stdio",
       command: nodeBin,
       args: [tsxCli, serverEntry],
       cwd: root,
-      env: { PARSE_DB_PATH: dbPath },
+      env: { PARE_DB_PATH: dbPath },
     },
   };
 
@@ -58,10 +58,10 @@ export default function ConnectPage() {
   const claudeDesktopJson = JSON.stringify(
     {
       mcpServers: {
-        "parse-finance": {
+        "pare-finance": {
           command: "/bin/sh",
           args: ["-c", `cd '${root}' && exec '${nodeBin}' '${tsxCli}' '${serverEntry}'`],
-          env: { PARSE_DB_PATH: dbPath },
+          env: { PARE_DB_PATH: dbPath },
         },
       },
     },
@@ -81,7 +81,7 @@ export default function ConnectPage() {
       <Card className="mb-8">
         <CardContent className="py-5">
           <p className="text-sm leading-relaxed">
-            Parse ships a local{" "}
+            Pare ships a local{" "}
             <a
               href="https://modelcontextprotocol.io"
               target="_blank"
@@ -151,7 +151,7 @@ export default function ConnectPage() {
         <p className="text-xs text-muted-foreground">
           <span className="font-mono">cwd</span> must stay the repo root — database
           migrations resolve relative to it. Verify with <span className="font-mono">/mcp</span>{" "}
-          inside Claude Code: <span className="font-mono">parse-finance</span> should be
+          inside Claude Code: <span className="font-mono">pare-finance</span> should be
           listed as connected.
         </p>
       </div>
@@ -207,7 +207,7 @@ export default function ConnectPage() {
           </h3>
           <p className="text-xs text-muted-foreground leading-relaxed">
             The MCP server runs locally and touches only{" "}
-            <span className="font-mono">{dbPath}</span>. Nothing is uploaded by Parse — but
+            <span className="font-mono">{dbPath}</span>. Nothing is uploaded by Pare — but
             note that whatever an AI client reads through these tools is sent to that
             client&apos;s model provider as conversation context. Connect only clients you
             trust with your financial data.

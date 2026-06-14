@@ -123,18 +123,18 @@ test("ContainerParser surfaces a non-2xx from the container as an error", async 
 });
 
 test("getParserService returns LocalParser (self-host / local / MCP path)", () => {
-  const savedTarget = process.env.PARSE_DEPLOY_TARGET;
+  const savedTarget = process.env.PARE_DEPLOY_TARGET;
   try {
-    delete process.env.PARSE_DEPLOY_TARGET;
+    delete process.env.PARE_DEPLOY_TARGET;
     assert.ok(getParserService() instanceof LocalParser, "default -> LocalParser");
 
     // getParserService is the self-host factory only; the hosted path constructs
     // a ContainerParser off env.PARSER directly (no process.env URL on Workers),
     // so even with the hosted target it still returns LocalParser here.
-    process.env.PARSE_DEPLOY_TARGET = "hosted";
+    process.env.PARE_DEPLOY_TARGET = "hosted";
     assert.ok(getParserService() instanceof LocalParser, "factory stays LocalParser");
   } finally {
-    if (savedTarget === undefined) delete process.env.PARSE_DEPLOY_TARGET;
-    else process.env.PARSE_DEPLOY_TARGET = savedTarget;
+    if (savedTarget === undefined) delete process.env.PARE_DEPLOY_TARGET;
+    else process.env.PARE_DEPLOY_TARGET = savedTarget;
   }
 });
