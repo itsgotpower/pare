@@ -21,6 +21,13 @@ const PUBLIC_PATHS = ["/login", "/api/auth", "/api/waitlist", "/privacy"];
 // Hosted mode is selected at build/deploy time (PARE_DEPLOY_TARGET=hosted).
 const HOSTED = process.env.PARE_DEPLOY_TARGET === "hosted";
 
+// WAITLIST LAUNCH: when PARE_WAITLIST_ONLY=1, the hosted app is gated down to the
+// public marketing landing ("/") + the waitlist signup + the privacy page. Login
+// and every other app/API route redirect to "/", so the un-provisioned data plane
+// (D1/R2/Queues) is never reached. Flip the var off + redeploy to restore the app.
+const WAITLIST_ONLY = process.env.PARE_WAITLIST_ONLY === "1";
+const WAITLIST_PUBLIC = ["/", "/api/waitlist", "/privacy"];
+
 // The signing secret, read from the environment — the only source the Edge
 // runtime can reach (no fs here). The Node API routes resolve the SAME value via
 // lib/auth/session.ts, so cookies signed there verify here. Unset in self-host =>
@@ -33,6 +40,14 @@ export async function middleware(request: NextRequest) {
   // (cookie OR bearer) and returns 401 itself when unauthenticated, and pages
   // gate via the account system. The self-hosted gate below is untouched.
   if (HOSTED) {
+    if (WAITLIST_ONLY) {
+      const { pathname } = request.nextUrl;
+      const allowed = WAITLIST_PUBLIC.some(
+        (p) => pathname === p || pathname.startsWith(p + "/")
+      );
+      // Everything else (login, dashboard, the API) bounces to the landing.
+      return allowed ? NextResponse.next() : NextResponse.redirect(new URL("/", request.url));
+    }
     return NextResponse.next();
   }
 

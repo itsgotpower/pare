@@ -32,22 +32,17 @@ import type { AnyRepoCall } from "./lib/repo/repo-rpc";
 // handler, re-export its `fetch`, and add our P4 queue consumer.
 // @ts-expect-error — `.open-next/worker.js` exists only after `opennextjs-cloudflare build`.
 import openNextHandler from "./.open-next/worker.js";
-import { queueHandler, type QueueConsumerEnv } from "./lib/queue/consumer";
-import type { ParseJobMessage, QueueMessageBatchLike } from "./lib/queue/types";
 import * as Sentry from "@sentry/cloudflare";
 import { sentryOptions } from "./lib/sentry";
 
+// WAITLIST LAUNCH: this branch ships the marketing/waitlist landing only, so the
+// async parse pipeline (the `queue` handler) and the parser Container are dropped
+// from the entry module to match the trimmed wrangler.toml (no queues/containers
+// configured). The full handler — `queue` + the `ParserContainer` export — lives
+// on `main`; restore both here when re-enabling the upload pipeline.
 const handler = {
   // The Next.js app's fetch handler, untouched.
   fetch: (openNextHandler as { fetch: (...args: unknown[]) => Promise<Response> }).fetch,
-
-  // The P4 async parse pipeline. Cloudflare delivers a MessageBatch to this
-  // handler for each batch pulled off the PARSE_QUEUE consumer (wired in P6). It
-  // acks/retries per message; a throw from a message's processing redelivers only
-  // that message (we use per-message ack/retry, not ackAll/retryAll).
-  async queue(batch: QueueMessageBatchLike<ParseJobMessage>, env: QueueConsumerEnv) {
-    return queueHandler(batch, env);
-  },
 };
 
 // PHASE 4 — error tracking. withSentry wraps BOTH the fetch and queue handlers,
@@ -62,11 +57,8 @@ export default Sentry.withSentry(
   handler
 );
 
-// The PDF parser runs in a Cloudflare Container (Python + poppler — unavailable in
-// the Workers runtime). Like UserDataObject, the Container-backed Durable Object
-// class must be exported from the entry module so wrangler can register it
-// (wrangler.toml [[containers]] + [[durable_objects.bindings]] class_name = "ParserContainer").
-export { ParserContainer } from "./lib/parser/parser-container-do";
+// (WAITLIST LAUNCH: the `ParserContainer` export is omitted here — no [[containers]]
+// in the trimmed wrangler.toml. Restore it with the queue handler for the full app.)
 
 // The registered Durable Object. Extends the Workers DurableObject base (so the
 // platform recognises it as a DO with storage + an input gate) and delegates all
