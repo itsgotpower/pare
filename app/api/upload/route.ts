@@ -166,8 +166,9 @@ async function handleHostedUpload(request: NextRequest) {
   }
 }
 
-// Dormant: the CSV-import UI/route were removed (PDFs only — see CLAUDE.md "Data
-// provenance"); nothing triggers this branch. Kept (and migrated) for parity.
+// Dormant: the CSV-import UI/route were removed (PDFs only — importing the CSV
+// used period-start dates, creating silent duplicates); nothing triggers this
+// branch. Kept (and migrated) for parity.
 async function handleCsvImport(repo: Repo, csvData: string) {
   await repo.categories.seed();
 
