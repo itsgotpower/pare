@@ -233,9 +233,12 @@ export default function PrivacyPage() {
       </main>
 
       <footer className="shrink-0 border-t border-border px-5 md:px-8 py-4 flex items-center justify-between">
-        <span className="font-mono text-[11px] tracking-wide uppercase text-muted-foreground">
-          Private by design.
-        </span>
+        <Link
+          href="/terms"
+          className="font-mono text-[11px] tracking-wide uppercase text-muted-foreground hover:text-foreground transition-colors"
+        >
+          Terms
+        </Link>
         <Link
           href="/"
           className="font-mono text-[11px] tracking-wide uppercase text-muted-foreground hover:text-foreground transition-colors"
