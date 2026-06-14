@@ -25,9 +25,9 @@ jobs:
 
       - run: npm ci
 
-      # NOTE: `typecheck:workers` is intentionally NOT run here — it's currently
-      # red on a pre-existing issue (globalThis.crypto under tsconfig.workers.json)
-      # unrelated to deploys. Tracked separately; re-add this step once green.
+      - name: Type-check (workers)
+        run: npm run typecheck:workers
+
       - name: Build Cloudflare bundle
         run: npm run cf:build
         env:
