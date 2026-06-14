@@ -72,9 +72,15 @@ export function Sidebar() {
   const isActive = (href: string) =>
     href === "/" ? pathname === "/" : pathname.startsWith(href);
 
-  // The login gate, the public marketing homepage, and the public privacy page
-  // are full-screen — no app chrome.
-  if (pathname === "/login" || pathname === "/" || pathname === "/privacy") return null;
+  // The login gate, the public marketing homepage, and the public legal pages
+  // (privacy / terms) are full-screen — no app chrome.
+  if (
+    pathname === "/login" ||
+    pathname === "/" ||
+    pathname === "/privacy" ||
+    pathname === "/terms"
+  )
+    return null;
 
   return (
     <>
