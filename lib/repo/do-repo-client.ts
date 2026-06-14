@@ -27,6 +27,7 @@ import type {
   HeatmapRepo,
   ProfileRepo,
   WaitlistRepo,
+  WaitlistEntry,
   InsertManyResult,
 } from "./types";
 import type { AnyRepoCall, RepoMethodCall } from "./repo-rpc";
@@ -218,5 +219,6 @@ export class DoRepoClient implements Repo {
     join: (email, source) =>
       this.call("waitlist", "join", email, source) as ReturnType<WaitlistRepo["join"]>,
     count: () => this.call("waitlist", "count") as Promise<number>,
+    list: () => this.call("waitlist", "list") as Promise<WaitlistEntry[]>,
   };
 }

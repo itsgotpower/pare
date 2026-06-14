@@ -31,7 +31,7 @@ import type { Insight } from "../db/insights";
 import type { BaselineResult } from "../db/baseline";
 import type { DailySpend } from "../db/heatmap";
 import type { DataHealth } from "../db/profile";
-import type { WaitlistResult } from "../db/waitlist";
+import type { WaitlistResult, WaitlistEntry } from "../db/waitlist";
 
 // Re-export the row/result types so callers can import everything from the repo
 // surface without reaching into lib/db internals.
@@ -60,6 +60,7 @@ export type {
   DailySpend,
   DataHealth,
   WaitlistResult,
+  WaitlistEntry,
 };
 
 // --- Write input shapes (today these are inline param types) ---------------
@@ -227,6 +228,7 @@ export interface ProfileRepo {
 export interface WaitlistRepo {
   join(email: string, source?: string): Promise<WaitlistResult>;
   count(): Promise<number>;
+  list(): Promise<WaitlistEntry[]>;
 }
 
 // --- The aggregate contract ------------------------------------------------

@@ -104,6 +104,11 @@ test("DoBackend: Repo namespace methods (summary/income/profile) work against th
   const joined = await repo.waitlist.join("a@example.com");
   assert.ok(joined);
   assert.equal(await repo.waitlist.count(), 1);
+  // list() backs the admin CSV export — it must round-trip through the DO RPC.
+  const entries = await repo.waitlist.list();
+  assert.equal(entries.length, 1);
+  assert.equal(entries[0]!.email, "a@example.com");
+  assert.equal(entries[0]!.source, "homepage");
 });
 
 test("DoBackend: migrations run at first access (idempotent, full schema present)", async () => {

@@ -70,7 +70,7 @@ import { getInsights } from "../db/insights";
 import { getBaseline } from "../db/baseline";
 import { getDailySpend } from "../db/heatmap";
 import { getDataHealth } from "../db/profile";
-import { joinWaitlist, waitlistCount } from "../db/waitlist";
+import { joinWaitlist, waitlistCount, listWaitlist } from "../db/waitlist";
 
 // SqliteRepo implements the async Repo contract by delegating to the existing,
 // regression-tested lib/db/* functions. better-sqlite3 is synchronous, so each
@@ -243,5 +243,6 @@ export class SqliteRepo implements Repo {
   waitlist: WaitlistRepo = {
     join: (email, source) => this.write(() => joinWaitlist(email, source)),
     count: () => this.read(() => waitlistCount()),
+    list: () => this.read(() => listWaitlist()),
   };
 }
