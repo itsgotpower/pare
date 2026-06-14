@@ -160,9 +160,33 @@
   transform-origin: left;
   animation: pare-grow 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
+
+/* Footer feature ticker — an infinite horizontal marquee. The track holds two
+   identical groups; translating it -50% swaps the second group into the first's
+   place for a seamless loop (each group must be ≥ viewport-wide, so the JSX
+   repeats the claims within a group). Hover pauses; reduced-motion stops it
+   (the first group sits static, still filling the strip). */
+@keyframes pare-marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+.pare-marquee {
+  animation: pare-marquee 32s linear infinite;
+}
+.pare-marquee:hover {
+  animation-play-state: paused;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .pare-rise,
   .pare-grow {
+    animation: none;
+  }
+  .pare-marquee {
     animation: none;
   }
 }

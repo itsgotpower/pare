@@ -210,7 +210,7 @@ export default function MarketingHome() {
 
           {/* Waitlist form */}
           <form onSubmit={submit} className="mt-6 max-w-md">
-            <div className="flex flex-col sm:flex-row gap-[1px] bg-border border border-border">
+            <div className="flex flex-row gap-[1px] bg-border border border-border">
               <input
                 type="email"
                 required
@@ -219,12 +219,12 @@ export default function MarketingHome() {
                 disabled={status === "done"}
                 placeholder="you@email.com"
                 aria-label="Email address"
-                className="flex-1 bg-card px-4 h-11 text-sm outline-none placeholder:text-muted-foreground disabled:opacity-60"
+                className="flex-1 min-w-0 bg-card px-4 h-11 text-sm outline-none placeholder:text-muted-foreground disabled:opacity-60"
               />
               <button
                 type="submit"
                 disabled={status === "loading" || status === "done"}
-                className="bg-foreground text-background font-mono text-xs tracking-widest uppercase px-5 h-11 hover:opacity-90 transition-opacity disabled:opacity-50 whitespace-nowrap"
+                className="shrink-0 bg-foreground text-background font-mono text-xs tracking-widest uppercase px-4 sm:px-5 h-11 hover:opacity-90 transition-opacity disabled:opacity-50 whitespace-nowrap"
               >
                 {status === "loading" ? "…" : status === "done" ? "Joined ✓" : "Join waitlist"}
               </button>
@@ -330,39 +330,84 @@ export default function MarketingHome() {
         </div>
       </main>
 
-      {/* Feature strip */}
-      <footer className="shrink-0 border-t border-border px-5 md:px-8 py-3 flex flex-wrap items-center gap-x-6 gap-y-2">
-        {FEATURES.map((f) => (
-          <span key={f.label} className="flex items-center gap-2 font-mono text-[11px] tracking-wide uppercase">
-            <span className="inline-block w-2 h-2 shrink-0" style={{ backgroundColor: f.color }} />
-            {f.label}
+      {/* Footer — two tiers: the feature claims, then a thin meta/nav bar. The
+          split keeps product claims (colour-dotted) from blurring into
+          navigation. Stays compact for the zero-scroll landing. */}
+      <footer className="shrink-0 border-t border-border">
+        {/* Tier 1 — feature claims as an infinite marquee ticker. Two identical
+            groups translate -50% for a seamless loop; the claims repeat within a
+            group so each group stays ≥ viewport-wide (no gap). The visible track
+            is decorative — an sr-only list carries the claims for assistive tech. */}
+        <div className="overflow-hidden py-3">
+          <ul className="sr-only">
+            {FEATURES.map((f) => (
+              <li key={f.label}>{f.label}</li>
+            ))}
+          </ul>
+          <div aria-hidden className="pare-marquee flex w-max">
+            {[0, 1].map((group) => (
+              <div key={group} className="flex shrink-0 items-center">
+                {[...FEATURES, ...FEATURES].map((f, i) => (
+                  <span
+                    key={`${group}-${i}`}
+                    className="flex items-center gap-2 font-mono text-[11px] tracking-wide uppercase whitespace-nowrap px-6"
+                  >
+                    <span
+                      className="inline-block w-2 h-2 shrink-0"
+                      style={{ backgroundColor: f.color }}
+                    />
+                    {f.label}
+                  </span>
+                ))}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Tier 2 — brand + navigation */}
+        <div className="border-t border-border px-5 md:px-8 py-2.5 flex flex-wrap items-center justify-between gap-x-6 gap-y-2">
+          <span className="flex items-center gap-2 text-[11px] text-muted-foreground">
+            <span aria-hidden="true">✂️🍐💰</span>
+            <span className="font-mono tracking-wide uppercase text-foreground">Pare</span>
+            <span className="hidden sm:inline">— private by design.</span>
+            <span aria-hidden="true">·</span>
+            <span className="whitespace-nowrap">© {new Date().getFullYear()} pare.money</span>
           </span>
-        ))}
-        <div className="md:ml-auto flex items-center gap-4">
-          <a
-            href={REPO_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-1.5 font-mono text-[11px] tracking-wide uppercase hover:text-foreground transition-colors"
-          >
-            <GithubMark className="size-3.5" />
-            Open source
-          </a>
-          <Link
-            href="/privacy"
-            className="font-mono text-[11px] tracking-wide uppercase text-muted-foreground hover:text-foreground transition-colors"
-          >
-            Privacy
-          </Link>
-          <Link
-            href="/terms"
-            className="font-mono text-[11px] tracking-wide uppercase text-muted-foreground hover:text-foreground transition-colors"
-          >
-            Terms
-          </Link>
-          <span className="text-[11px] text-muted-foreground">
-            <span aria-hidden="true" className="mr-1.5">✂️🍐💰</span>Private by design.
-          </span>
+          <nav className="flex items-center gap-4">
+            <a
+              href={REPO_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1.5 font-mono text-[11px] tracking-wide uppercase text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <GithubMark className="size-3.5" />
+              GitHub
+            </a>
+            <Link
+              href="/about"
+              className="font-mono text-[11px] tracking-wide uppercase text-muted-foreground hover:text-foreground transition-colors"
+            >
+              About
+            </Link>
+            <Link
+              href="/mcp"
+              className="font-mono text-[11px] tracking-wide uppercase text-muted-foreground hover:text-foreground transition-colors"
+            >
+              MCP
+            </Link>
+            <Link
+              href="/privacy"
+              className="font-mono text-[11px] tracking-wide uppercase text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Privacy
+            </Link>
+            <Link
+              href="/terms"
+              className="font-mono text-[11px] tracking-wide uppercase text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Terms
+            </Link>
+          </nav>
         </div>
       </footer>
     </div>
