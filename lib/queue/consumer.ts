@@ -34,6 +34,7 @@ import type { PdfStore } from "../storage/pdf-store";
 import { keyBelongsToUser, shouldPersistAfterParse } from "../storage/pdf-store";
 import type { KvJobStore } from "./job-store";
 import type { ParseJobMessage, QueueMessageBatchLike } from "./types";
+import { captureError } from "../sentry";
 
 // Dependencies the consumer core needs — injected so the test harness can supply
 // miniflare R2 + a fake ParserService + a per-user in-process DO, and production
@@ -239,8 +240,10 @@ export async function queueHandler(
       msg.ack();
     } catch (err) {
       if (err instanceof CrossUserKeyError) {
-        // Permanent: a retry can never make a forged key valid. Drop it.
+        // Permanent: a retry can never make a forged key valid. Drop it. This is
+        // security-relevant (a forged/cross-tenant key), so capture it.
         console.error(err.message);
+        void captureError(err, { jobId: msg.body.jobId, kind: "cross_user_key" });
         msg.ack();
       } else {
         // Transient: let the Queue redeliver this message (its retry policy
@@ -249,6 +252,7 @@ export async function queueHandler(
           `parse consumer: job ${msg.body.jobId} failed (attempt ${msg.attempts}):`,
           err instanceof Error ? err.message : err
         );
+        void captureError(err, { jobId: msg.body.jobId, attempt: msg.attempts });
         msg.retry();
       }
     }

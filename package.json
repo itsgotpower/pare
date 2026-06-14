@@ -23,6 +23,7 @@
     "@base-ui/react": "^1.5.0",
     "@cloudflare/containers": "^0.3.7",
     "@modelcontextprotocol/sdk": "^1.29.0",
+    "@sentry/cloudflare": "^10.57.0",
     "better-auth": "^1.6.18",
     "better-sqlite3": "^12.10.0",
     "class-variance-authority": "^0.7.1",
