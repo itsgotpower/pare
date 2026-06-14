@@ -129,3 +129,40 @@
     -webkit-tap-highlight-color: transparent;
   }
 }
+
+/* Marketing hero bento — one-shot reveal on mount. The card sits above the fold
+   (zero-scroll hero), so a plain mount-time animation is enough; no scroll
+   trigger. We animate `transform` (not height/width/color) to stay GPU-friendly
+   and leave the inline %-sizing + PALETTE colours untouched. `both` fill-mode
+   holds the start frame before the animation begins, so nothing flashes at full
+   size first. Stagger is supplied per-element via inline animation-delay. */
+@keyframes pare-rise {
+  from {
+    transform: scaleY(0);
+  }
+  to {
+    transform: scaleY(1);
+  }
+}
+@keyframes pare-grow {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+.pare-rise {
+  transform-origin: bottom;
+  animation: pare-rise 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.pare-grow {
+  transform-origin: left;
+  animation: pare-grow 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .pare-rise,
+  .pare-grow {
+    animation: none;
+  }
+}
