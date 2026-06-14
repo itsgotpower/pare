@@ -37,7 +37,7 @@ export function hostedAuthOptions(db: D1Like): BetterAuthOptions {
   // doesn't detect production — which would make every session cookie and bearer
   // token forgeable, letting anyone mint a token for any userId and walk straight
   // into that user's Durable Object. Refuse to start instead. Provision it with
-  // `wrangler secret put BETTER_AUTH_SECRET` (see DEPLOY.md).
+  // `wrangler secret put BETTER_AUTH_SECRET` (see the deployment docs).
   const secret = process.env.BETTER_AUTH_SECRET;
   if (!secret) {
     throw new Error(
