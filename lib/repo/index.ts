@@ -10,7 +10,7 @@ export * from "./types";
 // ---------------------------------------------------------------------------
 // getRepo — the persistence factory, now auth-scoped.
 //
-// Two deploy targets, selected by PARSE_DEPLOY_TARGET (lib/auth/resolve.ts):
+// Two deploy targets, selected by PARE_DEPLOY_TARGET (lib/auth/resolve.ts):
 //
 //   self-hosted / local / MCP  ->  one process-wide SqliteRepo over the
 //       better-sqlite3 file singleton. There is exactly one account, so there's

@@ -1,6 +1,6 @@
-# Parse
+# Pare
 
-Privacy-first personal finance. Parse parses your bank and credit-card **PDF statements** into categorized transactions and shows spending trends, cash-flow forecasts, net worth, and budget goals — without aggregators, bank credentials, or data selling.
+Privacy-first personal finance. Pare parses your bank and credit-card **PDF statements** into categorized transactions and shows spending trends, cash-flow forecasts, net worth, and budget goals — without aggregators, bank credentials, or data selling.
 
 > **Every user gets their own isolated database.** Self-host it for free, or (soon) pay us to host it. Same codebase, two deploy targets.
 
@@ -18,7 +18,7 @@ See [SECURITY.md](SECURITY.md) for the privacy model and pre-publish checklist.
 - **Recurring detection** — finds subscriptions and recurring charges by cadence + amount
 - **Budget goals** — monthly limits per category with progress bars (green / yellow / red)
 - **Deduplication** — SHA-256 hash per transaction prevents double-imports
-- **Finance MCP server** — a local [Model Context Protocol](https://modelcontextprotocol.io) server (16 read/write tools) so Claude can query and edit your finances over `data/parse.db` (self-host)
+- **Finance MCP server** — a local [Model Context Protocol](https://modelcontextprotocol.io) server (16 read/write tools) so Claude can query and edit your finances over `data/pare.db` (self-host)
 
 ## Architecture
 
@@ -76,7 +76,7 @@ python3 lib/parser/parse_statements.py <pdf-directory> --json
 ### Finance MCP server
 
 ```bash
-npm run mcp        # stdio MCP server over data/parse.db; see mcp/README.md
+npm run mcp        # stdio MCP server over data/pare.db; see mcp/README.md
 ```
 
 ## Hosted deployment (Cloudflare)

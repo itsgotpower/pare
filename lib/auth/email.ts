@@ -6,9 +6,9 @@ import { Resend } from "resend";
 // Configuration (Worker env / .env):
 //   RESEND_API_KEY  — required to actually send; when unset we log instead so
 //                     local dev and tests don't need a live key.
-//   AUTH_EMAIL_FROM — verified sender, e.g. "Parse <auth@parse.app>".
+//   AUTH_EMAIL_FROM — verified sender, e.g. "Pare <auth@pare.money>".
 
-const FROM = process.env.AUTH_EMAIL_FROM || "Parse <auth@parse.local>";
+const FROM = process.env.AUTH_EMAIL_FROM || "Pare <auth@pare.money>";
 
 let _client: Resend | null = null;
 function client(): Resend | null {
@@ -22,9 +22,9 @@ export async function sendPasswordResetEmail(
   to: string,
   resetUrl: string
 ): Promise<void> {
-  const subject = "Reset your Parse password";
+  const subject = "Reset your Pare password";
   const text =
-    `Someone requested a password reset for your Parse account.\n\n` +
+    `Someone requested a password reset for your Pare account.\n\n` +
     `Reset it here (link expires shortly):\n${resetUrl}\n\n` +
     `If this wasn't you, you can safely ignore this email.`;
 

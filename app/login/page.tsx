@@ -72,7 +72,7 @@ function LoginForm() {
     <div className="min-h-screen flex items-center justify-center bg-background px-4">
       <div className="w-full max-w-sm border border-border bg-card">
         <div className="border-b border-border px-6 py-4 flex items-center justify-between">
-          <span className="font-mono text-lg font-bold tracking-tight">PARSE</span>
+          <span className="font-mono text-lg font-bold tracking-tight">PARE</span>
           <Lock className="size-4 text-muted-foreground" />
         </div>
 

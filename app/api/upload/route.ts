@@ -11,7 +11,7 @@ import type { Repo } from "@/lib/repo";
 
 // ===========================================================================
 // POST /api/upload — ingest a bank/CC statement. TWO modes, gated on
-// isHostedMode() (PARSE_DEPLOY_TARGET === "hosted"):
+// isHostedMode() (PARE_DEPLOY_TARGET === "hosted"):
 //
 // SELF-HOST (default / local / MCP host): UNCHANGED. The single-user proxy gate
 // fronts the route; the PDF is written to a temp file and parsed in-process

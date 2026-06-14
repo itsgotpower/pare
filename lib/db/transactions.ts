@@ -51,15 +51,16 @@ export function insertTransaction(tx: {
   category: string;
   flow: string;
   dedup_key: string;
+  account_kind?: string;
 }): boolean {
   const db = getDb();
   const stmt = db.prepare(`
     INSERT OR IGNORE INTO transactions
-      (statement_id, source, account, period, txn_date, description, amount, category, flow, dedup_key)
+      (statement_id, source, account, period, txn_date, description, amount, category, flow, dedup_key, account_kind)
     VALUES
-      (@statement_id, @source, @account, @period, @txn_date, @description, @amount, @category, @flow, @dedup_key)
+      (@statement_id, @source, @account, @period, @txn_date, @description, @amount, @category, @flow, @dedup_key, @account_kind)
   `);
-  const result = stmt.run(tx);
+  const result = stmt.run({ ...tx, account_kind: tx.account_kind ?? "unknown" });
   return result.changes > 0;
 }
 
@@ -75,20 +76,22 @@ export function insertManyTransactions(
     category: string;
     flow: string;
     dedup_key: string;
+    account_kind?: string;
   }[]
 ): { inserted: number; skipped: number } {
   const db = getDb();
   const stmt = db.prepare(`
     INSERT OR IGNORE INTO transactions
-      (statement_id, source, account, period, txn_date, description, amount, category, flow, dedup_key)
+      (statement_id, source, account, period, txn_date, description, amount, category, flow, dedup_key, account_kind)
     VALUES
-      (@statement_id, @source, @account, @period, @txn_date, @description, @amount, @category, @flow, @dedup_key)
+      (@statement_id, @source, @account, @period, @txn_date, @description, @amount, @category, @flow, @dedup_key, @account_kind)
   `);
 
   let inserted = 0;
   const run = db.transaction((rows: typeof txs) => {
     for (const row of rows) {
-      if (stmt.run(row).changes > 0) inserted++;
+      const bound = { ...row, account_kind: row.account_kind ?? "unknown" };
+      if (stmt.run(bound).changes > 0) inserted++;
     }
   });
   run(txs);

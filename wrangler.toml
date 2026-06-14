@@ -1,4 +1,4 @@
-# Cloudflare Workers config for Parse (hosted pivot — Phase 0 scaffolding).
+# Cloudflare Workers config for Pare (hosted pivot — Phase 0 scaffolding).
 #
 # Deploys the CURRENT single-user Next.js app to Workers via @opennextjs/cloudflare,
 # unchanged, against the demo DB. The build emits .open-next/worker.js (the Worker
@@ -8,7 +8,7 @@
 # Phase 2: better-auth reads `env.DB` and getRepoForUser() routes per-user data to
 # `env.USER_DATA`. See hosted-product-plan.md (Phases 1–2) and DEPLOY.md.
 
-name = "parse"
+name = "pare"
 # Custom entrypoint (worker.ts) re-exports OpenNext's generated fetch handler
 # (.open-next/worker.js) AND the UserDataObject Durable Object class, so both are
 # registered on the same Worker (the OpenNext convention for app-owned DOs).
@@ -21,12 +21,12 @@ compatibility_flags = ["nodejs_compat", "global_fetch_strictly_public"]
 # Worker defaults to self-host mode (file-backed better-sqlite3, which can't load
 # on Workers) — i.e. a broken deploy. Self-host/local leaves it unset.
 [vars]
-PARSE_DEPLOY_TARGET = "hosted"
+PARE_DEPLOY_TARGET = "hosted"
 
 # --- Custom domain (Phase 4) -------------------------------------------------
 #
 # DEFERRED for the closed beta: the Worker serves on its
-# `parse.<your-subdomain>.workers.dev` URL (the Workers dev subdomain stays enabled
+# `pare.<your-subdomain>.workers.dev` URL (the Workers dev subdomain stays enabled
 # because no `[[routes]]` capture the apex). When ready to move to the real domain
 # (pare.money), UNCOMMENT the block below and deploy. A Worker custom domain created
 # this way provisions the DNS record + edge cert AUTOMATICALLY — no separate
@@ -44,7 +44,7 @@ PARSE_DEPLOY_TARGET = "hosted"
 # Secrets (NOT set here — provision with `wrangler secret put <NAME>`):
 #   BETTER_AUTH_SECRET   — required; session/token signing (hosted.ts fails closed
 #                          without it). Generate: `openssl rand -base64 32`.
-#   BETTER_AUTH_URL      — the deployed origin, e.g. https://parse.<sub>.workers.dev
+#   BETTER_AUTH_URL      — the deployed origin, e.g. https://pare.<sub>.workers.dev
 #   RESEND_API_KEY       — password-reset email (optional in dev).
 #   AUTH_EMAIL_FROM      — From: address for reset email.
 #   TURNSTILE_SECRET_KEY — Cloudflare Turnstile server secret (Phase 4). When SET,
@@ -64,7 +64,7 @@ binding = "ASSETS"
 # OpenNext needs a self-reference service binding for cache revalidation / RSC.
 [[services]]
 binding = "WORKER_SELF_REFERENCE"
-service = "parse"
+service = "pare"
 
 # --- Phase 3 data-plane bindings (all LIVE as of P6) ---
 # DB (D1), USER_DATA + ParserContainer (DOs), PARSE_QUEUE (Queue producer +
@@ -73,13 +73,13 @@ service = "parse"
 # pasted in before the first real deploy.
 
 # Auth database (D1) — accounts/sessions for multi-user mode (Phase 2, better-auth).
-# Replace database_id with the real id from `wrangler d1 create parse-auth`.
+# Replace database_id with the real id from `wrangler d1 create pare-auth`.
 [[d1_databases]]
 binding = "DB"
-database_name = "parse-auth"
+database_name = "pare-auth"
 database_id = "00000000-0000-0000-0000-000000000000"
 # better-auth schema for this DB only. Apply with:
-#   npx wrangler d1 migrations apply parse-auth --remote
+#   npx wrangler d1 migrations apply pare-auth --remote
 # Kept separate from lib/db/migrations (the per-user DO data schema) on purpose:
 # auth tables must never land in a user's data DB, nor vice versa.
 migrations_dir = "d1/migrations"
@@ -170,10 +170,10 @@ id = "00000000000000000000000000000000"
 # exactly PDF_BUCKET to match getPdfBucket()'s `ctx.env.PDF_BUCKET` lookup.
 #
 # Real bucket provisioned in P6 (no id to paste — R2 binds by bucket_name):
-#   npx wrangler r2 bucket create parse-pdfs
+#   npx wrangler r2 bucket create pare-pdfs
 [[r2_buckets]]
 binding = "PDF_BUCKET"
-bucket_name = "parse-pdfs"
+bucket_name = "pare-pdfs"
 
 # --- Per-IP rate limiting (Phase 4 — Workers Rate Limiting API) ---------------
 #

@@ -1,8 +1,8 @@
 -- Hosted-mode account system: better-auth's core schema (email + password,
 -- sessions, password-reset verification, bearer tokens for the Expo app).
 --
--- This lives in the D1 AUTH database ONLY (binding `DB`, database `parse-auth`),
--- applied via `wrangler d1 migrations apply parse-auth` (see DEPLOY.md). It is
+-- This lives in the D1 AUTH database ONLY (binding `DB`, database `pare-auth`),
+-- applied via `wrangler d1 migrations apply pare-auth` (see DEPLOY.md). It is
 -- deliberately NOT in lib/db/migrations/ (the bundled MIGRATIONS array that runs
 -- against the per-user Durable Object data DBs and the self-host file DB) — auth
 -- tables must never be created inside a user's data DB, and the app schema must
