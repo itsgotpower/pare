@@ -22,6 +22,7 @@
 // ---------------------------------------------------------------------------
 
 import { computeDedupKey } from "../db/transactions";
+import { sourceToKind } from "../db/account-kinds";
 import type { Repo, NewTransaction } from "./types";
 import type { ParsedTransaction, ParsedStatementMeta } from "../parser/run-parser";
 
@@ -44,6 +45,7 @@ export async function insertParsedStatement(
     row_count: rows.length,
     closing_balance: meta?.closing_balance ?? null,
     closing_date: meta?.closing_date ?? null,
+    account_kind: sourceToKind(source),
   });
 
   const seqMap = new Map<string, number>();
@@ -63,6 +65,7 @@ export async function insertParsedStatement(
       category: row.category,
       flow: row.flow,
       dedup_key: computeDedupKey(row.source, row.txn_date, row.description, row.amount, seq),
+      account_kind: sourceToKind(row.source),
     };
   });
 

@@ -75,6 +75,10 @@ export interface NewTransaction {
   category: string;
   flow: string;
   dedup_key: string;
+  // Analytics-facing account class (see lib/db/account-kinds.ts). Optional at the
+  // type level so existing callers compile; the insert layer defaults a missing
+  // value to 'unknown'. insertParsedStatement derives it from `source`.
+  account_kind?: string;
 }
 
 export interface NewStatement {
@@ -85,6 +89,7 @@ export interface NewStatement {
   row_count: number;
   closing_balance?: number | null;
   closing_date?: string | null;
+  account_kind?: string;
 }
 
 export interface ManualEntryInput {
