@@ -9,6 +9,12 @@ export interface WaitlistResult {
   error?: string;
 }
 
+export interface WaitlistEntry {
+  email: string;
+  source: string;
+  created_at: string;
+}
+
 export function joinWaitlist(rawEmail: string, source = "homepage"): WaitlistResult {
   const email = rawEmail.trim().toLowerCase();
   if (!EMAIL_RE.test(email)) {
@@ -29,4 +35,13 @@ export function waitlistCount(): number {
   const db = getDb();
   const row = db.prepare("SELECT COUNT(*) AS n FROM waitlist").get() as { n: number };
   return row.n;
+}
+
+// All captured signups, oldest first. Read path for the admin export
+// (GET /api/waitlist); never exposed to the public POST flow.
+export function listWaitlist(): WaitlistEntry[] {
+  const db = getDb();
+  return db
+    .prepare("SELECT email, source, created_at FROM waitlist ORDER BY created_at ASC, id ASC")
+    .all() as WaitlistEntry[];
 }
