@@ -2,6 +2,13 @@
 
 Pare is a **local-first** personal finance tool. All financial data stays on your machine — there are no network calls, telemetry, or cloud sync.
 
+## Reporting a vulnerability
+
+**Do not open a public issue for a security vulnerability.** Email the maintainer
+directly at **security@pare.money** with a description and steps to reproduce.
+You'll get an acknowledgement, and fixes are coordinated before public
+disclosure.
+
 ## What is sensitive (never committed)
 
 | Path / pattern | Contents |
