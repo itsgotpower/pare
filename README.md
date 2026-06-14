@@ -147,4 +147,4 @@ vulnerability.
 [GNU AGPL-3.0](LICENSE). Run it, modify it, self-host it. If you offer a modified
 version as a network service, you have to share your source with its users.
 
-Copyright (C) 2026 Scott Bauer.
+Copyright (C) 2026 pare.money.
