@@ -1,0 +1,44 @@
+name: Deploy waitlist → production
+
+# Auto-deploys the waitlist landing to Cloudflare (pare.money) on every push to
+# the deployed branch. Mirrors the local `npm run cf:deploy` path exactly.
+#
+# Requires two repo secrets (Settings → Secrets and variables → Actions):
+#   CLOUDFLARE_API_TOKEN   — "Edit Cloudflare Workers" template + your account
+#   CLOUDFLARE_ACCOUNT_ID  — your Cloudflare account id
+# wrangler reads both from the environment automatically.
+#
+# NOTE: only `launch/waitlist` is wired up — `main` is the full app (containers
+# + R2 + Queues, needs Workers Paid) and must NOT auto-deploy yet.
+
+on:
+  push:
+    branches: [launch/waitlist]
+  workflow_dispatch: {}
+
+# Never run two production deploys at once; let an in-flight one finish.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: Build & deploy to Cloudflare
+        run: npm run cf:deploy
+        env:
+          # Build-time flag: without it the bundle ships the FULL-app UI.
+          NEXT_PUBLIC_WAITLIST_ONLY: "1"
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

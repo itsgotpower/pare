@@ -1,0 +1,35 @@
+name: CI
+
+# Runs on every PR: verifies the app type-checks and that the Cloudflare
+# (OpenNext) bundle builds. No deploy — production ships only on merge via
+# deploy.yml. No Cloudflare credentials needed; the build is fully local.
+
+on:
+  pull_request: {}
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: Type-check (workers)
+        run: npm run typecheck:workers
+
+      - name: Build Cloudflare bundle
+        run: npm run cf:build
+        env:
+          # Mirror the production build flag so the check matches what ships.
+          NEXT_PUBLIC_WAITLIST_ONLY: "1"
