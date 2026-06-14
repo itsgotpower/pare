@@ -21,7 +21,7 @@ export function LocalClock({ className }: { className?: string }) {
   }, []);
 
   // Reserve the cluster's footprint before mount to avoid layout shift.
-  if (!now) return <div className={className} style={{ width: 112, height: 32 }} aria-hidden="true" />;
+  if (!now) return <div className={className} style={{ width: 112, height: 24 }} aria-hidden="true" />;
 
   const s = now.getSeconds();
   const m = now.getMinutes();
@@ -39,7 +39,7 @@ export function LocalClock({ className }: { className?: string }) {
     <div className={`flex items-center gap-2.5 ${className ?? ""}`}>
       <svg
         viewBox="0 0 100 100"
-        className="size-8 text-foreground"
+        className="size-6 text-foreground"
         role="img"
         aria-label={`Local time ${time}`}
       >
@@ -95,7 +95,7 @@ export function LocalClock({ className }: { className?: string }) {
         )}
         <circle cx="50" cy="50" r="2.5" fill="currentColor" />
       </svg>
-      <div className="hidden sm:flex flex-col leading-tight">
+      <div className="flex flex-col leading-tight">
         <span className="font-mono text-[10px] tracking-widest uppercase">{date}</span>
         <span className="font-mono text-[10px] tracking-widest uppercase text-muted-foreground tabular-nums">
           {time}
