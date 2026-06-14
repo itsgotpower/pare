@@ -1,5 +1,6 @@
 import { betterAuth, type BetterAuthOptions } from "better-auth";
 import { bearer, captcha } from "better-auth/plugins";
+import { passkey } from "@better-auth/passkey";
 import { D1Dialect } from "kysely-d1";
 import { sendPasswordResetEmail } from "./email";
 
@@ -10,6 +11,12 @@ import { sendPasswordResetEmail } from "./email";
 // PARE_DEPLOY_TARGET=hosted (see lib/auth/resolve.ts). It covers:
 //   - email + password
 //   - password reset via Resend (sendResetPassword -> lib/auth/email.ts)
+//   - passkeys / WebAuthn (passkey() plugin, @better-auth/passkey): adds
+//     /api/auth/passkey/* endpoints (generate-register/authenticate-options,
+//     verify, list-passkeys, delete-passkey). The `passkey` table is in the D1
+//     auth DB (d1/migrations/0002_passkey.sql) — KEEP THAT MIGRATION IN SYNC
+//     with the plugin's model if it changes. Passkeys are an ADDITIONAL door
+//     alongside email+password, never the only one.
 //   - bearer tokens for the Expo mobile app (bearer() plugin: sign-in returns a
 //     `set-auth-token` header the client stores and replays as
 //     `Authorization: Bearer <token>`; getSession resolves it transparently).
@@ -53,6 +60,21 @@ export function hostedAuthOptions(db: D1Like): BetterAuthOptions {
       captcha({ provider: "cloudflare-turnstile", secretKey: turnstileSecret })
     );
   }
+
+  // Passkeys / WebAuthn. rpID (the relying-party id) and origin MUST match the
+  // deployed host or the browser refuses the ceremony, so derive both from
+  // BETTER_AUTH_URL when set (prod). In dev/test BETTER_AUTH_URL is localhost or
+  // unset — omit the options so the plugin's localhost defaults apply (rpID
+  // "localhost", origin supplied by the client). rpName is the human label shown
+  // in the OS passkey prompt.
+  const authUrl = process.env.BETTER_AUTH_URL;
+  const rp = authUrl ? new URL(authUrl) : null;
+  plugins.push(
+    passkey({
+      rpName: "Pare",
+      ...(rp ? { rpID: rp.hostname, origin: rp.origin } : {}),
+    })
+  );
 
   return {
     // Kysely over the D1 dialect. better-auth detects this as a "sqlite"

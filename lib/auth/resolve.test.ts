@@ -87,13 +87,14 @@ const PASSWORD = "correct-horse-battery-staple";
 
 before(() => {
   const db = new Database(":memory:");
-  // Apply the SAME auth-D1 migration the app ships, so the test exercises the
-  // real schema rather than a hand-written copy.
-  const sql = fs.readFileSync(
-    path.join(process.cwd(), "d1/migrations/0001_better_auth.sql"),
-    "utf-8"
-  );
-  db.exec(sql);
+  // Apply the SAME auth-D1 migrations the app ships (0001 core + 0002 passkey),
+  // in filename order — mirroring the dev shim (lib/auth/d1.ts) and prod's
+  // `wrangler d1 migrations apply` — so the test exercises the real schema
+  // rather than a hand-written copy.
+  const migDir = path.join(process.cwd(), "d1/migrations");
+  for (const file of fs.readdirSync(migDir).filter((f) => f.endsWith(".sql")).sort()) {
+    db.exec(fs.readFileSync(path.join(migDir, file), "utf-8"));
+  }
   auth = createHostedAuth(makeD1Shim(db));
 });
 
@@ -180,4 +181,19 @@ test("password reset request does not throw and is exercisable without Resend ke
       body: { email: EMAIL, redirectTo: "http://localhost:3000/reset-password" },
     })
   );
+});
+
+test("passkey plugin routes are mounted and the passkey table is queryable", async () => {
+  // Drive the better-auth HTTP handler the way the [...all] route does. A
+  // request to the passkey authenticate-options endpoint must NOT 404 (which
+  // would mean the plugin isn't mounted) — it generates options and queries the
+  // `passkey` table, so a missing 0002 migration would surface as a 500 here.
+  const res = await auth.handler(
+    new Request(
+      "http://localhost:3000/api/auth/passkey/generate-authenticate-options",
+      { method: "GET" }
+    )
+  );
+  assert.notEqual(res.status, 404, "passkey route should be mounted (not 404)");
+  assert.ok(res.status < 500, `passkey route should not 500 (got ${res.status})`);
 });
