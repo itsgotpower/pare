@@ -33,10 +33,20 @@
 export interface R2ObjectBodyLike {
   arrayBuffer(): Promise<ArrayBuffer>;
 }
+export interface R2ListedObjectLike {
+  key: string;
+}
+export interface R2ListResultLike {
+  objects: R2ListedObjectLike[];
+  truncated: boolean;
+  cursor?: string;
+}
 export interface R2BucketLike {
   put(key: string, value: ArrayBuffer | Uint8Array): Promise<unknown>;
   get(key: string): Promise<R2ObjectBodyLike | null>;
-  delete(key: string): Promise<void>;
+  // R2 accepts one key or an array of keys (bulk delete — used by purgeUserPdfs).
+  delete(key: string | string[]): Promise<void>;
+  list(options?: { prefix?: string; cursor?: string; limit?: number }): Promise<R2ListResultLike>;
 }
 
 /**
@@ -72,6 +82,34 @@ export function buildPdfKey(userId: string, filename: string): string {
  */
 export function keyBelongsToUser(key: string, userId: string): boolean {
   return key.startsWith(`${USER_PREFIX}/${encodeURIComponent(userId)}/`);
+}
+
+/** The R2 key prefix that holds ALL of a user's objects: `u/<userId>/`. */
+export function userPdfPrefix(userId: string): string {
+  return `${USER_PREFIX}/${encodeURIComponent(userId)}/`;
+}
+
+/**
+ * Hard-delete EVERY object under a user's prefix (account deletion). Idempotent —
+ * zero objects means zero deletes — and bounded by R2's cursor pagination, so it
+ * scales past one page. Returns the count deleted. The prefix isolation
+ * (userPdfPrefix) is the tenant boundary: this can only ever touch one user's
+ * objects.
+ */
+export async function purgeUserPdfs(bucket: R2BucketLike, userId: string): Promise<number> {
+  const prefix = userPdfPrefix(userId);
+  let cursor: string | undefined;
+  let deleted = 0;
+  do {
+    const page = await bucket.list({ prefix, cursor, limit: 1000 });
+    const keys = page.objects.map((o) => o.key);
+    if (keys.length > 0) {
+      await bucket.delete(keys);
+      deleted += keys.length;
+    }
+    cursor = page.truncated ? page.cursor : undefined;
+  } while (cursor);
+  return deleted;
 }
 
 /**
