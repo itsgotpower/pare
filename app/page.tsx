@@ -6,7 +6,12 @@ import { ArrowRight } from "lucide-react";
 import { PALETTE } from "@/lib/colors";
 import { Turnstile } from "@/components/turnstile";
 
-const REPO_URL = "https://github.com/itsgotpower/parse-fi";
+const REPO_URL = "https://github.com/itsgotpower/pare";
+
+// WAITLIST LAUNCH: when set at build time, hide every "Sign in" affordance so the
+// landing is a pure waitlist page (the Edge middleware also redirects /login and
+// the app routes to "/"). Unset it + rebuild to restore the full app.
+const WAITLIST_ONLY = process.env.NEXT_PUBLIC_WAITLIST_ONLY === "1";
 
 // lucide-react dropped its brand icons, so inline the GitHub mark.
 function GithubMark({ className }: { className?: string }) {
@@ -86,12 +91,14 @@ export default function MarketingHome() {
             <GithubMark className="size-4" />
             <span className="hidden sm:inline">GitHub</span>
           </a>
-          <Link
-            href="/login"
-            className="font-mono text-[10px] md:text-xs tracking-widest uppercase text-muted-foreground hover:text-foreground transition-colors"
-          >
-            Sign in
-          </Link>
+          {!WAITLIST_ONLY && (
+            <Link
+              href="/login"
+              className="font-mono text-[10px] md:text-xs tracking-widest uppercase text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Sign in
+            </Link>
+          )}
         </div>
       </header>
 
@@ -149,12 +156,14 @@ export default function MarketingHome() {
             </p>
           </form>
 
-          <Link
-            href="/login"
-            className="mt-3 inline-flex items-center gap-1.5 font-mono text-[11px] tracking-widest uppercase text-muted-foreground hover:text-foreground transition-colors w-fit"
-          >
-            Already have access? Sign in <ArrowRight className="size-3.5" />
-          </Link>
+          {!WAITLIST_ONLY && (
+            <Link
+              href="/login"
+              className="mt-3 inline-flex items-center gap-1.5 font-mono text-[11px] tracking-widest uppercase text-muted-foreground hover:text-foreground transition-colors w-fit"
+            >
+              Already have access? Sign in <ArrowRight className="size-3.5" />
+            </Link>
+          )}
         </div>
 
         {/* Product preview — a static echo of the app's bento (hidden on phones
