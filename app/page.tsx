@@ -2,9 +2,10 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, Moon, Sun } from "lucide-react";
 import { PALETTE } from "@/lib/colors";
 import { Turnstile } from "@/components/turnstile";
+import { LocalClock } from "@/components/local-clock";
 
 const REPO_URL = "https://github.com/itsgotpower/pare";
 
@@ -22,17 +23,33 @@ function GithubMark({ className }: { className?: string }) {
   );
 }
 
-// Static figures for the product-preview bento. This page is public (signed
-// out), so it can't read real data — these illustrate the app, nothing more.
-const PREVIEW_CATEGORIES = [
-  { name: "GROCERIES", pct: 100, color: PALETTE.celadon },
-  { name: "SHOPPING", pct: 32, color: PALETTE.wheat },
-  { name: "DINING", pct: 19, color: PALETTE.terracotta },
+// Illustrative figures for the interactive product-preview bento. This page is
+// public (signed out), so it can't read real data — hovering/selecting a bar
+// just scrubs through these synthetic months. The last entry is "this month"
+// and matches the value the hero counts up to. Each month's `cats` are
+// pre-sorted high→low so the TOP CATEGORIES list re-ranks as you scrub.
+const PREVIEW_MONTHS = [
+  { caption: "NOV 2025", height: 62, total: 1529, recurring: 286, subs: 7,
+    cats: [{ name: "GROCERIES", pct: 84, color: PALETTE.celadon }, { name: "SHOPPING", pct: 41, color: PALETTE.wheat }, { name: "DINING", pct: 27, color: PALETTE.terracotta }] },
+  { caption: "DEC 2025", height: 88, total: 2170, recurring: 305, subs: 8,
+    cats: [{ name: "SHOPPING", pct: 92, color: PALETTE.wheat }, { name: "GROCERIES", pct: 68, color: PALETTE.celadon }, { name: "DINING", pct: 54, color: PALETTE.terracotta }] },
+  { caption: "JAN 2026", height: 54, total: 1332, recurring: 312, subs: 9,
+    cats: [{ name: "GROCERIES", pct: 88, color: PALETTE.celadon }, { name: "TRANSPORT", pct: 44, color: PALETTE.mustard }, { name: "DINING", pct: 22, color: PALETTE.terracotta }] },
+  { caption: "FEB 2026", height: 95, total: 2343, recurring: 298, subs: 8,
+    cats: [{ name: "GROCERIES", pct: 80, color: PALETTE.celadon }, { name: "DINING", pct: 52, color: PALETTE.terracotta }, { name: "TRAVEL", pct: 34, color: PALETTE.dustyblue }] },
+  { caption: "MAR 2026", height: 70, total: 1726, recurring: 290, subs: 8,
+    cats: [{ name: "TRAVEL", pct: 95, color: PALETTE.dustyblue }, { name: "GROCERIES", pct: 58, color: PALETTE.celadon }, { name: "DINING", pct: 36, color: PALETTE.terracotta }] },
+  { caption: "APR 2026", height: 78, total: 1924, recurring: 301, subs: 9,
+    cats: [{ name: "GROCERIES", pct: 86, color: PALETTE.celadon }, { name: "SHOPPING", pct: 47, color: PALETTE.wheat }, { name: "DINING", pct: 31, color: PALETTE.terracotta }] },
+  { caption: "MAY 2026", height: 60, total: 1480, recurring: 296, subs: 8,
+    cats: [{ name: "GROCERIES", pct: 76, color: PALETTE.celadon }, { name: "DINING", pct: 58, color: PALETTE.terracotta }, { name: "TRANSPORT", pct: 33, color: PALETTE.mustard }] },
+  { caption: "THIS MONTH", height: 100, total: 2466, recurring: 298, subs: 8,
+    cats: [{ name: "GROCERIES", pct: 100, color: PALETTE.celadon }, { name: "SHOPPING", pct: 32, color: PALETTE.wheat }, { name: "DINING", pct: 19, color: PALETTE.terracotta }] },
 ];
-const PREVIEW_SPARK = [62, 88, 54, 95, 70, 78, 60, 100];
+const LATEST_MONTH = PREVIEW_MONTHS.length - 1;
 
 const FEATURES = [
-  { label: "Isolated per-user database", color: PALETTE.slate },
+  { label: "Your data, walled off", color: PALETTE.slate },
   { label: "PDFs deleted after parsing", color: PALETTE.celadon },
   { label: "Free to start", color: PALETTE.terracotta },
   { label: "Monarch import — soon", color: PALETTE.dustyblue },
@@ -74,7 +91,33 @@ export default function MarketingHome() {
   // site key is configured; with no key the server skips verification, so an
   // empty token is fine in dev/self-host.
   const [turnstileToken, setTurnstileToken] = useState("");
-  const thisMonth = useCountUp(2466);
+  const [dark, setDark] = useState(false);
+  // Which preview month the bento is showing. Defaults to the latest; hovering /
+  // focusing / tapping a bar scrubs, and leaving the chart snaps back to latest.
+  const [selectedMonth, setSelectedMonth] = useState(LATEST_MONTH);
+  const thisMonth = useCountUp(PREVIEW_MONTHS[LATEST_MONTH].total);
+
+  const month = PREVIEW_MONTHS[selectedMonth];
+  // On mount the big number counts up to the latest total; once the user scrubs
+  // to another month, show that month's exact figure (the count-up has finished).
+  const displayTotal = selectedMonth === LATEST_MONTH ? thisMonth : month.total;
+
+  // Mirror the app's dark-mode mechanism (lib navbar) so the preference is
+  // shared: same `parse-dark` key, same `.dark` class on <html>. The Sidebar is
+  // hidden on "/", so the marketing page owns the toggle here.
+  useEffect(() => {
+    if (localStorage.getItem("parse-dark") === "true") {
+      setDark(true);
+      document.documentElement.classList.add("dark");
+    }
+  }, []);
+
+  const toggleDark = () => {
+    const next = !dark;
+    setDark(next);
+    document.documentElement.classList.toggle("dark", next);
+    localStorage.setItem("parse-dark", String(next));
+  };
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -107,7 +150,11 @@ export default function MarketingHome() {
     <div className="h-full flex flex-col overflow-hidden">
       {/* Top bar */}
       <header className="shrink-0 flex items-center justify-between px-5 md:px-8 h-14 border-b border-border">
-        <span className="font-mono text-sm font-bold tracking-tight">PARE</span>
+        <div className="flex items-center gap-4 md:gap-5">
+          <span className="font-mono text-sm font-bold tracking-tight">PARE</span>
+          <span className="hidden sm:block h-6 w-px bg-border" aria-hidden="true" />
+          <LocalClock className="hidden sm:flex" />
+        </div>
         <div className="flex items-center gap-5">
           <a
             href={REPO_URL}
@@ -126,6 +173,14 @@ export default function MarketingHome() {
               Sign in
             </Link>
           )}
+          <button
+            type="button"
+            onClick={toggleDark}
+            aria-label={dark ? "Switch to light mode" : "Switch to dark mode"}
+            className="flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors"
+          >
+            {dark ? <Sun className="size-4" /> : <Moon className="size-4" />}
+          </button>
         </div>
       </header>
 
@@ -134,7 +189,6 @@ export default function MarketingHome() {
         {/* Pitch + CTA */}
         <div className="flex flex-col justify-center px-5 md:px-12 py-6 md:py-0 min-h-0">
           <p className="font-mono text-[10px] md:text-xs tracking-[0.25em] uppercase text-muted-foreground">
-            <span aria-hidden="true" className="tracking-normal mr-2">✂️🍐💰</span>
             Personal finance, pared down
           </p>
           <h1 className="font-mono font-bold tracking-tight leading-[0.95] mt-3 text-[2rem] sm:text-5xl xl:text-6xl">
@@ -146,12 +200,12 @@ export default function MarketingHome() {
           </h1>
           <p className="text-sm md:text-base text-muted-foreground mt-4 max-w-md leading-relaxed">
             <span className="text-foreground font-medium">
-              The fastest way to have more money is to keep more.
+              No bank connection. No aggregator. Your statements never leave your
+              machine.
             </span>{" "}
-            Drop in a bank or credit-card PDF — no logins, no aggregators,
-            nothing to connect. Pare reads every transaction, categorizes it, and
-            turns months of statements into spending trends, forecasts, and
-            subscription alerts. Free to start; open source to self-host.
+            Drop in a bank or credit-card PDF and Pare reads every transaction,
+            categorizes it, and turns months of statements into spending trends,
+            forecasts, and subscription alerts.
           </p>
 
           {/* Waitlist form */}
@@ -197,30 +251,47 @@ export default function MarketingHome() {
           )}
         </div>
 
-        {/* Product preview — a static echo of the app's bento (hidden on phones
-            so the hero stays zero-scroll on small screens). */}
+        {/* Product preview — an interactive echo of the app's bento. Hover, focus
+            or tap a bar to scrub through months; the figures react. Hidden on
+            phones so the hero stays zero-scroll on small screens. */}
         <div className="hidden md:flex items-center justify-center border-l border-border bg-secondary/40 p-10 min-h-0">
           <div className="w-full max-w-sm grid grid-cols-2 grid-rows-2 gap-[1px] bg-border border border-border shadow-sm">
-            {/* THIS MONTH */}
+            {/* THIS MONTH + scrubable bars */}
             <div className="col-span-2 bg-card p-5 flex flex-col">
               <span className="font-mono text-[10px] tracking-widest uppercase text-muted-foreground">
-                This month
+                {month.caption}
               </span>
               <span className="font-mono text-3xl font-bold tracking-tight mt-1 tabular-nums">
-                ${thisMonth.toLocaleString("en-US")}
+                ${displayTotal.toLocaleString("en-US")}
               </span>
-              <div className="flex items-end gap-1 h-10 mt-3">
-                {PREVIEW_SPARK.map((h, i) => (
-                  <div
-                    key={i}
-                    className="flex-1 pare-rise"
-                    style={{
-                      height: `${h}%`,
-                      backgroundColor: i === PREVIEW_SPARK.length - 1 ? PALETTE.slate : "var(--muted)",
-                      animationDelay: `${i * 55}ms`,
-                    }}
-                  />
-                ))}
+              <div
+                className="flex items-end gap-1 h-10 mt-3"
+                onMouseLeave={() => setSelectedMonth(LATEST_MONTH)}
+              >
+                {PREVIEW_MONTHS.map((m, i) => {
+                  const active = i === selectedMonth;
+                  return (
+                    <button
+                      key={m.caption}
+                      type="button"
+                      aria-label={`${m.caption} — $${m.total.toLocaleString("en-US")}`}
+                      aria-pressed={active}
+                      onMouseEnter={() => setSelectedMonth(i)}
+                      onFocus={() => setSelectedMonth(i)}
+                      onClick={() => setSelectedMonth(i)}
+                      className="flex-1 h-full flex items-end cursor-pointer group focus:outline-none"
+                    >
+                      <span
+                        className="w-full pare-rise transition-[background-color,opacity] duration-150 group-hover:opacity-90 group-focus-visible:ring-1 group-focus-visible:ring-foreground"
+                        style={{
+                          height: `${m.height}%`,
+                          backgroundColor: active ? PALETTE.slate : "var(--muted)",
+                          animationDelay: `${i * 55}ms`,
+                        }}
+                      />
+                    </button>
+                  );
+                })}
               </div>
             </div>
             {/* RECURRING */}
@@ -228,29 +299,28 @@ export default function MarketingHome() {
               <span className="font-mono text-[10px] tracking-widest uppercase text-muted-foreground">
                 Recurring
               </span>
-              <span className="font-mono text-2xl font-bold tracking-tight mt-1">
-                $298<span className="text-xs font-normal text-muted-foreground">/mo</span>
+              <span className="font-mono text-2xl font-bold tracking-tight mt-1 tabular-nums">
+                ${month.recurring}
+                <span className="text-xs font-normal text-muted-foreground">/mo</span>
               </span>
-              <span className="text-[11px] text-muted-foreground mt-1">8 subscriptions</span>
+              <span className="text-[11px] text-muted-foreground mt-1 tabular-nums">
+                {month.subs} subscriptions
+              </span>
             </div>
             {/* TOP CATEGORIES */}
             <div className="bg-card p-5 flex flex-col justify-center gap-2">
               <span className="font-mono text-[10px] tracking-widest uppercase text-muted-foreground mb-0.5">
                 Top categories
               </span>
-              {PREVIEW_CATEGORIES.map((c, i) => (
+              {month.cats.map((c) => (
                 <div key={c.name}>
                   <span className="font-mono text-[9px] tracking-wide text-muted-foreground">
                     {c.name}
                   </span>
                   <div className="h-1.5 bg-muted mt-0.5">
                     <div
-                      className="h-full pare-grow"
-                      style={{
-                        width: `${c.pct}%`,
-                        backgroundColor: c.color,
-                        animationDelay: `${250 + i * 120}ms`,
-                      }}
+                      className="h-full transition-[width] duration-300 ease-out"
+                      style={{ width: `${c.pct}%`, backgroundColor: c.color }}
                     />
                   </div>
                 </div>
@@ -283,6 +353,12 @@ export default function MarketingHome() {
             className="font-mono text-[11px] tracking-wide uppercase text-muted-foreground hover:text-foreground transition-colors"
           >
             Privacy
+          </Link>
+          <Link
+            href="/terms"
+            className="font-mono text-[11px] tracking-wide uppercase text-muted-foreground hover:text-foreground transition-colors"
+          >
+            Terms
           </Link>
           <span className="text-[11px] text-muted-foreground">
             <span aria-hidden="true" className="mr-1.5">✂️🍐💰</span>Private by design.
