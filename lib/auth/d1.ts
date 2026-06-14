@@ -34,8 +34,10 @@ export async function getD1(): Promise<D1Like> {
 
 // Local hosted-dev only: the shim wraps the app's better-sqlite3 file DB, whose
 // migrations (001-005) deliberately exclude the auth schema (that lives in the D1
-// auth DB, d1/migrations/0001_better_auth.sql). So for `next dev` in hosted mode
-// we apply that auth schema to the shim DB once. Idempotent (CREATE … IF NOT
+// auth DB, d1/migrations/*.sql). So for `next dev` in hosted mode we apply the
+// auth schema to the shim DB once — ALL d1/migrations/*.sql in filename order
+// (0001 core tables, 0002 passkey, …), mirroring what `wrangler d1 migrations
+// apply pare-auth` does in prod. Idempotent (every file uses CREATE … IF NOT
 // EXISTS). Node/dev-only: on Workers getD1() returns env.DB above and never
 // reaches here, so the fs import is not exercised on the Cloudflare target.
 const authSchemaApplied = new WeakSet<BetterSqliteDb>();
@@ -43,11 +45,14 @@ async function ensureShimAuthSchema(db: BetterSqliteDb): Promise<void> {
   if (authSchemaApplied.has(db)) return;
   const fs = await import("node:fs");
   const path = await import("node:path");
-  const sql = fs.readFileSync(
-    path.join(process.cwd(), "d1/migrations/0001_better_auth.sql"),
-    "utf-8"
-  );
-  db.exec(sql);
+  const dir = path.join(process.cwd(), "d1/migrations");
+  const files = fs
+    .readdirSync(dir)
+    .filter((f) => f.endsWith(".sql"))
+    .sort();
+  for (const file of files) {
+    db.exec(fs.readFileSync(path.join(dir, file), "utf-8"));
+  }
   authSchemaApplied.add(db);
 }
 

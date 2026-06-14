@@ -69,8 +69,11 @@ bind by **name**, so there's nothing to paste — just keep the names in sync.
 #    ⚠️ PASTE the returned database_id into wrangler.toml [[d1_databases]].database_id.
 npx wrangler d1 create pare-auth
 
-# 2. Apply the better-auth schema to that D1 DB (d1/migrations/0001_better_auth.sql).
-#    Without this, every getSession() throws "no such table: user".
+# 2. Apply the better-auth schema to that D1 DB (all d1/migrations/*.sql:
+#    0001 core accounts/sessions, 0002 the passkey table). Applies every
+#    pending file — re-run after adding migrations. Without 0001 every
+#    getSession() throws "no such table: user"; without 0002 passkey
+#    sign-in/registration throws "no such table: passkey".
 npx wrangler d1 migrations apply pare-auth --remote
 
 # 3. Uploaded-PDF object storage (R2). Binds by bucket_name in wrangler.toml
