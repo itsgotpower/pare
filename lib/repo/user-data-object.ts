@@ -49,13 +49,17 @@ export interface DurableObjectCtxLike {
 
 export class UserDataObject {
   private repo: Repo;
+  private backend: DoSqlBackend;
+  private ctx: DurableObjectCtxLike;
 
   constructor(ctx: DurableObjectCtxLike, _env?: unknown) {
     // One SqliteRepo over this DO's NATIVE SQLite storage. DoSqlBackend builds a
     // better-sqlite3-shaped adapter over ctx.storage.sql, runs migrations lazily on
     // first Repo call, and routes the unchanged lib/db/* query layer at it. Writes
     // go straight to DO storage (persist() is a no-op — no blob serialisation).
-    this.repo = new SqliteRepo(new DoSqlBackend(ctx.storage));
+    this.ctx = ctx;
+    this.backend = new DoSqlBackend(ctx.storage);
+    this.repo = new SqliteRepo(this.backend);
   }
 
   // Single RPC entry point: the Worker-side DoRepoClient sends a {namespace,
@@ -65,6 +69,21 @@ export class UserDataObject {
   // `JSON` transport both require.
   async call(req: RepoMethodCall): Promise<unknown> {
     return callRepoMethod(this.repo, req);
+  }
+
+  // Hard-delete this user's entire database (account deletion). Drops every SQL
+  // table/view (backend.destroy), then clears any KV-API storage. Idempotent —
+  // safe to call on an already-empty DO, and the request side (destroyUserData)
+  // can retry. After this the DO holds nothing and is garbage-collected.
+  async destroy(): Promise<void> {
+    await this.backend.destroy();
+    // deleteAll() removes KV-API data only (alarms, any future settings); SQL data
+    // was already dropped above. Optional on the ctx so a plain test stub without
+    // it still works.
+    const storage = this.ctx.storage as { deleteAll?: () => Promise<void> };
+    if (typeof storage.deleteAll === "function") {
+      await storage.deleteAll();
+    }
   }
 
   // Expose the method catalogue so a transport that prefers per-method RPC (real

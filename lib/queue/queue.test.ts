@@ -6,6 +6,8 @@ import {
   jobStoreOverKv,
   jobKey,
   jobBelongsToUser,
+  purgeUserJobs,
+  userJobPrefix,
   type KvNamespaceLike,
   type ParseJobRecord,
 } from "./job-store";
@@ -52,6 +54,34 @@ test("jobKey / jobBelongsToUser enforce the per-user prefix", () => {
   assert.equal(k, "job/alice/job-1");
   assert.ok(jobBelongsToUser(k, "alice"));
   assert.ok(!jobBelongsToUser(k, "bob"), "alice's job key does not belong to bob");
+});
+
+test("userJobPrefix is the per-user record boundary", () => {
+  assert.equal(userJobPrefix("alice"), "job/alice/");
+});
+
+test("purgeUserJobs deletes ONLY the target user's records (account deletion)", async () => {
+  const mf = newMiniflareKv();
+  try {
+    const kv = (await mf.getKVNamespace("PARSE_JOBS")) as unknown as KvNamespaceLike;
+    const store = jobStoreOverKv(kv);
+
+    await store.create({ jobId: "j1", userId: "alice", filename: "a.pdf" });
+    await store.create({ jobId: "j2", userId: "alice", filename: "b.pdf" });
+    await store.create({ jobId: "k1", userId: "bob", filename: "c.pdf" });
+
+    const deleted = await purgeUserJobs(kv, "alice");
+    assert.equal(deleted, 2, "both of alice's job records are deleted");
+
+    assert.equal(await store.get("alice", "j1"), null);
+    assert.equal(await store.get("alice", "j2"), null);
+    assert.ok(await store.get("bob", "k1"), "bob's record is untouched");
+
+    // Idempotent: re-running finds nothing.
+    assert.equal(await purgeUserJobs(kv, "alice"), 0);
+  } finally {
+    await mf.dispose();
+  }
 });
 
 test("KvJobStore: create -> markParsing -> markDone lifecycle", async () => {
