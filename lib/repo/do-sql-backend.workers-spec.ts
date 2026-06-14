@@ -344,4 +344,43 @@ describe("DoSqlBackend over real ctx.storage.sql (workerd)", () => {
       expect(await repo.profile.dataHealth()).toBeTruthy();
     });
   });
+
+  it("destroy() hard-deletes every app table + view (account deletion)", async () => {
+    await withCtx(async (storage) => {
+      const backend = new DoSqlBackend(storage);
+      const repo = new SqliteRepo(backend);
+
+      // Populate a parent (transactions) + child (override, FK to transactions) so
+      // the FK-aware drop ordering is exercised, plus the v_transactions VIEW.
+      const inserted = await repo.transactions.insert({
+        statement_id: null, source: "amex", account: "card", period: "2026-05",
+        txn_date: "2026-05-09", description: "GROCER", amount: 60, category: "Groceries",
+        flow: "spend", dedup_key: "z",
+      });
+      expect(inserted).toBe(true);
+      const [target] = (await repo.transactions.list()).rows;
+      await repo.categories.addOverride(target.id, target.category, "Coffee");
+
+      const listObjects = () =>
+        (storage.sql as unknown as {
+          exec: (q: string) => { toArray: () => { name: string; type: string }[] };
+        })
+          .exec(
+            "SELECT name, type FROM sqlite_master " +
+              "WHERE type IN ('table','view') AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_cf_%'"
+          )
+          .toArray();
+
+      expect(listObjects().length).toBeGreaterThan(0);
+
+      await backend.destroy();
+
+      // Every app table + the view are gone.
+      expect(listObjects()).toEqual([]);
+
+      // Idempotent: a second destroy on the empty DB doesn't throw.
+      await backend.destroy();
+      expect(listObjects()).toEqual([]);
+    });
+  });
 });

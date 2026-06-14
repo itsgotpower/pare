@@ -88,6 +88,12 @@ export default function ProfilePage() {
   const [wipeConfirm, setWipeConfirm] = useState("");
   const [wipeError, setWipeError] = useState<string | null>(null);
 
+  // Account deletion (hosted mode only — the affordance is hidden in self-host).
+  const [hosted, setHosted] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState("");
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
   const fetchProfile = useCallback(async () => {
     const res = await fetch("/api/auth");
     const data = await res.json();
@@ -99,6 +105,11 @@ export default function ProfilePage() {
 
   useEffect(() => {
     fetchProfile();
+    // Whether to show the "delete account" affordance (hosted multi-user only).
+    fetch("/api/account")
+      .then((r) => r.json())
+      .then((d) => setHosted(!!d.hosted))
+      .catch(() => setHosted(false));
   }, [fetchProfile]);
 
   const post = (body: Record<string, unknown>) =>
@@ -160,6 +171,25 @@ export default function ProfilePage() {
       fetchProfile();
     } else {
       setWipeError(data.error || "Wipe failed");
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    setDeleteError(null);
+    setBusy(true);
+    const res = await fetch("/api/account", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ confirm: deleteConfirm }),
+    });
+    const data = await res.json().catch(() => ({}));
+    setBusy(false);
+    if (res.ok) {
+      // Account + data are gone; the session no longer resolves. Back to public.
+      router.replace("/");
+      router.refresh();
+    } else {
+      setDeleteError(data.error || "Account deletion failed. Please try again.");
     }
   };
 
@@ -387,7 +417,7 @@ export default function ProfilePage() {
               Danger zone
             </CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="flex flex-col items-start gap-2">
             <Button
               variant="destructive"
               onClick={() => {
@@ -399,6 +429,19 @@ export default function ProfilePage() {
             >
               Wipe all data…
             </Button>
+            {hosted && (
+              <Button
+                variant="destructive"
+                onClick={() => {
+                  setDeleteError(null);
+                  setDeleteConfirm("");
+                  setDeleteOpen(true);
+                }}
+                className="rounded-none font-mono text-xs tracking-widest uppercase"
+              >
+                Delete account…
+              </Button>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -493,6 +536,50 @@ export default function ProfilePage() {
               className="rounded-none font-mono text-xs tracking-widest uppercase"
             >
               Wipe all data
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <DialogContent className="rounded-none">
+          <DialogHeader>
+            <DialogTitle className="font-mono text-sm tracking-widest uppercase text-destructive">
+              Delete account
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 text-sm">
+            <p>
+              Permanently deletes your account and{" "}
+              <span className="font-bold">all</span> of your data — every
+              transaction, statement, rule, goal, and any uploaded PDF — plus your
+              sign-in identity. This cannot be undone.
+            </p>
+            <p className="text-muted-foreground text-xs">
+              There is no recovery and no soft-delete. See our{" "}
+              <Link href="/privacy" className="underline">
+                privacy policy
+              </Link>{" "}
+              for what we hold and how deletion works.
+            </p>
+            <div className="space-y-1.5">
+              <label className={labelClass}>Type DELETE to confirm</label>
+              <Input
+                value={deleteConfirm}
+                onChange={(e) => setDeleteConfirm(e.target.value)}
+                className="rounded-none font-mono"
+              />
+            </div>
+            {deleteError && (
+              <p className="font-mono text-xs text-destructive">{deleteError}</p>
+            )}
+            <Button
+              variant="destructive"
+              disabled={busy || deleteConfirm !== "DELETE"}
+              onClick={handleDeleteAccount}
+              className="rounded-none font-mono text-xs tracking-widest uppercase"
+            >
+              Delete my account
             </Button>
           </div>
         </DialogContent>
