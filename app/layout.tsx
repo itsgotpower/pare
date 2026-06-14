@@ -14,9 +14,9 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "PARE",
+  title: "Pare | Talk to Claude about your money",
   description:
-    "Turn bank and credit-card PDF statements into spending trends, forecasts, and budgets — private by design, free to start.",
+    "Turn bank and credit-card statements into spending trends and forecasts, then talk to Claude over MCP to build a budget. Files deleted after parsing; nothing stored.",
 };
 
 // viewport-fit=cover so the bottom tab bar can pad into the home-indicator
