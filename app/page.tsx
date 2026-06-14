@@ -49,10 +49,15 @@ const PREVIEW_MONTHS = [
 const LATEST_MONTH = PREVIEW_MONTHS.length - 1;
 
 const FEATURES = [
-  { label: "Your data, walled off", color: PALETTE.slate },
-  { label: "PDFs deleted after parsing", color: PALETTE.celadon },
-  { label: "Free to start", color: PALETTE.terracotta },
-  { label: "Monarch import — soon", color: PALETTE.dustyblue },
+  { label: "Runs on your machine", color: PALETTE.slate },
+  { label: "Statements shredded on import", color: PALETTE.celadon },
+  { label: "Free, no card needed", color: PALETTE.terracotta },
+  { label: "Monarch import coming", color: PALETTE.dustyblue },
+  { label: "Open source on GitHub", color: PALETTE.sage },
+  { label: "Forecasts & budgets built in", color: PALETTE.mustard },
+  { label: "No ads, no tracking", color: PALETTE.wheat },
+  { label: "Claude MCP support", color: PALETTE.slate },
+  { label: "iOS app coming soon", color: PALETTE.celadon },
 ];
 
 type Status = "idle" | "loading" | "done" | "error";
@@ -151,7 +156,9 @@ export default function MarketingHome() {
       {/* Top bar */}
       <header className="shrink-0 flex items-center justify-between px-5 md:px-8 h-14 border-b border-border">
         <div className="flex items-center gap-4 md:gap-5">
-          <span className="font-mono text-sm font-bold tracking-tight">PARE</span>
+          <span className="font-mono text-sm font-bold tracking-tight">
+            <span aria-hidden="true">🍐</span> PARE
+          </span>
           <span className="hidden sm:block h-6 w-px bg-border" aria-hidden="true" />
           <LocalClock className="hidden sm:flex" />
         </div>
@@ -192,20 +199,18 @@ export default function MarketingHome() {
             Personal finance, pared down
           </p>
           <h1 className="font-mono font-bold tracking-tight leading-[0.95] mt-3 text-[2rem] sm:text-5xl xl:text-6xl">
-            Your bank
+            Talk to Claude
             <br />
-            statements,
-            <br />
-            finally legible.
+            about your money.
           </h1>
           <p className="text-sm md:text-base text-muted-foreground mt-4 max-w-md leading-relaxed">
+            Drop in your bank and credit-card statements and Pare reads every
+            transaction, categorizes it, and surfaces trends, forecasts, and
+            subscription alerts. Then connect Claude over MCP to build a budget
+            and save more money.{" "}
             <span className="text-foreground font-medium">
-              No bank connection. No aggregator. Your statements never leave your
-              machine.
-            </span>{" "}
-            Drop in a bank or credit-card PDF and Pare reads every transaction,
-            categorizes it, and turns months of statements into spending trends,
-            forecasts, and subscription alerts.
+              All files are deleted after parsing; nothing is stored or shared.
+            </span>
           </p>
 
           {/* Waitlist form */}
@@ -367,7 +372,7 @@ export default function MarketingHome() {
         {/* Tier 2 — brand + navigation */}
         <div className="border-t border-border px-5 md:px-8 py-2.5 flex flex-wrap items-center justify-between gap-x-6 gap-y-2">
           <span className="flex items-center gap-2 text-[11px] text-muted-foreground">
-            <span aria-hidden="true">✂️🍐💰</span>
+            <span aria-hidden="true">✂️🍐</span>
             <span className="font-mono tracking-wide uppercase text-foreground">Pare</span>
             <span className="hidden sm:inline">— private by design.</span>
             <span aria-hidden="true">·</span>

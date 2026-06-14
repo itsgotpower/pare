@@ -175,7 +175,7 @@
   }
 }
 .pare-marquee {
-  animation: pare-marquee 32s linear infinite;
+  animation: pare-marquee 50s linear infinite;
 }
 .pare-marquee:hover {
   animation-play-state: paused;
