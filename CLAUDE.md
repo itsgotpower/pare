@@ -1,12 +1,12 @@
 @AGENTS.md
 
-# Parse
+# Pare
 
 Local-first personal finance app. Parses bank/CC PDF statements, categorizes transactions, shows spending trends, tracks budget goals.
 
 ## Stack
 - Next.js 15 (App Router, TypeScript)
-- SQLite via better-sqlite3 (data/parse.db)
+- SQLite via better-sqlite3 (data/pare.db)
 - Recharts for charts
 - Tailwind CSS 4 + shadcn/ui (brutalist theme — zero border-radius, monochrome, monospace headers)
 - Python parser called via child_process for PDF ingestion (requires pdftotext / poppler)
@@ -34,13 +34,13 @@ ALL financial data is PII. Never commit real transactions, PDFs, or the SQLite d
 - `/upload` — drag-drop PDF only (the CSV-import button/route were REMOVED — they duplicated PDF data; see Data provenance)
 - `/categories` — rule CRUD grouped by category, override→rule suggestions, recategorize-on-add
 - `/goals` — monthly limits, progress bars (green<80 / yellow<100 / red over), suggested limits from 6-mo avg
-- `/connect` — MCP setup instructions (server component, `force-dynamic`): computes the machine's absolute paths (`process.cwd()`, `process.execPath`, `PARSE_DB_PATH`) per request so the Claude Code (`~/.claude.json`) and Claude Desktop config snippets are copy-paste ready; the Desktop variant wraps the command in `/bin/sh -c "cd …"` because its config has no `cwd` field (migrations resolve via cwd). Tool list (10 read / 6 write), example prompts, privacy note; `CopyBlock` (components/connect/copy-block.tsx) falls back to `execCommand("copy")` outside secure contexts.
+- `/connect` — MCP setup instructions (server component, `force-dynamic`): computes the machine's absolute paths (`process.cwd()`, `process.execPath`, `PARE_DB_PATH`) per request so the Claude Code (`~/.claude.json`) and Claude Desktop config snippets are copy-paste ready; the Desktop variant wraps the command in `/bin/sh -c "cd …"` because its config has no `cwd` field (migrations resolve via cwd). Tool list (10 read / 6 write), example prompts, privacy note; `CopyBlock` (components/connect/copy-block.tsx) falls back to `execCommand("copy")` outside secure contexts.
 - `/login` — full-screen auth gate (sidebar hides itself on this path). First run (no app_user row) shows CREATE YOUR PROFILE (name + password); afterwards a password sign-in. Redirect target comes from `?from=` but only same-app paths are followed.
 - `/profile` — bento layout: identity card (inline name edit) + SECURITY card (password-changed date from `app_user.password_changed_at`, migration 003; change-password dialog); DATA HEALTH panel from `lib/db/profile.ts` (`getDataHealth` via GET /api/auth `profile.health`): stat tiles, categorized-% + rule-count link, and per-source rows (last statement period, statement count, last txn, 12-month coverage strip, CURRENT/sage vs "Nd — UPLOAD"/terracotta badge at >40 days since last txn); exports + DANGER ZONE. `/api/data` (proxy-authed): GET `?format=csv` (v_transactions CSV), `?format=json` (transactions+rules+goals), `?format=backup` (better-sqlite3 online `db.backup()` → single consolidated file, restorable by copying over the DB); DELETE with `{"confirm":"WIPE"}` wipes transactions+statements+overrides in one SQL transaction (**overrides first — FK to transactions(id)**), keeping rules/goals/app_user.
 
 ## Auth (single-user)
-- **`proxy.ts`** (root; Next 16 renamed `middleware`→`proxy`, Node runtime) gates every route except the public ones: `/` (marketing landing — but signed-IN visitors are redirected to `/dashboard`), `/login`, `/api/auth`, and `/api/waitlist` (PUBLIC_PATHS). Other pages redirect to `/login?from=…`, `/api/*` gets 401 JSON. It verifies a stateless HMAC session cookie (`parse_session`, 30d) via `lib/auth/session.ts` — that module must NEVER import the DB (proxy can't use better-sqlite3).
-- Signing secret lives in gitignored `data/auth-secret` (created on first sign/login, next to the DB per `PARSE_DB_PATH`). **Password change rotates the secret**, invalidating all sessions; the change-password handler re-issues the caller's cookie.
+- **`middleware.ts`** (root; **Edge** runtime) gates every route except the public ones: `/` (marketing landing — but signed-IN visitors are redirected to `/dashboard`), `/login`, `/api/auth`, and `/api/waitlist` (PUBLIC_PATHS). Other pages redirect to `/login?from=…`, `/api/*` gets 401 JSON. It verifies a stateless HMAC session cookie (`pare_session`, 30d) via `lib/auth/session-token.ts` (WebCrypto HMAC-SHA256, runtime-agnostic — runs identically on Node 20+ and Cloudflare Workers). **Why `middleware.ts` and not `proxy.ts`:** Next 16 renamed `middleware`→`proxy`, but `proxy` is locked to the Node.js runtime, which `@opennextjs/cloudflare` cannot bundle ("Node.js middleware is not currently supported") — `cf:build`/`cf:deploy` fail. The `middleware.ts` convention stays on the Edge runtime, which OpenNext supports. The Edge runtime forbids `node:fs`/`node:crypto`, so the gate uses WebCrypto + an **env** secret (no file reads at the edge).
+- Signing secret resolution (`lib/auth/session.ts`, the Node secret store imported by the API routes): **`process.env.PARE_AUTH_SECRET`** first — the canonical, runtime-agnostic source and the ONLY value the Edge middleware can read; the Node routes read the SAME value, so cookies signed there verify in the middleware. Falls back to the generated, rotating gitignored `data/auth-secret` file (zero-config local Node use; the Edge middleware can't see it, so without the env var the middleware treats everyone as signed-out). **Self-host: set `PARE_AUTH_SECRET`** for page gating. **Password change rotates the file secret** (file mode only — a no-op under an env secret, which is rotated by changing the env var + restart), invalidating all sessions; the change-password handler re-issues the caller's cookie. `verifySessionToken`/`createSessionToken` are now **async** (WebCrypto). The session modules must NEVER import the DB (auth hot path; the Edge middleware can't use better-sqlite3 anyway).
 - Password: scrypt (`scrypt:N:r:p:salt:hash` in `app_user.password_hash`, single row id=1, migration 002). Login/change-password failures sleep 500ms.
 - `/api/auth` actions: `setup` (409 once configured), `login`, `logout`, `update_profile`, `change_password`; GET returns `{configured, authenticated, profile?}`. Auth is enforced ONLY in the proxy for the other API routes — if the matcher ever changes or server actions are added, add per-route checks (see Next data-security guide).
 - MCP server + Python parser bypass HTTP entirely, so they're unaffected by auth.
@@ -49,7 +49,7 @@ ALL financial data is PII. Never commit real transactions, PDFs, or the SQLite d
 - `npm run dev` — start dev server (localhost:3000)
 - `npx next build` — type-check + build (run before declaring done)
 - `npm test` — parser regression suite (stdlib unittest, synthetic fixtures in `tests/`, no PDFs/real data). Run after touching `lib/parser/*.py` or `categories.py`. Tests monkeypatch `parse_statements.text` and assert reconciliation/flows/vocab/date-inference/categorizer behaviour.
-- `npm run mcp` — start the finance MCP server (stdio). Reuses `lib/db`; reads/writes `data/parse.db`. 16 read+write tools. Set `PARSE_DB_PATH` to the absolute DB path when launched by an MCP client (cwd is unknown). Smoke test: `npx tsx mcp/test-client.ts`. See `mcp/README.md` for tools + Claude Code config. db.ts honors `PARSE_DB_PATH` (falls back to `<cwd>/data/parse.db`).
+- `npm run mcp` — start the finance MCP server (stdio). Reuses `lib/db`; reads/writes `data/pare.db`. 16 read+write tools. Set `PARE_DB_PATH` to the absolute DB path when launched by an MCP client (cwd is unknown). Smoke test: `npx tsx mcp/test-client.ts`. See `mcp/README.md` for tools + Claude Code config. db.ts honors `PARE_DB_PATH` (falls back to `<cwd>/data/pare.db`).
 - `python3 lib/parser/parse_statements.py <dir> <out.csv>` — run PDF parser standalone (or `<dir> --json` for JSON)
 
 ## Key Patterns
@@ -62,7 +62,7 @@ ALL financial data is PII. Never commit real transactions, PDFs, or the SQLite d
 
 ## Gotchas
 - **shadcn here uses @base-ui/react, NOT @radix-ui.** DialogTrigger has no `asChild` — render the trigger as its own styled element. Tabs use `@base-ui/react/tabs` and support a `line` variant + vertical orientation.
-- **Dev server caches the SQLite connection in memory.** After deleting data/parse.db or changing schema/migrations, restart `npm run dev` — the in-process singleton won't pick up a fresh file otherwise.
+- **Dev server caches the SQLite connection in memory.** After deleting data/pare.db or changing schema/migrations, restart `npm run dev` — the in-process singleton won't pick up a fresh file otherwise.
 - **CSV from Start/ has Windows \r line endings.** Strip with `.replace(/\r/g, "")` before parsing or the trailing `flow` value fails the CHECK constraint and rows get silently dropped by INSERT OR IGNORE.
 - Recharts Tooltip `formatter` types want `(value) => ...` then `Number(value)` — typing the param as `number` fails the build.
 

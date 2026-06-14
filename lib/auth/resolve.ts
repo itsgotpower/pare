@@ -18,7 +18,7 @@ import type { HostedAuth } from "./hosted";
 //   - Never throws on a bad/absent credential; only unexpected infra errors
 //     propagate.
 //
-// Two implementations, selected by deploy target (PARSE_DEPLOY_TARGET):
+// Two implementations, selected by deploy target (PARE_DEPLOY_TARGET):
 //
 //   hosted      -> better-auth on D1. Cookies AND bearer tokens both flow
 //                  through `auth.api.getSession({ headers })`: better-auth
@@ -48,16 +48,18 @@ export interface ResolvedUser {
 export const SINGLE_USER_ID = "self-hosted-user";
 
 export function isHostedMode(): boolean {
-  return process.env.PARSE_DEPLOY_TARGET === "hosted";
+  return process.env.PARE_DEPLOY_TARGET === "hosted";
 }
 
 /**
  * Self-hosted resolver: verify the stateless HMAC session cookie. One account,
  * so any valid cookie maps to SINGLE_USER_ID.
  */
-export function resolveUserSelfHosted(request: Request): ResolvedUser | null {
+export async function resolveUserSelfHosted(
+  request: Request
+): Promise<ResolvedUser | null> {
   const token = readCookie(request, SESSION_COOKIE);
-  return verifySessionToken(token) ? { userId: SINGLE_USER_ID } : null;
+  return (await verifySessionToken(token)) ? { userId: SINGLE_USER_ID } : null;
 }
 
 /**

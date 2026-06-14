@@ -82,7 +82,7 @@ export function Sidebar() {
       <header className="md:hidden order-first shrink-0 z-40 bg-card border-b border-border pt-[env(safe-area-inset-top)]">
         <div className="flex items-center justify-between h-12 pl-4 pr-1">
           <Link href="/dashboard" className="font-mono text-sm font-bold tracking-tight">
-            PARSE
+            PARE
           </Link>
           <div className="flex items-center">
             {[
@@ -153,7 +153,7 @@ export function Sidebar() {
         <div className="flex items-center justify-between px-3 h-14 border-b border-border">
           {!collapsed && (
             <Link href="/dashboard" className="font-mono text-sm font-bold tracking-tight">
-              PARSE
+              PARE
             </Link>
           )}
           <button

@@ -1,7 +1,7 @@
-# Parse — Finance MCP Server
+# Pare — Finance MCP Server
 
-A local [MCP](https://modelcontextprotocol.io) server that exposes your Parse
-finance data (the local `data/parse.db`) as tools, so an MCP client like Claude
+A local [MCP](https://modelcontextprotocol.io) server that exposes your Pare
+finance data (the local `data/pare.db`) as tools, so an MCP client like Claude
 can query and lightly manage your spending — **entirely on your machine**.
 
 It reuses the app's `lib/db` query layer (no duplicated SQL) and talks **stdio**.
@@ -30,11 +30,11 @@ It reuses the app's `lib/db` query layer (no duplicated SQL) and talks **stdio**
 
 ```bash
 # from the repo root (parse/)
-PARSE_DB_PATH="$(pwd)/data/parse.db" npm run mcp
+PARE_DB_PATH="$(pwd)/data/pare.db" npm run mcp
 ```
 
-`PARSE_DB_PATH` is optional when launched from the repo root (defaults to
-`<cwd>/data/parse.db`), but an MCP client launches the server with an unknown
+`PARE_DB_PATH` is optional when launched from the repo root (defaults to
+`<cwd>/data/pare.db`), but an MCP client launches the server with an unknown
 working directory, so set it to an **absolute path** in the client config.
 
 Smoke test: `npx tsx mcp/test-client.ts`
@@ -47,7 +47,7 @@ Code to load it):
 ```json
 {
   "mcpServers": {
-    "parse-finance": {
+    "pare-finance": {
       "type": "stdio",
       "command": "/opt/homebrew/bin/node",
       "args": [
@@ -55,7 +55,7 @@ Code to load it):
         "/abs/parse/mcp/server.ts"
       ],
       "cwd": "/abs/parse",
-      "env": { "PARSE_DB_PATH": "/abs/parse/data/parse.db" }
+      "env": { "PARE_DB_PATH": "/abs/parse/data/pare.db" }
     }
   }
 }

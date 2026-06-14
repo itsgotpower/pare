@@ -1,6 +1,6 @@
 # Phase 4 — Production hardening
 
-The hardening layer that takes hosted Parse from "serves data" (Phase 3) to
+The hardening layer that takes hosted Pare from "serves data" (Phase 3) to
 "safe to put strangers' bank data in" (closed beta). Five workstreams, all
 **fail-open / inert until provisioned** — an un-provisioned deploy behaves exactly
 like Phase 3, so this can land before the first `cf:deploy`.

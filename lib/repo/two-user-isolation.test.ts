@@ -31,12 +31,12 @@ import Database from "better-sqlite3";
 //   - The DO storage layout itself is separately proven on Cloudflare's real DO
 //     storage under miniflare (do-backend.test.ts, Part 2).
 
-process.env.PARSE_DEPLOY_TARGET = "hosted";
+process.env.PARE_DEPLOY_TARGET = "hosted";
 process.env.BETTER_AUTH_SECRET ||= "test-secret-please-only-for-tests-000000";
 process.env.BETTER_AUTH_URL ||= "http://localhost:3000";
-process.env.PARSE_DB_PATH ||= path.join(
+process.env.PARE_DB_PATH ||= path.join(
   fs.mkdtempSync(path.join(os.tmpdir(), "parse-isolation-test-")),
-  "parse.db"
+  "pare.db"
 );
 
 import { createHostedAuth, type HostedAuth, type D1Like } from "../auth/hosted";

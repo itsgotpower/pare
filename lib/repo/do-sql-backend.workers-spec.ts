@@ -54,6 +54,7 @@ describe("DoSqlBackend over real ctx.storage.sql (workerd)", () => {
         "app_user",
         "manual_entries",
         "waitlist",
+        "imports",
       ]) {
         expect(byName.get(t), `table ${t} created`).toBe("table");
       }
@@ -67,7 +68,7 @@ describe("DoSqlBackend over real ctx.storage.sql (workerd)", () => {
       runMigrationsOnDoSql(db);
       const after = db.prepare("SELECT COUNT(*) c FROM _migrations").get<{ c: number }>()!;
       expect(after.c).toBe(before.c);
-      expect(before.c).toBe(5);
+      expect(before.c).toBe(6);
     });
   });
 

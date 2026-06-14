@@ -11,8 +11,8 @@ import type { Metadata } from "next";
 // processor relationship.
 
 export const metadata: Metadata = {
-  title: "Privacy — PARSE",
-  description: "What Parse collects, where it's stored, how long it's kept, and how to delete it.",
+  title: "Privacy — PARE",
+  description: "What Pare collects, where it's stored, how long it's kept, and how to delete it.",
 };
 
 const CONTACT_EMAIL = "privacy@pare.money";
@@ -35,7 +35,7 @@ export default function PrivacyPage() {
       {/* Top bar — this page has no app sidebar. */}
       <header className="shrink-0 flex items-center justify-between px-5 md:px-8 h-14 border-b border-border">
         <Link href="/" className="font-mono text-sm font-bold tracking-tight">
-          PARSE
+          PARE
         </Link>
         <Link
           href="/"
@@ -55,7 +55,7 @@ export default function PrivacyPage() {
         </p>
 
         <p className="text-sm leading-relaxed text-foreground/90 mt-6">
-          Parse turns your bank and credit-card PDF statements into spending
+          Pare turns your bank and credit-card PDF statements into spending
           insights. It handles financial data, so this page spells out exactly
           what we collect, where it lives, how long we keep it, and how to delete
           it. No dark patterns, no data selling — that&apos;s the whole pitch.
@@ -79,7 +79,7 @@ export default function PrivacyPage() {
                 yourself, from your profile.
               </li>
               <li>
-                Prefer to trust no one? Parse is open source and{" "}
+                Prefer to trust no one? Pare is open source and{" "}
                 <span className="font-medium">self-hostable</span>; run it on your
                 own machine and none of this applies.
               </li>
@@ -115,7 +115,7 @@ export default function PrivacyPage() {
 
           <Section title="Where it&apos;s stored">
             <p>
-              Parse runs entirely on{" "}
+              Pare runs entirely on{" "}
               <span className="font-medium">Cloudflare</span>. Within that:
             </p>
             <ul className="list-disc pl-5 space-y-1.5">
@@ -212,7 +212,7 @@ export default function PrivacyPage() {
 
           <Section title="Where we operate">
             <p>
-              Parse is offered to users in Canada and the United States. Cloudflare
+              Pare is offered to users in Canada and the United States. Cloudflare
               processes data across its global network; your account&apos;s database
               is a single logical store within that network.
             </p>

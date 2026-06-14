@@ -14,7 +14,7 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "PARSE",
+  title: "PARE",
   description: "Local-first personal spending analysis",
 };
 
