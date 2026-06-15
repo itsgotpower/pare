@@ -14,6 +14,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 
+import pkg from "../package.json";
 import { getDb } from "../lib/db";
 import { getRepo } from "../lib/repo";
 
@@ -23,7 +24,10 @@ const json = (data: unknown) => ({
   content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }],
 });
 
-const server = new McpServer({ name: "pare-finance", version: "0.1.0" });
+// Version comes from package.json (single source of truth — same value the web
+// app surfaces via NEXT_PUBLIC_APP_VERSION). Keep it off a hardcoded literal so
+// a release bump can't leave the MCP server reporting a stale version.
+const server = new McpServer({ name: "pare-finance", version: pkg.version });
 
 // ---- Read tools -------------------------------------------------------------
 
