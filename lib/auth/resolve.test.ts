@@ -82,11 +82,20 @@ function makeD1Shim(db: Database.Database): D1Like {
 }
 
 let auth: HostedAuth;
+let db: Database.Database;
 const EMAIL = "test.user@example.com";
 const PASSWORD = "correct-horse-battery-staple";
 
+// Hosted mode requires a verified email before sign-in (lib/auth/hosted.ts).
+// These tests exercise the resolveUser contract, not the verification flow, so
+// they mark the address verified directly — the same end state as the user
+// clicking the emailed link.
+function markEmailVerified(email: string) {
+  db.prepare(`UPDATE "user" SET "emailVerified" = 1 WHERE "email" = ?`).run(email);
+}
+
 before(() => {
-  const db = new Database(":memory:");
+  db = new Database(":memory:");
   // Apply the SAME auth-D1 migrations the app ships (0001 core + 0002 passkey),
   // in filename order — mirroring the dev shim (lib/auth/d1.ts) and prod's
   // `wrangler d1 migrations apply` — so the test exercises the real schema
@@ -107,6 +116,10 @@ test("register -> cookie login -> bearer token -> resolveUser for BOTH", async (
   });
   const expectedUserId = signUp.response.user.id;
   assert.ok(expectedUserId, "sign-up returns a user id");
+
+  // 1b. Verify the email (simulates clicking the link). Sign-in is blocked
+  //     until this happens — requireEmailVerification in lib/auth/hosted.ts.
+  markEmailVerified(EMAIL);
 
   // 2. Login with email + password. Capture BOTH the Set-Cookie header (web)
   //    and the set-auth-token header (mobile bearer).
@@ -150,6 +163,30 @@ test("register -> cookie login -> bearer token -> resolveUser for BOTH", async (
     auth
   );
   assert.equal(bad, null, "invalid bearer -> null");
+});
+
+test("sign-in is blocked until the email is verified", async () => {
+  const email = "needs.verify@example.com";
+  const password = "another-correct-horse-staple";
+  await auth.api.signUpEmail({
+    body: { email, password, name: "Pending User" },
+  });
+
+  // Unverified -> better-auth rejects sign-in with a 403 EMAIL_NOT_VERIFIED.
+  await assert.rejects(
+    auth.api.signInEmail({ body: { email, password } }),
+    (err: { body?: { code?: string }; statusCode?: number }) =>
+      err.body?.code === "EMAIL_NOT_VERIFIED" || err.statusCode === 403,
+    "unverified sign-in should be rejected"
+  );
+
+  // After the address is verified, the same credentials sign in.
+  markEmailVerified(email);
+  const ok = await auth.api.signInEmail({
+    body: { email, password },
+    returnHeaders: true,
+  });
+  assert.ok(ok.response.user.id, "verified sign-in resolves a user");
 });
 
 test("self-hosted resolver: valid HMAC cookie -> SINGLE_USER_ID, else null", async () => {
