@@ -70,6 +70,9 @@ const formatBytes = (bytes: number) => {
 
 const labelClass = "font-mono text-[10px] tracking-widest uppercase text-muted-foreground";
 
+const REPO_URL = "https://github.com/itsgotpower/pare";
+const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION ?? "";
+
 export default function ProfilePage() {
   const router = useRouter();
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -445,6 +448,20 @@ export default function ProfilePage() {
           </CardContent>
         </Card>
       </div>
+
+      {APP_VERSION && (
+        <p className="mt-6 font-mono text-[10px] tracking-widest uppercase text-muted-foreground/60">
+          Pare{" "}
+          <a
+            href={`${REPO_URL}/releases/tag/v${APP_VERSION}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hover:text-foreground transition-colors"
+          >
+            v{APP_VERSION}
+          </a>
+        </p>
+      )}
 
       <Dialog open={pwOpen} onOpenChange={setPwOpen}>
         <DialogContent className="rounded-none">
