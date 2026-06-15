@@ -1,0 +1,18 @@
+name: guard-private
+
+# Authoritative guardrail for the PUBLIC open-core repo: fail if private business
+# docs, financial data, or literal secrets are ever tracked. Runs on every push
+# and PR (including from forks), so a local-hook miss can't leak.
+on:
+  push:
+  pull_request:
+
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: node scripts/check-no-private.mjs
