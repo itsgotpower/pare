@@ -370,29 +370,10 @@ export default function MarketingHome() {
           </div>
         </div>
 
-        {/* Tier 2 — brand + navigation */}
-        <div className="border-t border-border px-5 md:px-8 py-2.5 flex flex-wrap items-center justify-between gap-x-6 gap-y-2">
-          <span className="flex items-center gap-2 text-[11px] text-muted-foreground">
-            <span aria-hidden="true">✂️🍐</span>
-            <span className="font-mono tracking-wide uppercase text-foreground">Pare</span>
-            <span className="hidden sm:inline">— private by design.</span>
-            <span aria-hidden="true">·</span>
-            <span className="whitespace-nowrap">© {new Date().getFullYear()} pare.money</span>
-            {APP_VERSION && (
-              <>
-                <span aria-hidden="true">·</span>
-                <a
-                  href={`${REPO_URL}/releases/tag/v${APP_VERSION}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="font-mono whitespace-nowrap hover:text-foreground transition-colors"
-                >
-                  v{APP_VERSION}
-                </a>
-              </>
-            )}
-          </span>
-          <nav className="flex items-center gap-4">
+        {/* Tier 2 — navigation on top, then brand/meta. Stacked + left-aligned
+            so the links sit above the copyright line at every width. */}
+        <div className="border-t border-border px-5 md:px-8 py-2.5 flex flex-col items-start gap-y-2">
+          <nav className="flex flex-wrap items-center gap-x-4 gap-y-1">
             <a
               href={REPO_URL}
               target="_blank"
@@ -427,6 +408,26 @@ export default function MarketingHome() {
               Terms
             </Link>
           </nav>
+          <span className="flex items-center gap-2 text-[11px] text-muted-foreground">
+            <span aria-hidden="true">✂️🍐</span>
+            <span className="font-mono tracking-wide uppercase text-foreground">Pare</span>
+            <span className="hidden sm:inline">— private by design.</span>
+            <span aria-hidden="true">·</span>
+            <span className="whitespace-nowrap">© {new Date().getFullYear()} pare.money</span>
+            {APP_VERSION && (
+              <>
+                <span aria-hidden="true">·</span>
+                <a
+                  href={`${REPO_URL}/releases/tag/v${APP_VERSION}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-mono whitespace-nowrap hover:text-foreground transition-colors"
+                >
+                  v{APP_VERSION}
+                </a>
+              </>
+            )}
+          </span>
         </div>
       </footer>
     </div>
