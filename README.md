@@ -101,7 +101,8 @@ bug doesn't exist here.
 
 **Stack:** Next.js 16 · TypeScript · SQLite (better-sqlite3 / native DO SQLite) ·
 Python 3 + poppler · Cloudflare Workers, Durable Objects, D1, R2, Queues,
-Containers · Recharts · Tailwind CSS 4 + shadcn/ui (brutalist bento theme).
+Containers · Recharts · Tailwind CSS 4 + shadcn/ui ([brutalist bento
+theme](DESIGN.md)).
 
 ## Privacy posture
 
