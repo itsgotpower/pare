@@ -9,6 +9,23 @@ import { insertParsedStatement } from "@/lib/repo/insert-parsed";
 import { isHostedMode, resolveUser } from "@/lib/auth/resolve";
 import type { Repo } from "@/lib/repo";
 
+// Hard caps for uploaded statements. Real bank/CC PDFs run from tens of KB to a
+// few MB; 25 MB clears any genuine statement while bounding in-memory buffering
+// and R2/queue abuse. We also require the %PDF magic bytes so the extension
+// check can't be used to smuggle arbitrary (or non-PDF) bytes into the pipeline.
+const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
+
+function looksLikePdf(bytes: Uint8Array): boolean {
+  // "%PDF"
+  return (
+    bytes.length >= 4 &&
+    bytes[0] === 0x25 &&
+    bytes[1] === 0x50 &&
+    bytes[2] === 0x44 &&
+    bytes[3] === 0x46
+  );
+}
+
 // ===========================================================================
 // POST /api/upload — ingest a bank/CC statement. TWO modes, gated on
 // isHostedMode() (PARE_DEPLOY_TARGET === "hosted"):
@@ -80,8 +97,14 @@ async function handleSelfHostUpload(request: NextRequest) {
     if (!file.name.endsWith(".pdf")) {
       return Response.json({ error: "Only PDF files accepted" }, { status: 400 });
     }
+    if (file.size > MAX_UPLOAD_BYTES) {
+      return Response.json({ error: "PDF too large (max 25 MB)." }, { status: 400 });
+    }
 
     const bytes = await file.arrayBuffer();
+    if (!looksLikePdf(new Uint8Array(bytes))) {
+      return Response.json({ error: "File is not a valid PDF." }, { status: 400 });
+    }
     const tmpDir = mkdtempSync(path.join(os.tmpdir(), "parse-upload-"));
     const tmpPath = path.join(tmpDir, file.name);
 
@@ -136,8 +159,14 @@ async function handleHostedUpload(request: NextRequest) {
     if (!file.name.endsWith(".pdf")) {
       return Response.json({ error: "Only PDF files accepted" }, { status: 400 });
     }
+    if (file.size > MAX_UPLOAD_BYTES) {
+      return Response.json({ error: "PDF too large (max 25 MB)." }, { status: 400 });
+    }
 
     const bytes = new Uint8Array(await file.arrayBuffer());
+    if (!looksLikePdf(bytes)) {
+      return Response.json({ error: "File is not a valid PDF." }, { status: 400 });
+    }
 
     // Resolve the hosted-only bindings (fail-closed if unavailable) and run the
     // dependency-injected pipeline. userId is the AUTHENTICATED caller's id — it

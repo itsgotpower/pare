@@ -23,6 +23,12 @@ export async function POST(request: NextRequest) {
     return Response.json({ error: "Invalid request." }, { status: 400 });
   }
 
+  // Reject oversized input before it crosses the RPC to the shared DO (RFC 5321
+  // caps a valid address at 254 chars). joinWaitlist re-checks as defense-in-depth.
+  if (email.length > 254) {
+    return Response.json({ error: "Enter a valid email address." }, { status: 400 });
+  }
+
   // 2. Turnstile (skipped when TURNSTILE_SECRET_KEY is unset).
   const captcha = await verifyTurnstile(turnstileToken, ip);
   if (!captcha.ok) {

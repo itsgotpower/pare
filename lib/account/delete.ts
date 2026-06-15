@@ -6,7 +6,7 @@
 //   2. KV  (PARSE_JOBS)  — every parse-job status record under `job/<userId>/`.
 //   3. DO  (USER_DATA)   — the user's entire SQLite database (drop all tables).
 //   4. D1  (DB)          — the better-auth identity rows (session/account/
-//                          verification/user), so the account itself is gone.
+//                          verification/passkey/user), so the account itself is gone.
 //
 // HARD delete, not soft: there is no "deleted" flag, no tombstone — the rows and
 // objects are removed. This is both the compliance posture (minimise what we
@@ -45,7 +45,7 @@ export interface AccountDeletionResult {
     jobsDeleted: number | null;
     /** Whether the per-user Durable Object database was dropped. */
     doDestroyed: boolean;
-    /** better-auth rows deleted across session/account/verification/user. */
+    /** better-auth rows deleted across session/account/verification/passkey/user. */
     authRowsDeleted: number | null;
   };
   /** Per-step failures (empty when ok). Strings, never containing PII. */
@@ -85,6 +85,10 @@ async function deleteAuthRows(userId: string): Promise<number> {
   let count = 0;
   count += changes(await db.prepare('DELETE FROM "session" WHERE "userId" = ?').bind(userId).run());
   count += changes(await db.prepare('DELETE FROM "account" WHERE "userId" = ?').bind(userId).run());
+  // passkey rows reference user(id) ON DELETE CASCADE, but D1 doesn't enforce FKs
+  // by default (see above), so the user-row delete won't cascade them — drop them
+  // explicitly or we leave a usable sign-in credential + PII behind.
+  count += changes(await db.prepare('DELETE FROM "passkey" WHERE "userId" = ?').bind(userId).run());
   if (email) {
     count += changes(
       await db.prepare('DELETE FROM "verification" WHERE "identifier" = ?').bind(email).run()
