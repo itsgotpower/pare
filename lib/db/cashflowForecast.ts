@@ -96,7 +96,7 @@ export function getCashflowForecast(now: Date = new Date()): CashflowForecast | 
     .prepare(
       `SELECT period, closing_balance AS balance, closing_date AS date
        FROM statements
-       WHERE source = 'cibc_chequing'
+       WHERE account_kind = 'chequing'
          AND closing_balance IS NOT NULL AND closing_date IS NOT NULL
        ORDER BY closing_date DESC LIMIT 1`
     )
