@@ -23,16 +23,18 @@ export interface RateLimitBinding {
 }
 
 /**
- * Best-effort client IP for a request. Cloudflare sets `cf-connecting-ip`; the
- * `x-forwarded-for` fallback covers non-CF/dev. Used as the rate-limit key — a
- * coarse but effective abuse boundary for anonymous endpoints.
+ * Trustworthy client IP for the rate-limit key. We use ONLY `cf-connecting-ip`,
+ * which the Cloudflare edge sets and a client cannot forge (CF overwrites it).
+ *
+ * We deliberately do NOT fall back to `x-forwarded-for`: CF does not strip an
+ * inbound XFF, so keying on it would let a client rotate the header to mint a
+ * fresh bucket per request and defeat the limit entirely. When `cf-connecting-ip`
+ * is absent (plain Node / dev / self-host) the rate-limit binding is also absent
+ * and `allowRequest()` fails open, so the key is unused there — a constant is
+ * fine, and lumping those requests into one bucket is the conservative choice.
  */
 export function clientIp(request: Request): string {
-  const cf = request.headers.get("cf-connecting-ip");
-  if (cf) return cf;
-  const xff = request.headers.get("x-forwarded-for");
-  if (xff) return xff.split(",")[0]!.trim();
-  return "unknown";
+  return request.headers.get("cf-connecting-ip") ?? "unknown";
 }
 
 /**

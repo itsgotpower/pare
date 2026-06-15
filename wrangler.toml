@@ -61,3 +61,14 @@ name = "RL_WAITLIST"
 type = "ratelimit"
 namespace_id = "2002"
 simple = { limit = 10, period = 60 }
+
+# RL_AUTH — throttles the anonymous better-auth mutations (sign-in/up/reset/
+# passkey) and account deletion against brute force / spam. Referenced in code
+# (app/api/auth/[...all], app/api/account); fails OPEN when absent, so it MUST be
+# declared here or auth throttling silently never engages. 20 requests / 60s / IP.
+# Unused in waitlist-only mode (those routes are gated off) but harmless to ship.
+[[unsafe.bindings]]
+name = "RL_AUTH"
+type = "ratelimit"
+namespace_id = "2003"
+simple = { limit = 20, period = 60 }

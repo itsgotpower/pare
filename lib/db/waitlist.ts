@@ -17,7 +17,10 @@ export interface WaitlistEntry {
 
 export function joinWaitlist(rawEmail: string, source = "homepage"): WaitlistResult {
   const email = rawEmail.trim().toLowerCase();
-  if (!EMAIL_RE.test(email)) {
+  // Cap length (RFC 5321 max is 254) before the regex — this is the shared
+  // chokepoint for every caller, including the hosted DO RPC path, so it bounds
+  // unbounded writes even if a route forgets to validate.
+  if (email.length > 254 || !EMAIL_RE.test(email)) {
     return { ok: false, error: "Enter a valid email address." };
   }
 

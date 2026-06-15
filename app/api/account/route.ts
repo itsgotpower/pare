@@ -3,6 +3,7 @@ import { isHostedMode, resolveUser } from "@/lib/auth/resolve";
 import { createHostedAuth } from "@/lib/auth/hosted";
 import { getD1 } from "@/lib/auth/d1";
 import { deleteAccount } from "@/lib/account/delete";
+import { allowRequest, clientIp, tooManyRequests } from "@/lib/ratelimit";
 
 // Account management. The substantive action here is DELETE — hosted-mode hard
 // account deletion (DO + R2 + KV + D1 auth rows). See lib/account/delete.ts.
@@ -32,6 +33,10 @@ export async function DELETE(request: NextRequest) {
       { status: 400 }
     );
   }
+
+  // Throttle per IP — this orchestrates DO + R2 + KV + D1 work, so a caller must
+  // not be able to hammer it (RL_AUTH, fails open when the binding is unwired).
+  if (!(await allowRequest("RL_AUTH", clientIp(request)))) return tooManyRequests();
 
   // Explicit confirmation, matching the /api/data WIPE contract.
   const body = await request.json().catch(() => ({}));
