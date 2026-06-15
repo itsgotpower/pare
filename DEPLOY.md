@@ -192,6 +192,65 @@ Served at `/privacy` (public, static) and linked from the landing-page footer. T
 contact address is `privacy@pare.money` — set up email forwarding for that alias
 when the domain is live.
 
+## Phase 6 — billing (Stripe subscriptions)
+
+The commercial billing layer lives in `cloud/billing/` (proprietary) with thin
+shims under `app/api/billing/`. Like everything above it is **inert until
+provisioned** — no Stripe secret ⇒ the routes 503 and `PARE_CLOUD` unset ⇒ no plan
+limits — so an un-provisioned deploy is unchanged. Full reference:
+[`cloud/billing/README.md`](cloud/billing/README.md).
+
+### New secrets / vars (none committed)
+
+```bash
+# Stripe API + webhook signing secrets. When STRIPE_SECRET_KEY is unset the
+# billing routes return 503 (nothing Stripe runs).
+npx wrangler secret put STRIPE_SECRET_KEY            # sk_live_… / sk_test_…
+npx wrangler secret put STRIPE_WEBHOOK_SECRET        # whsec_… (the endpoint signing secret)
+
+# The Pro price id is NOT secret — add it to [vars] in wrangler.toml:
+#   [vars]
+#   STRIPE_PRICE_PRO = "price_…"
+#   PARE_CLOUD = "1"          # turns ON plan-limit enforcement + metering
+```
+
+### D1 migrations
+
+The subscription + usage tables go in the **auth** D1 DB (`pare-auth`):
+
+```bash
+npx wrangler d1 migrations apply pare-auth    # applies 0003_subscription + 0004_billing_usage
+```
+
+### Stripe dashboard
+
+1. Create a **Product → Price** (recurring) for Pro; copy the `price_…` id into
+   `STRIPE_PRICE_PRO`.
+2. Create a **Webhook endpoint** → `https://<host>/api/billing/webhook`, subscribe
+   to `checkout.session.completed` and `customer.subscription.created|updated|
+   deleted`; copy the signing secret into `STRIPE_WEBHOOK_SECRET`.
+3. Enable the **Billing Portal** (Settings → Billing → Customer portal) so
+   `/api/billing/portal` works.
+
+> The webhook needs no auth wiring: in hosted mode the Edge gate is retired
+> (`middleware.ts`), and the handler authenticates by Stripe signature
+> (WebCrypto, async — `constructEventAsync`).
+
+### Local testing
+
+```bash
+stripe listen --forward-to localhost:3000/api/billing/webhook   # prints whsec_… to use
+stripe trigger checkout.session.completed
+```
+
+### Still TODO before launch
+
+- `/profile` UI: an **Upgrade** button (POST `/api/billing/checkout` → redirect to
+  `url`) and a **Manage billing** link (POST `/api/billing/portal`).
+- Lock the free cap + Pro price (currently placeholders — PRD §6 / FR-72).
+- iOS (Expo): Apple generally requires IAP for in-app digital subscriptions;
+  Stripe Checkout covers web/Android.
+
 ## Resolved: Node-runtime `proxy.ts` (the auth gate)
 
 Phase 0 hit `ERROR Node.js middleware is not currently supported` because Next

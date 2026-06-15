@@ -13,7 +13,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { PALETTE } from "@/lib/colors";
-import { LogOut, Pencil, Download, Database, FileJson } from "lucide-react";
+import { LogOut, Pencil, Download, Database, FileJson, CreditCard } from "lucide-react";
 
 interface SourceHealth {
   source: string;
@@ -41,6 +41,14 @@ interface Profile {
     coverage_window: string[];
     sources: SourceHealth[];
   };
+}
+
+interface Billing {
+  hosted: boolean;
+  configured: boolean;
+  plan: { id: string; label: string; statementsPerMonth: number | null };
+  status: string | null;
+  manageable: boolean;
 }
 
 const STALE_AFTER_DAYS = 40;
@@ -97,6 +105,13 @@ export default function ProfilePage() {
   const [deleteConfirm, setDeleteConfirm] = useState("");
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
+  // Billing / plan (hosted + Stripe-provisioned only). billingNotice is the
+  // banner shown after returning from Stripe Checkout (?checkout=success|cancel).
+  const [billing, setBilling] = useState<Billing | null>(null);
+  const [billingBusy, setBillingBusy] = useState(false);
+  const [billingError, setBillingError] = useState<string | null>(null);
+  const [billingNotice, setBillingNotice] = useState<{ ok: boolean; msg: string } | null>(null);
+
   const fetchProfile = useCallback(async () => {
     const res = await fetch("/api/auth");
     const data = await res.json();
@@ -106,14 +121,59 @@ export default function ProfilePage() {
     }
   }, []);
 
+  const fetchBilling = useCallback(async () => {
+    try {
+      const res = await fetch("/api/billing");
+      if (!res.ok) return;
+      setBilling(await res.json());
+    } catch {
+      /* billing card simply stays hidden */
+    }
+  }, []);
+
   useEffect(() => {
     fetchProfile();
+    fetchBilling();
     // Whether to show the "delete account" affordance (hosted multi-user only).
     fetch("/api/account")
       .then((r) => r.json())
       .then((d) => setHosted(!!d.hosted))
       .catch(() => setHosted(false));
-  }, [fetchProfile]);
+  }, [fetchProfile, fetchBilling]);
+
+  // Returning from Stripe Checkout — success_url/cancel_url append ?checkout=…
+  // Show a banner, scrub the query from the URL, and re-pull plan state (the
+  // webhook updates it; there can be a brief lag after success).
+  useEffect(() => {
+    const checkout = new URLSearchParams(window.location.search).get("checkout");
+    if (!checkout) return;
+    if (checkout === "success") {
+      setBillingNotice({ ok: true, msg: "Subscription updated — you're on Pro." });
+      fetchBilling();
+    } else if (checkout === "cancel") {
+      setBillingNotice({ ok: false, msg: "Checkout canceled — no changes made." });
+    }
+    window.history.replaceState({}, "", "/profile");
+  }, [fetchBilling]);
+
+  // Open a Stripe-hosted flow: POST returns { url }, then we redirect the browser.
+  const openBillingFlow = async (endpoint: string) => {
+    setBillingBusy(true);
+    setBillingError(null);
+    try {
+      const res = await fetch(endpoint, { method: "POST" });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.url) {
+        window.location.href = data.url;
+        return;
+      }
+      setBillingError(data.error || "Could not reach Stripe. Please try again.");
+    } catch {
+      setBillingError("Could not reach Stripe. Please try again.");
+    } finally {
+      setBillingBusy(false);
+    }
+  };
 
   const post = (body: Record<string, unknown>) =>
     fetch("/api/auth", {
@@ -316,6 +376,77 @@ export default function ProfilePage() {
           </CardContent>
         </Card>
       </div>
+
+      {billing?.hosted && billing.configured && (
+        <Card className="rounded-none ring-0 border border-border py-0 gap-0 mb-3">
+          <div className="flex items-center justify-between border-b border-border px-4 py-3">
+            <span className={labelClass}>Plan</span>
+            <span
+              className={`font-mono text-[10px] tracking-widest uppercase border px-1.5 py-0.5 ${
+                billing.plan.id === "pro" ? "" : "text-muted-foreground border-border"
+              }`}
+              style={
+                billing.plan.id === "pro"
+                  ? { color: PALETTE.sage, borderColor: PALETTE.sage }
+                  : undefined
+              }
+            >
+              {billing.plan.label}
+            </span>
+          </div>
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-3 px-4 py-4">
+            <CreditCard className="size-5 text-muted-foreground shrink-0" />
+            <div className="flex-1 min-w-48">
+              <p className="font-mono text-sm font-bold uppercase">
+                {billing.plan.label} plan
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {billing.plan.statementsPerMonth === null
+                  ? "Unlimited statements per month"
+                  : `Up to ${billing.plan.statementsPerMonth} statements per month`}
+                {billing.status && billing.status !== "active"
+                  ? ` · status: ${billing.status}`
+                  : ""}
+              </p>
+            </div>
+            <div className="flex gap-2 shrink-0">
+              {billing.plan.id !== "pro" && (
+                <Button
+                  onClick={() => openBillingFlow("/api/billing/checkout")}
+                  disabled={billingBusy}
+                  className="rounded-none font-mono text-xs tracking-widest uppercase"
+                >
+                  Upgrade to Pro
+                </Button>
+              )}
+              {billing.manageable && (
+                <Button
+                  variant="outline"
+                  onClick={() => openBillingFlow("/api/billing/portal")}
+                  disabled={billingBusy}
+                  className="rounded-none font-mono text-xs tracking-widest uppercase"
+                >
+                  Manage billing
+                </Button>
+              )}
+            </div>
+          </div>
+          {(billingNotice || billingError) && (
+            <div className="border-t border-border px-4 py-2">
+              {billingError ? (
+                <p className="font-mono text-xs text-destructive">{billingError}</p>
+              ) : (
+                <p
+                  className="font-mono text-xs"
+                  style={{ color: billingNotice!.ok ? PALETTE.sage : PALETTE.terracotta }}
+                >
+                  {billingNotice!.msg}
+                </p>
+              )}
+            </div>
+          )}
+        </Card>
+      )}
 
       <Card className="rounded-none ring-0 border border-border py-0 gap-0 mb-3">
         <div className="flex items-center justify-between border-b border-border px-4 py-3">
