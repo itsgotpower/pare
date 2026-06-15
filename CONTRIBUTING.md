@@ -42,6 +42,14 @@ account/transit numbers into tests or tracked source — see [SECURITY.md](SECUR
    tested).
 5. CI must be green before merge. PRs are squash-merged.
 
+## Versioning & releases
+
+Pare follows [Semantic Versioning](https://semver.org). The version lives in one
+place — `package.json` `version` — and the web app and MCP server both derive
+from it. Notable changes go in [CHANGELOG.md](CHANGELOG.md). For how the version
+number is chosen (the pre-1.0 rules differ) and the step-by-step release flow,
+see [docs/RELEASING.md](docs/RELEASING.md).
+
 ## Sign-off (DCO), not a CLA
 
 There is **no CLA**. Instead, certify the [Developer Certificate of
