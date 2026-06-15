@@ -52,15 +52,20 @@ export function insertTransaction(tx: {
   flow: string;
   dedup_key: string;
   account_kind?: string;
+  import_id?: number | null;
 }): boolean {
   const db = getDb();
   const stmt = db.prepare(`
     INSERT OR IGNORE INTO transactions
-      (statement_id, source, account, period, txn_date, description, amount, category, flow, dedup_key, account_kind)
+      (statement_id, source, account, period, txn_date, description, amount, category, flow, dedup_key, account_kind, import_id)
     VALUES
-      (@statement_id, @source, @account, @period, @txn_date, @description, @amount, @category, @flow, @dedup_key, @account_kind)
+      (@statement_id, @source, @account, @period, @txn_date, @description, @amount, @category, @flow, @dedup_key, @account_kind, @import_id)
   `);
-  const result = stmt.run({ ...tx, account_kind: tx.account_kind ?? "unknown" });
+  const result = stmt.run({
+    ...tx,
+    account_kind: tx.account_kind ?? "unknown",
+    import_id: tx.import_id ?? null,
+  });
   return result.changes > 0;
 }
 
@@ -77,20 +82,25 @@ export function insertManyTransactions(
     flow: string;
     dedup_key: string;
     account_kind?: string;
+    import_id?: number | null;
   }[]
 ): { inserted: number; skipped: number } {
   const db = getDb();
   const stmt = db.prepare(`
     INSERT OR IGNORE INTO transactions
-      (statement_id, source, account, period, txn_date, description, amount, category, flow, dedup_key, account_kind)
+      (statement_id, source, account, period, txn_date, description, amount, category, flow, dedup_key, account_kind, import_id)
     VALUES
-      (@statement_id, @source, @account, @period, @txn_date, @description, @amount, @category, @flow, @dedup_key, @account_kind)
+      (@statement_id, @source, @account, @period, @txn_date, @description, @amount, @category, @flow, @dedup_key, @account_kind, @import_id)
   `);
 
   let inserted = 0;
   const run = db.transaction((rows: typeof txs) => {
     for (const row of rows) {
-      const bound = { ...row, account_kind: row.account_kind ?? "unknown" };
+      const bound = {
+        ...row,
+        account_kind: row.account_kind ?? "unknown",
+        import_id: row.import_id ?? null,
+      };
       if (stmt.run(bound).changes > 0) inserted++;
     }
   });
