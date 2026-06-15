@@ -54,6 +54,21 @@ export async function DELETE(request: NextRequest) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  // Best-effort: cancel any live Stripe subscription so deleting the account also
+  // stops billing. app/ routes may import the proprietary cloud layer (the
+  // sanctioned shim pattern); it no-ops when billing isn't configured. A failure
+  // here must never block deletion — the D1 billing rows are wiped regardless by
+  // deleteAccount() below.
+  try {
+    const { cancelSubscriptionForUser } = await import("@/cloud/billing/cancel");
+    await cancelSubscriptionForUser(resolved.userId);
+  } catch (err) {
+    console.warn(
+      "[billing] subscription cancel on account delete failed:",
+      err instanceof Error ? err.message : err
+    );
+  }
+
   const result = await deleteAccount(resolved.userId);
 
   // The session row is already deleted, so the cookie/bearer no longer resolves —

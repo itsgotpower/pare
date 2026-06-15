@@ -18,12 +18,12 @@ open-source core.
 
 ## Intended contents (as the hosted product is built)
 
-| Path | Purpose |
-|---|---|
-| `cloud/billing/` | Stripe integration, checkout/portal, webhook handling |
-| `cloud/metering/` | Usage metering (statements parsed, storage) + plan-limit enforcement |
-| `cloud/plans.ts` | Plan definitions (free cap, paid tiers) — see PRD §6 |
-| `cloud/admin/` | Hosted-only operational/admin tooling |
+| Path | Purpose | Status |
+|---|---|---|
+| `cloud/billing/` | Stripe integration, checkout/portal, webhook handling | scaffolded — see [billing/README.md](billing/README.md) |
+| `cloud/metering/` | Usage metering (statements parsed, storage) + plan-limit enforcement | scaffolded (`metering/usage.ts`) |
+| `cloud/plans.ts` | Plan definitions (free cap, paid tiers) — see PRD §6 | placeholder numbers |
+| `cloud/admin/` | Hosted-only operational/admin tooling | not started |
 
 These map to roadmap **Phase 6 — Billing + public launch** in the public
 [PRD](https://github.com/itsgotpower/pare/blob/main/docs/PRD.md). Functional

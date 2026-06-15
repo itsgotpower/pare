@@ -94,6 +94,21 @@ async function deleteAuthRows(userId: string): Promise<number> {
       await db.prepare('DELETE FROM "verification" WHERE "identifier" = ?').bind(email).run()
     );
   }
+  // Billing rows live in this same auth DB (subscription + usage counters,
+  // d1/migrations/0003-0004). Best-effort + table-tolerant: a hosted deploy that
+  // hasn't run the billing migrations yet (or self-host, which never has these
+  // tables) must not break account deletion. The Stripe subscription itself is
+  // cancelled separately by the route shim (cloud/billing/cancel.ts) — app/ may
+  // import the proprietary layer; this core module stays pure D1.
+  for (const table of ["subscription", "billing_usage"]) {
+    try {
+      count += changes(
+        await db.prepare(`DELETE FROM "${table}" WHERE "userId" = ?`).bind(userId).run()
+      );
+    } catch {
+      // table doesn't exist yet — nothing to clean up.
+    }
+  }
   count += changes(await db.prepare('DELETE FROM "user" WHERE "id" = ?').bind(userId).run());
   return count;
 }

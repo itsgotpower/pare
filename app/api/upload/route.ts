@@ -151,6 +151,23 @@ async function handleHostedUpload(request: NextRequest) {
     const resolved = await resolveUser(request, auth);
     if (!resolved) return unauthorized();
 
+    // Plan-limit enforcement (cloud commercial layer; no-ops unless PARE_CLOUD=1).
+    // Fail OPEN on any billing-infra error — never lock a user out of uploading
+    // because the limiter/metering store hiccuped.
+    try {
+      const { enforceStatementUpload } = await import("@/cloud/billing/gate");
+      const limit = await enforceStatementUpload(resolved.userId);
+      if (!limit.allowed) {
+        // 402 Payment Required — the client surfaces limit.reason + an upgrade CTA.
+        return Response.json({ error: limit.reason }, { status: 402 });
+      }
+    } catch (err) {
+      console.warn(
+        "[billing] upload limit check failed open:",
+        err instanceof Error ? err.message : err
+      );
+    }
+
     const formData = await request.formData();
     const file = formData.get("file") as File | null;
     if (!file) {
@@ -187,6 +204,16 @@ async function handleHostedUpload(request: NextRequest) {
       { userId: resolved.userId, filename: file.name, bytes },
       { pdfStore, jobStore, queue }
     );
+
+    // Record the accepted upload against this month's usage (cloud layer; no-op
+    // unless PARE_CLOUD=1). Best-effort — metering failure must not fail the
+    // upload the user already succeeded in submitting.
+    try {
+      const { recordStatementUpload } = await import("@/cloud/billing/gate");
+      await recordStatementUpload(resolved.userId);
+    } catch (err) {
+      console.warn("[billing] usage metering failed:", err instanceof Error ? err.message : err);
+    }
 
     return Response.json({ jobId }, { status: 202 });
   } catch (err) {
