@@ -19,6 +19,7 @@ import type {
   HeatmapRepo,
   ProfileRepo,
   WaitlistRepo,
+  ImportRepo,
 } from "./types";
 
 import {
@@ -71,6 +72,13 @@ import { getBaseline } from "../db/baseline";
 import { getDailySpend } from "../db/heatmap";
 import { getDataHealth } from "../db/profile";
 import { joinWaitlist, waitlistCount, listWaitlist } from "../db/waitlist";
+import {
+  createImport,
+  listImports,
+  deleteImport,
+  getImportWatermarks,
+  getImportedRowsInWindow,
+} from "../db/imports";
 
 // SqliteRepo implements the async Repo contract by delegating to the existing,
 // regression-tested lib/db/* functions. better-sqlite3 is synchronous, so each
@@ -244,5 +252,13 @@ export class SqliteRepo implements Repo {
     join: (email, source) => this.write(() => joinWaitlist(email, source)),
     count: () => this.read(() => waitlistCount()),
     list: () => this.read(() => listWaitlist()),
+  };
+
+  imports: ImportRepo = {
+    create: (rec) => this.write(() => createImport(rec)),
+    list: () => this.read(() => listImports()),
+    delete: (id) => this.write(() => deleteImport(id)),
+    watermarks: () => this.read(() => getImportWatermarks()),
+    rowsInWindow: (kind, from, to) => this.read(() => getImportedRowsInWindow(kind, from, to)),
   };
 }

@@ -2,7 +2,7 @@ import { betterAuth, type BetterAuthOptions } from "better-auth";
 import { bearer, captcha } from "better-auth/plugins";
 import { passkey } from "@better-auth/passkey";
 import { D1Dialect } from "kysely-d1";
-import { sendPasswordResetEmail } from "./email";
+import { sendPasswordResetEmail, sendVerificationEmail } from "./email";
 
 // Hosted-mode account system (better-auth on Cloudflare D1).
 //
@@ -91,10 +91,27 @@ export function hostedAuthOptions(db: D1Like): BetterAuthOptions {
     baseURL: process.env.BETTER_AUTH_URL,
     emailAndPassword: {
       enabled: true,
+      // Finance app: don't let an account act on data until it has proven it
+      // controls the email address. With this on, better-auth rejects sign-in
+      // for an unverified account (403) and re-sends the verification link, so
+      // signing up with someone else's address can't yield a usable session.
+      requireEmailVerification: true,
       // Resend-backed reset email. Not awaited inside better-auth to avoid
       // leaking timing about whether the address exists.
       sendResetPassword: async ({ user, url }) => {
         await sendPasswordResetEmail(user.email, url);
+      },
+    },
+    // Verification email is sent automatically on sign-up (and on a blocked
+    // sign-in). `url` is better-auth's /api/auth/verify-email link; clicking it
+    // marks the account verified and — with autoSignInAfterVerification — issues
+    // a session and redirects on. When RESEND_API_KEY is unset (dev/test) the
+    // link is logged instead of sent, so the flow stays exercisable locally.
+    emailVerification: {
+      sendOnSignUp: true,
+      autoSignInAfterVerification: true,
+      sendVerificationEmail: async ({ user, url }) => {
+        await sendVerificationEmail(user.email, url);
       },
     },
     // Sessions are the underlying primitive — the bearer token IS the session

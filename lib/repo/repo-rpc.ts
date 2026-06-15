@@ -101,6 +101,7 @@ export const REPO_NAMESPACES: Record<string, readonly string[]> = {
   heatmap: ["dailySpend"],
   profile: ["dataHealth"],
   waitlist: ["join", "count", "list"],
+  imports: ["create", "list", "delete", "watermarks", "rowsInWindow"],
 };
 
 // Flat "namespace.method" list — handy for debugging / the DO's methods() probe.
