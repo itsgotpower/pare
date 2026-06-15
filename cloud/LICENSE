@@ -1,0 +1,18 @@
+Pare Commercial License
+Copyright © 2026 pare.money. All rights reserved.
+
+This directory (`cloud/`) and everything in it is PROPRIETARY and CONFIDENTIAL.
+It is NOT part of the open-source Pare core and is NOT licensed under the GNU
+AGPL-3.0 (which covers the rest of this repository, inherited from the public
+upstream `pare`).
+
+No license is granted to use, copy, modify, merge, publish, distribute,
+sublicense, or sell any portion of this directory, in whole or in part, without
+the express prior written permission of pare.money.
+
+The open-source core that this code builds upon remains available under the GNU
+AGPL-3.0 in the public `pare` repository. Nothing here removes or restricts the
+rights granted by that license to the core; this proprietary license applies
+ONLY to the original commercial code contained in this `cloud/` directory.
+
+For licensing inquiries: licensing@pare.money
