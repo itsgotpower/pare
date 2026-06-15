@@ -8,6 +8,7 @@ import { Turnstile } from "@/components/turnstile";
 import { LocalClock } from "@/components/local-clock";
 
 const REPO_URL = "https://github.com/itsgotpower/pare";
+const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION ?? "";
 
 // WAITLIST LAUNCH: when set at build time, hide every "Sign in" affordance so the
 // landing is a pure waitlist page (the Edge middleware also redirects /login and
@@ -377,6 +378,19 @@ export default function MarketingHome() {
             <span className="hidden sm:inline">— private by design.</span>
             <span aria-hidden="true">·</span>
             <span className="whitespace-nowrap">© {new Date().getFullYear()} pare.money</span>
+            {APP_VERSION && (
+              <>
+                <span aria-hidden="true">·</span>
+                <a
+                  href={`${REPO_URL}/releases/tag/v${APP_VERSION}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-mono whitespace-nowrap hover:text-foreground transition-colors"
+                >
+                  v{APP_VERSION}
+                </a>
+              </>
+            )}
           </span>
           <nav className="flex items-center gap-4">
             <a
