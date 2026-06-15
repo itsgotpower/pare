@@ -57,6 +57,9 @@ report.html
 # local agent config (absolute machine paths)
 .claude/
 
+# throwaway local R&D / scratch experiments (e.g. encryption spikes)
+spike/
+
 # private / never-publish — this is the PUBLIC open-core repo.
 # (enforced by scripts/check-no-private.mjs + .github/workflows/guard-private.yml)
 # NOTE: gitignore has no inline comments — keep patterns on their own lines.
