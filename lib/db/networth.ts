@@ -6,7 +6,9 @@ import { getDb } from "../db";
 // date. Balances carry forward into months without a new observation, so
 // the series is deliberately point-in-time, not live.
 
-const LIABILITY_SOURCES = new Set(["amex", "cibc_visa"]);
+// Card accounts are liabilities (a balance owed); everything else (chequing,
+// savings, manual assets) is an asset. Keyed on account_kind, not the literal
+// source, so imported foreign card accounts are signed correctly too.
 
 export interface ManualEntry {
   id: number;
@@ -105,12 +107,18 @@ export function getNetWorth(): NetWorthData {
 
   const statements = db
     .prepare(
-      `SELECT account, source, closing_date, closing_balance
+      `SELECT account, source, account_kind, closing_date, closing_balance
        FROM statements
        WHERE closing_balance IS NOT NULL AND closing_date IS NOT NULL
        ORDER BY closing_date`
     )
-    .all() as { account: string; source: string; closing_date: string; closing_balance: number }[];
+    .all() as {
+      account: string;
+      source: string;
+      account_kind: string;
+      closing_date: string;
+      closing_balance: number;
+    }[];
 
   const entries = listManualEntries();
 
@@ -132,7 +140,7 @@ export function getNetWorth(): NetWorthData {
   };
 
   for (const s of statements) {
-    const liability = LIABILITY_SOURCES.has(s.source);
+    const liability = s.account_kind === "card";
     observe(
       s.account,
       liability ? "liability" : "asset",

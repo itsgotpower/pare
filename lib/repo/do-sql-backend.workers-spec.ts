@@ -263,6 +263,7 @@ describe("DoSqlBackend over real ctx.storage.sql (workerd)", () => {
         statement_id: null,
         source: "amex",
         account: "card",
+        account_kind: "card",
         period: "2026-05",
         txn_date: "2026-05-04",
         description: "GROCER A",
@@ -275,19 +276,19 @@ describe("DoSqlBackend over real ctx.storage.sql (workerd)", () => {
 
       const bulk = await repo.transactions.insertMany([
         {
-          statement_id: null, source: "amex", account: "card", period: "2026-05",
+          statement_id: null, source: "amex", account: "card", account_kind: "card", period: "2026-05",
           txn_date: "2026-05-09", description: "GROCER B", amount: 60, category: "Groceries",
           flow: "spend", dedup_key: "b",
         },
         {
-          statement_id: null, source: "cibc_chequing", account: "chequing", period: "2026-05",
+          statement_id: null, source: "cibc_chequing", account: "chequing", account_kind: "chequing", period: "2026-05",
           txn_date: "2026-05-01", description: "PEOPLE CENTER PAYROLL", amount: 3000,
           category: "Banking", flow: "income", dedup_key: "c",
         },
         // duplicate dedup_key -> skipped (proves INSERT OR IGNORE + changes counting
         // inside db.transaction() batch).
         {
-          statement_id: null, source: "amex", account: "card", period: "2026-05",
+          statement_id: null, source: "amex", account: "card", account_kind: "card", period: "2026-05",
           txn_date: "2026-05-04", description: "GROCER A", amount: 40, category: "Groceries",
           flow: "spend", dedup_key: "a",
         },
@@ -332,7 +333,7 @@ describe("DoSqlBackend over real ctx.storage.sql (workerd)", () => {
 
       // statements.insert uses INSERT ... ON CONFLICT ... RETURNING id via .get(obj).
       const stmtId = await repo.statements.insert({
-        filename: "amex-2026-05.pdf", source: "amex", account: "card",
+        filename: "amex-2026-05.pdf", source: "amex", account: "card", account_kind: "card",
         period: "2026-05", row_count: 3, closing_balance: 123.45, closing_date: "2026-05-31",
       });
       expect(stmtId).toBeGreaterThan(0);
@@ -354,7 +355,7 @@ describe("DoSqlBackend over real ctx.storage.sql (workerd)", () => {
       // Populate a parent (transactions) + child (override, FK to transactions) so
       // the FK-aware drop ordering is exercised, plus the v_transactions VIEW.
       const inserted = await repo.transactions.insert({
-        statement_id: null, source: "amex", account: "card", period: "2026-05",
+        statement_id: null, source: "amex", account: "card", account_kind: "card", period: "2026-05",
         txn_date: "2026-05-09", description: "GROCER", amount: 60, category: "Groceries",
         flow: "spend", dedup_key: "z",
       });

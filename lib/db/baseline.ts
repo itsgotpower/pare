@@ -1,4 +1,5 @@
 import { getDb } from "../db";
+import { CARD_SPEND_WHERE } from "./account-kinds";
 
 export interface BaselineMonth {
   month: string;
@@ -22,7 +23,7 @@ export interface BaselineResult {
 // "Discretionary baseline" = card spend excluding large one-off charges (a single
 // transaction at or above `threshold`). Big travel/one-time purchases otherwise
 // skew the monthly/category averages; the baseline is the runway-planning number.
-// Only flow='spend' from amex/cibc_visa, consistent with the spend charts.
+// Only flow='spend' from card accounts, consistent with the spend charts.
 export function getBaseline(threshold: number = 300): BaselineResult {
   const db = getDb();
 
@@ -32,7 +33,7 @@ export function getBaseline(threshold: number = 300): BaselineResult {
               SUM(amount) AS total,
               SUM(CASE WHEN amount < @threshold THEN amount ELSE 0 END) AS baseline
        FROM v_transactions
-       WHERE flow = 'spend' AND source IN ('amex', 'cibc_visa')
+       WHERE ${CARD_SPEND_WHERE}
        GROUP BY month
        ORDER BY month`
     )
@@ -42,7 +43,7 @@ export function getBaseline(threshold: number = 300): BaselineResult {
     .prepare(
       `SELECT txn_date, description, amount, effective_category AS category
        FROM v_transactions
-       WHERE flow = 'spend' AND source IN ('amex', 'cibc_visa')
+       WHERE ${CARD_SPEND_WHERE}
          AND amount >= @threshold
        ORDER BY amount DESC`
     )

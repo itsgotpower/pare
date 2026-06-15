@@ -1,4 +1,5 @@
 import { getDb } from "../db";
+import { CARD_SPEND_WHERE } from "./account-kinds";
 
 export interface MonthlyTotal {
   month: string;
@@ -29,7 +30,7 @@ export function getMonthlyTotals(months: number = 12): MonthlyTotal[] {
     .prepare(
       `SELECT substr(txn_date, 1, 7) AS month, SUM(amount) AS total
        FROM v_transactions
-       WHERE flow = 'spend' AND source IN ('amex', 'cibc_visa')
+       WHERE ${CARD_SPEND_WHERE}
        GROUP BY month
        ORDER BY month DESC
        LIMIT @months`
@@ -46,7 +47,7 @@ export function getCategoryBreakdown(month?: string): CategoryBreakdown[] {
     .prepare(
       `SELECT effective_category AS category, SUM(amount) AS total, COUNT(*) AS count
        FROM v_transactions
-       WHERE flow = 'spend' AND source IN ('amex', 'cibc_visa') ${where}
+       WHERE ${CARD_SPEND_WHERE} ${where}
        GROUP BY effective_category
        ORDER BY total DESC`
     )
@@ -59,7 +60,7 @@ export function getTrends(months: number = 6): TrendPoint[] {
     .prepare(
       `SELECT substr(txn_date, 1, 7) AS month, effective_category AS category, SUM(amount) AS total
        FROM v_transactions
-       WHERE flow = 'spend' AND source IN ('amex', 'cibc_visa')
+       WHERE ${CARD_SPEND_WHERE}
          AND substr(txn_date, 1, 7) >= (
            SELECT substr(txn_date, 1, 7) FROM v_transactions
            WHERE flow = 'spend' ORDER BY txn_date ASC LIMIT 1
@@ -72,7 +73,7 @@ export function getTrends(months: number = 6): TrendPoint[] {
 
 export function getTopMerchants(limit: number = 10, month?: string, category?: string): TopMerchant[] {
   const db = getDb();
-  const conditions = ["flow = 'spend'", "source IN ('amex', 'cibc_visa')"];
+  const conditions = ["flow = 'spend'", "account_kind = 'card'"];
   const params: Record<string, unknown> = { limit };
   if (month) {
     conditions.push("substr(txn_date, 1, 7) = @month");

@@ -1,4 +1,5 @@
 import { getDb } from "../db";
+import { CARD_SPEND_WHERE } from "./account-kinds";
 
 export interface Subscription {
   merchant: string;
@@ -73,7 +74,7 @@ export function getSubscriptions(): { subscriptions: Subscription[]; monthlyTota
     .prepare(
       `SELECT description, amount, txn_date, effective_category AS category
        FROM v_transactions
-       WHERE flow = 'spend' AND source IN ('amex', 'cibc_visa') AND amount > 0`
+       WHERE ${CARD_SPEND_WHERE} AND amount > 0`
     )
     .all() as Row[];
 

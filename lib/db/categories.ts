@@ -220,14 +220,15 @@ const SEED_CATEGORY_NAMES = new Set(STARTER_RULES.map(([category]) => category))
 export function recategorizeMatching(keyword: string, category: string): number {
   const db = getDb();
   const transferGate = SEED_CATEGORY_NAMES.has(category)
-    ? "AND NOT (source = 'cibc_chequing' AND flow = 'transfer')"
+    ? "AND NOT (account_kind = 'chequing' AND flow = 'transfer')"
     : "";
   const result = db
     .prepare(
       `UPDATE transactions SET category = ?
        WHERE UPPER(description) LIKE '%' || UPPER(?) || '%'
          AND id NOT IN (SELECT transaction_id FROM category_overrides)
-         AND NOT (source = 'cibc_chequing' AND flow IN ('income', 'payment', 'fee_interest'))
+         AND import_id IS NULL
+         AND NOT (account_kind = 'chequing' AND flow IN ('income', 'payment', 'fee_interest'))
          ${transferGate}`
     )
     .run(category, keyword);
@@ -237,8 +238,11 @@ export function recategorizeMatching(keyword: string, category: string): number 
 /**
  * Re-run category rules against every transaction, skipping manual overrides.
  *
- * Card rows (amex/cibc_visa): full re-categorization, falling back to
- * 'Other / uncategorized'.
+ * Imported rows (import_id IS NOT NULL) are skipped entirely — the user's
+ * migrated categories are authoritative and must survive a later PDF upload.
+ *
+ * Non-chequing rows (account_kind != 'chequing', i.e. cards): full
+ * re-categorization, falling back to 'Other / uncategorized'.
  *
  * Chequing rows: rules are applied ONLY to transfer/spend rows and ONLY when a
  * rule matches (no 'Other' fallback) — so an in-app rule on a private e-transfer
@@ -260,8 +264,15 @@ export function recategorizeAll(): number {
   );
 
   const rows = db
-    .prepare("SELECT id, description, category, source, flow FROM transactions")
-    .all() as { id: number; description: string; category: string; source: string; flow: string }[];
+    .prepare("SELECT id, description, category, account_kind, flow, import_id FROM transactions")
+    .all() as {
+    id: number;
+    description: string;
+    category: string;
+    account_kind: string;
+    flow: string;
+    import_id: number | null;
+  }[];
 
   const update = db.prepare("UPDATE transactions SET category = ? WHERE id = ?");
   let changed = 0;
@@ -269,9 +280,12 @@ export function recategorizeAll(): number {
   const tx = db.transaction(() => {
     for (const row of rows) {
       if (overridden.has(row.id)) continue;
+      // Imported categories are authoritative — never clobber a migrated row's
+      // category on a later PDF upload's recategorize pass.
+      if (row.import_id != null) continue;
 
       let next: string | null;
-      if (row.source === "cibc_chequing") {
+      if (row.account_kind === "chequing") {
         const matched = categorizeByRules(row.description, rules);
         if (row.flow === "spend") {
           // Debit-card purchases: any rule applies; fall back to 'Banking'.

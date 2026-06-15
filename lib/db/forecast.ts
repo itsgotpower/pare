@@ -1,4 +1,5 @@
 import { getDb } from "../db";
+import { OUTFLOW_WHERE } from "./account-kinds";
 import { getIncomeVsSpend, FIXED_CATEGORIES } from "./income";
 import { getSubscriptions } from "./subscriptions";
 
@@ -29,13 +30,9 @@ const median = (xs: number[]) => {
   return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
 };
 
-// Same expense universe as getIncomeVsSpend / getCashflow.
-const EXPENSE_WHERE = `(
-  (flow = 'spend' AND source IN ('amex', 'cibc_visa'))
-  OR (source = 'cibc_chequing' AND flow = 'spend')
-  OR (source = 'cibc_chequing' AND flow = 'fee_interest')
-  OR (source = 'cibc_chequing' AND flow = 'transfer' AND effective_category != 'Banking')
-)`;
+// Same expense universe as getIncomeVsSpend / getCashflow (account_kind-keyed,
+// shared from account-kinds.ts so imported foreign accounts join in too).
+const EXPENSE_WHERE = OUTFLOW_WHERE;
 
 // Forecast the current CALENDAR month (statements lag, so this is usually a
 // month with little or no data — unlike the dashboards, which use the latest
@@ -84,7 +81,7 @@ export function getForecast(now: Date = new Date()): Forecast | null {
        FROM v_transactions
        WHERE ${EXPENSE_WHERE} AND substr(txn_date, 1, 7) = @month
          AND effective_category NOT IN ${FIXED_CATEGORIES}
-         AND NOT (source = 'cibc_chequing' AND flow = 'fee_interest')
+         AND NOT (account_kind = 'chequing' AND flow = 'fee_interest')
        GROUP BY category`
     )
     .all({ month: targetMonth }) as {
@@ -105,7 +102,7 @@ export function getForecast(now: Date = new Date()): Forecast | null {
          FROM v_transactions
          WHERE ${EXPENSE_WHERE} AND substr(txn_date, 1, 7) IN (${basisList})
            AND effective_category NOT IN ${FIXED_CATEGORIES}
-           AND NOT (source = 'cibc_chequing' AND flow = 'fee_interest')
+           AND NOT (account_kind = 'chequing' AND flow = 'fee_interest')
          GROUP BY category`
       )
       .all() as { category: string; typical: number }[];
