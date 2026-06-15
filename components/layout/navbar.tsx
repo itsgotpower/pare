@@ -18,6 +18,9 @@ import {
   User,
 } from "lucide-react";
 
+const REPO_URL = "https://github.com/itsgotpower/pare";
+const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION ?? "";
+
 // "/" is the public marketing landing; the signed-in app starts at /dashboard.
 const NAV_ITEMS = [
   { href: "/dashboard", label: "DASHBOARD", icon: LayoutDashboard },
@@ -212,6 +215,17 @@ export function Sidebar() {
             {dark ? <Sun className="size-4 shrink-0" /> : <Moon className="size-4 shrink-0" />}
             {!collapsed && <span>{dark ? "LIGHT" : "DARK"}</span>}
           </button>
+          {!collapsed && APP_VERSION && (
+            <a
+              href={`${REPO_URL}/releases/tag/v${APP_VERSION}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              title={`Pare v${APP_VERSION} — release notes`}
+              className="block px-4 pt-1.5 font-mono text-[10px] tracking-widest text-muted-foreground/60 hover:text-foreground transition-colors"
+            >
+              v{APP_VERSION}
+            </a>
+          )}
         </div>
       </aside>
     </>
