@@ -56,3 +56,13 @@ report.html
 
 # local agent config (absolute machine paths)
 .claude/
+
+# private / never-publish — this is the PUBLIC open-core repo.
+# (enforced by scripts/check-no-private.mjs + .github/workflows/guard-private.yml)
+# NOTE: gitignore has no inline comments — keep patterns on their own lines.
+# internal/ = business docs (PRD/SRS/pricing/strategy)
+# SETUP.md = two-repo dev-workflow doc
+# docs/encryption-design.md = internal design draft
+internal/
+SETUP.md
+docs/encryption-design.md
