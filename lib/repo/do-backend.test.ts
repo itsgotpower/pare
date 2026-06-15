@@ -33,6 +33,7 @@ test("DoBackend: data written through the Repo survives a fresh open (persist ro
     statement_id: null,
     source: "amex",
     account: "card",
+    account_kind: "card",
     period: "2026-05",
     txn_date: "2026-05-04",
     description: "CORNER STORE",
@@ -71,17 +72,17 @@ test("DoBackend: Repo namespace methods (summary/income/profile) work against th
   await repo.categories.seed();
   // A couple of card spends + an income deposit so summary/income have data.
   await repo.transactions.insert({
-    statement_id: null, source: "amex", account: "card", period: "2026-05",
+    statement_id: null, source: "amex", account: "card", account_kind: "card", period: "2026-05",
     txn_date: "2026-05-04", description: "GROCER A", amount: 40, category: "Groceries",
     flow: "spend", dedup_key: "a",
   });
   await repo.transactions.insert({
-    statement_id: null, source: "amex", account: "card", period: "2026-05",
+    statement_id: null, source: "amex", account: "card", account_kind: "card", period: "2026-05",
     txn_date: "2026-05-09", description: "GROCER B", amount: 60, category: "Groceries",
     flow: "spend", dedup_key: "b",
   });
   await repo.transactions.insert({
-    statement_id: null, source: "cibc_chequing", account: "chequing", period: "2026-05",
+    statement_id: null, source: "cibc_chequing", account: "chequing", account_kind: "chequing", period: "2026-05",
     txn_date: "2026-05-01", description: "PEOPLE CENTER PAYROLL", amount: 3000, category: "Banking",
     flow: "income", dedup_key: "c",
   });
