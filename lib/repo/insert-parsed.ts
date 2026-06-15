@@ -23,8 +23,21 @@
 
 import { computeDedupKey } from "../db/transactions";
 import { sourceToKind } from "../db/account-kinds";
+import { descSimilar } from "../import/overlap";
 import type { Repo, NewTransaction } from "./types";
 import type { ParsedTransaction, ParsedStatementMeta } from "../parser/run-parser";
+
+// YYYY-MM-DD date math in UTC (txn_date is always YYYY-MM-DD).
+function shiftDate(isoDate: string, deltaDays: number): string {
+  const d = new Date(`${isoDate}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + deltaDays);
+  return d.toISOString().slice(0, 10);
+}
+function dayGap(a: string, b: string): number {
+  return Math.abs(
+    (new Date(`${a}T00:00:00Z`).getTime() - new Date(`${b}T00:00:00Z`).getTime()) / 86400000
+  );
+}
 
 export async function insertParsedStatement(
   repo: Repo,
@@ -69,6 +82,43 @@ export async function insertParsedStatement(
     };
   });
 
+  // Overlap guard: skip PDF rows that duplicate already-IMPORTED history at the
+  // backfill seam. Cross-source dedup_key can't catch this (an import and a PDF
+  // of the same txn have different `source` → different keys, by design), so we
+  // fuzzy-match here: same account_kind, exact amount, within ±3 days, similar
+  // description. Prefer skipping a real row over duplicating one. One windowed
+  // prefetch bucketed by amount — no per-row SQL — and fast-pathed to ~nothing
+  // when there are no imports (the import_id index makes the window query cheap,
+  // and an empty result short-circuits). Asymmetric by design: this protects
+  // import-then-PDF; PDF-then-import is the importer's commit-time concern.
+  const kind = sourceToKind(source);
+  let toInsert = newTxns;
+  let overlapSkipped = 0;
+  if (kind !== "unknown" && newTxns.length > 0) {
+    const dates = newTxns.map((t) => t.txn_date);
+    const from = shiftDate(dates.reduce((a, b) => (a < b ? a : b)), -3);
+    const to = shiftDate(dates.reduce((a, b) => (a > b ? a : b)), 3);
+    const imported = await repo.imports.rowsInWindow(kind, from, to);
+    if (imported.length > 0) {
+      const byAmount = new Map<number, { txn_date: string; description: string }[]>();
+      for (const im of imported) {
+        const bucket = byAmount.get(im.amount) ?? [];
+        bucket.push({ txn_date: im.txn_date, description: im.description });
+        byAmount.set(im.amount, bucket);
+      }
+      toInsert = newTxns.filter((t) => {
+        const bucket = byAmount.get(t.amount);
+        if (!bucket) return true;
+        const dup = bucket.some(
+          (im) =>
+            dayGap(t.txn_date, im.txn_date) <= 3 && descSimilar(t.description, im.description)
+        );
+        if (dup) overlapSkipped++;
+        return !dup;
+      });
+    }
+  }
+
   // One write boundary: insert every row, then recategorize once. On the
   // encrypted/DO backend this serialises+encrypts a single time instead of per
   // row, and writes inside batch() return a PLACEHOLDER (the real result only
@@ -79,10 +129,11 @@ export async function insertParsedStatement(
   // batch's return value (insertMany's real result, returnIndex 0) supplies the
   // counts on both backends.
   const { inserted, skipped } = await repo.batch(async () => {
-    const result = await repo.transactions.insertMany(newTxns);
+    const result = await repo.transactions.insertMany(toInsert);
     await repo.categories.recategorizeAll();
     return result;
   });
 
-  return { inserted, skipped, statementId };
+  // Imported-overlap drops count as skipped so inserted + skipped == rows.length.
+  return { inserted, skipped: skipped + overlapSkipped, statementId };
 }
