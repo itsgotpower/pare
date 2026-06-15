@@ -1,4 +1,5 @@
 import { getDb } from "../db";
+import { OUTFLOW_WHERE } from "./account-kinds";
 import { TYPE_CASE } from "./income";
 
 export interface CashflowIncome {
@@ -23,13 +24,9 @@ export interface Cashflow {
 
 // Same expense universe as getIncomeVsSpend (lib/db/income.ts): card spend,
 // chequing debits/fees, and categorized chequing transfers (rent). Card
-// payments are excluded to avoid double-counting.
-const EXPENSE_WHERE = `(
-  (flow = 'spend' AND source IN ('amex', 'cibc_visa'))
-  OR (source = 'cibc_chequing' AND flow = 'spend')
-  OR (source = 'cibc_chequing' AND flow = 'fee_interest')
-  OR (source = 'cibc_chequing' AND flow = 'transfer' AND effective_category != 'Banking')
-)`;
+// payments are excluded to avoid double-counting. The shared, account_kind-keyed
+// definition lives in account-kinds.ts so imported foreign accounts join in too.
+const EXPENSE_WHERE = OUTFLOW_WHERE;
 
 // Months that have chequing data — cashflow is only meaningful when both
 // sides (income and spend) are present. Card-only months (e.g. before the

@@ -32,6 +32,11 @@ import type { BaselineResult } from "../db/baseline";
 import type { DailySpend } from "../db/heatmap";
 import type { DataHealth } from "../db/profile";
 import type { WaitlistResult, WaitlistEntry } from "../db/waitlist";
+import type {
+  ImportRow,
+  ImportWatermark,
+  ImportedWindowRow,
+} from "../db/imports";
 
 // Re-export the row/result types so callers can import everything from the repo
 // surface without reaching into lib/db internals.
@@ -61,6 +66,9 @@ export type {
   DataHealth,
   WaitlistResult,
   WaitlistEntry,
+  ImportRow,
+  ImportWatermark,
+  ImportedWindowRow,
 };
 
 // --- Write input shapes (today these are inline param types) ---------------
@@ -80,6 +88,9 @@ export interface NewTransaction {
   // type level so existing callers compile; the insert layer defaults a missing
   // value to 'unknown'. insertParsedStatement derives it from `source`.
   account_kind?: string;
+  // Set ONLY by the importer (lib/repo/insert-imported.ts) to tag a row's
+  // provenance for one-click undo; null/absent for PDF-parsed rows.
+  import_id?: number | null;
 }
 
 export interface NewStatement {
@@ -231,6 +242,23 @@ export interface WaitlistRepo {
   list(): Promise<WaitlistEntry[]>;
 }
 
+// Provenance + rollback for cross-app imports (lib/db/imports.ts). `create` and
+// `delete` are writes; the rest are reads (watermarks/window feed the overlap
+// guard).
+export interface ImportRepo {
+  create(rec: {
+    provider: string;
+    row_count: number;
+    account_map: string;
+    date_min: string | null;
+    date_max: string | null;
+  }): Promise<number>;
+  list(): Promise<ImportRow[]>;
+  delete(id: number): Promise<{ deleted: number }>;
+  watermarks(): Promise<ImportWatermark[]>;
+  rowsInWindow(accountKind: string, fromDate: string, toDate: string): Promise<ImportedWindowRow[]>;
+}
+
 // --- The aggregate contract ------------------------------------------------
 
 export interface Repo {
@@ -250,6 +278,7 @@ export interface Repo {
   heatmap: HeatmapRepo;
   profile: ProfileRepo;
   waitlist: WaitlistRepo;
+  imports: ImportRepo;
 
   // Group several writes into ONE durability boundary. Every write issued by `fn`
   // runs against the open connection, and the backend persists exactly once after

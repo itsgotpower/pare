@@ -1,4 +1,5 @@
 import { getDb } from "../db";
+import { OUTFLOW_WHERE } from "./account-kinds";
 
 export interface MonthlyIncome {
   month: string;
@@ -61,7 +62,7 @@ export function getIncomeByType(): IncomeType[] {
 // Monthly income alongside fixed and variable expenses.
 //
 // Expenses include:
-//   - Card spend (amex / cibc_visa, flow='spend')
+//   - Card spend (account_kind='card', flow='spend')
 //   - Chequing direct debits (flow='spend')
 //   - Chequing bank fees (flow='fee_interest')
 //   - Chequing transfers that have been categorized (category != 'Banking',
@@ -83,16 +84,12 @@ export function getIncomeVsSpend(): IncomeVsSpend[] {
          SELECT substr(txn_date, 1, 7) AS month,
            CASE
              WHEN effective_category IN ${FIXED_CATEGORIES} THEN 'fixed'
-             WHEN source = 'cibc_chequing' AND flow = 'fee_interest' THEN 'fixed'
+             WHEN account_kind = 'chequing' AND flow = 'fee_interest' THEN 'fixed'
              ELSE 'variable'
            END AS etype,
            amount
          FROM v_transactions
-         WHERE
-           (flow = 'spend' AND source IN ('amex', 'cibc_visa'))
-           OR (source = 'cibc_chequing' AND flow = 'spend')
-           OR (source = 'cibc_chequing' AND flow = 'fee_interest')
-           OR (source = 'cibc_chequing' AND flow = 'transfer' AND effective_category != 'Banking')
+         WHERE ${OUTFLOW_WHERE}
        ),
        fix AS (
          SELECT month, SUM(amount) AS fixed FROM expenses WHERE etype = 'fixed' GROUP BY month
