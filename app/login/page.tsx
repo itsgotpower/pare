@@ -4,7 +4,7 @@ import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Lock, KeyRound } from "lucide-react";
+import { ShieldCheck, Lock, KeyRound } from "lucide-react";
 import { authClient } from "@/lib/auth/client";
 
 // In-app redirect target from ?from=. Only follow same-app paths — never an
@@ -14,17 +14,37 @@ function safeFrom(raw: string | null): string {
   return raw && raw.startsWith("/") && !raw.startsWith("//") ? raw : "/dashboard";
 }
 
-// Shared brutalist shell so both auth modes look identical.
+// Shared brutalist shell so every auth mode looks identical: a PARE header rule
+// (with a security mark), the form body, and a centered tagline footer.
 function AuthShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen flex items-center justify-center bg-background px-4">
       <div className="w-full max-w-sm border border-border bg-card">
         <div className="border-b border-border px-6 py-4 flex items-center justify-between">
-          <span className="font-mono text-lg font-bold tracking-tight">PARE</span>
-          <Lock className="size-4 text-muted-foreground" />
+          <span className="font-mono text-lg font-bold tracking-tight">
+            <span aria-hidden="true">🍐</span> PARE
+          </span>
+          <ShieldCheck className="size-4 text-muted-foreground" />
         </div>
         <div className="px-6 py-6">{children}</div>
+        <div className="border-t border-border px-6 py-3">
+          <p className="text-center font-mono text-[10px] tracking-[0.2em] uppercase text-muted-foreground">
+            Personal finance, pared down
+          </p>
+        </div>
       </div>
+    </div>
+  );
+}
+
+// Reassurance row shown above the primary auth action. Copy differs by mode:
+// self-host data never leaves the device; hosted data is encrypted at rest under
+// the user's key, then synced.
+function SecurityNote({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="flex items-start gap-2.5 border border-border bg-muted/40 px-3 py-2.5">
+      <Lock className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
+      <p className="text-[11px] leading-snug text-muted-foreground">{children}</p>
     </div>
   );
 }
@@ -32,6 +52,7 @@ function AuthShell({ children }: { children: React.ReactNode }) {
 const labelCls =
   "font-mono text-xs tracking-widest uppercase text-muted-foreground";
 const btnCls = "w-full rounded-none font-mono text-xs tracking-widest uppercase";
+const headingCls = "mt-1.5 font-mono text-lg font-bold tracking-wide uppercase";
 
 function LoginForm() {
   const router = useRouter();
@@ -100,12 +121,16 @@ function SelfHostForm({
   const [confirm, setConfirm] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  // Self-host is single-user, but let the visitor switch between first-run
+  // profile creation and password sign-in. Defaults to whatever the server
+  // reports (configured → sign in; fresh install → create).
+  const [showCreate, setShowCreate] = useState(!configured);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
 
-    if (!configured && password !== confirm) {
+    if (showCreate && password !== confirm) {
       setError("Passwords do not match");
       return;
     }
@@ -116,9 +141,9 @@ function SelfHostForm({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(
-          configured
-            ? { action: "login", password }
-            : { action: "setup", display_name: displayName, password }
+          showCreate
+            ? { action: "setup", display_name: displayName, password }
+            : { action: "login", password }
         ),
       });
       const data = await res.json();
@@ -139,17 +164,17 @@ function SelfHostForm({
     <AuthShell>
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <h1 className="font-mono text-sm font-bold tracking-widest uppercase">
-            {configured ? "Sign in" : "Create your profile"}
+          <h1 className={headingCls}>
+            {showCreate ? "Create your profile" : "Sign in"}
           </h1>
           <p className="mt-1 text-xs text-muted-foreground">
-            {configured
-              ? "Enter your password to unlock your data."
-              : "First run — set a password to protect this app. Everything stays on this machine."}
+            {showCreate
+              ? "Set a strong password to secure your account."
+              : "Enter your password to unlock your data."}
           </p>
         </div>
 
-        {!configured && (
+        {showCreate && (
           <div className="space-y-1.5">
             <label className={labelCls}>Name</label>
             <Input
@@ -167,14 +192,19 @@ function SelfHostForm({
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            autoFocus={configured === true}
-            autoComplete={configured ? "current-password" : "new-password"}
+            autoFocus={!showCreate}
+            autoComplete={showCreate ? "new-password" : "current-password"}
             required
-            minLength={configured ? undefined : 8}
+            minLength={showCreate ? 8 : undefined}
           />
+          {showCreate && (
+            <p className="font-mono text-[10px] tracking-wide text-muted-foreground">
+              At least 8 characters.
+            </p>
+          )}
         </div>
 
-        {!configured && (
+        {showCreate && (
           <div className="space-y-1.5">
             <label className={labelCls}>Confirm password</label>
             <Input
@@ -189,9 +219,27 @@ function SelfHostForm({
 
         {error && <p className="font-mono text-xs text-destructive">{error}</p>}
 
+        <SecurityNote>
+          Protected by your password and stored only on this device — nothing is
+          ever uploaded or shared.
+        </SecurityNote>
+
         <Button type="submit" disabled={submitting} className={btnCls}>
-          {submitting ? "Working…" : configured ? "Sign in" : "Create profile"}
+          {submitting ? "Working…" : showCreate ? "Create profile" : "Sign in"}
         </Button>
+
+        <button
+          type="button"
+          onClick={() => {
+            setShowCreate((v) => !v);
+            setError(null);
+          }}
+          className="w-full text-center font-mono text-[11px] tracking-widest uppercase text-muted-foreground transition-colors hover:text-foreground"
+        >
+          {showCreate
+            ? "Have an account? Sign in here"
+            : "Need an account? Create one"}
+        </button>
       </form>
     </AuthShell>
   );
@@ -286,7 +334,7 @@ function HostedForm({ from }: { from: string }) {
       <AuthShell>
         <div className="space-y-4">
           <div>
-            <h1 className="font-mono text-sm font-bold tracking-widest uppercase">
+            <h1 className={headingCls}>
               Add a passkey
             </h1>
             <p className="mt-1 text-xs text-muted-foreground">
@@ -315,7 +363,7 @@ function HostedForm({ from }: { from: string }) {
     <AuthShell>
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <h1 className="font-mono text-sm font-bold tracking-widest uppercase">
+          <h1 className={headingCls}>
             {isSignUp ? "Create account" : "Sign in"}
           </h1>
           <p className="mt-1 text-xs text-muted-foreground">
@@ -361,6 +409,11 @@ function HostedForm({ from }: { from: string }) {
         </div>
 
         {error && <p className="font-mono text-xs text-destructive">{error}</p>}
+
+        <SecurityNote>
+          Encrypted at rest under your key, then synced securely across your
+          devices.
+        </SecurityNote>
 
         <Button type="submit" disabled={submitting} className={btnCls}>
           {submitting ? "Working…" : isSignUp ? "Create account" : "Sign in"}
