@@ -76,6 +76,25 @@ export function hostedAuthOptions(db: D1Like): BetterAuthOptions {
     })
   );
 
+  // Trusted origins (mobile-ready scaffolding). better-auth defaults trustedOrigins
+  // to [baseURL], which covers the web app and native BEARER calls (a native client
+  // sends no Origin header, so it's never origin-checked). The Expo app's
+  // cookie-style flows — sign-up/sign-in redirects and the email-verification deep
+  // link — DO need their origin allow-listed once the bundle id exists: the Expo
+  // app scheme (e.g. `pare://`) and/or a universal link (`https://pare.money`). Feed
+  // those via PARE_TRUSTED_ORIGINS (comma-separated). INERT until set: with the var
+  // unset, trustedOrigins stays undefined and better-auth's baseURL default applies
+  // unchanged — so dev/test/self-host and today's web deploy behave exactly as before.
+  // When set, we include the baseURL origin first so enabling extras never drops the
+  // default. See internal mobile-plan workstream 2 / deploy-unblock "mobile deltas".
+  const extraOrigins = (process.env.PARE_TRUSTED_ORIGINS ?? "")
+    .split(",")
+    .map((o) => o.trim())
+    .filter(Boolean);
+  const trustedOrigins = extraOrigins.length
+    ? [...(authUrl ? [new URL(authUrl).origin] : []), ...extraOrigins]
+    : undefined;
+
   return {
     // Kysely over the D1 dialect. better-auth detects this as a "sqlite"
     // dialect for query generation; the auth-D1 migration (d1/migrations/
@@ -89,6 +108,9 @@ export function hostedAuthOptions(db: D1Like): BetterAuthOptions {
     // secret is required in hosted mode (cookie signing + token hashing).
     secret,
     baseURL: process.env.BETTER_AUTH_URL,
+    // Only set when PARE_TRUSTED_ORIGINS adds extra origins (mobile); otherwise
+    // omitted so better-auth's [baseURL] default stands. See the comment above.
+    ...(trustedOrigins ? { trustedOrigins } : {}),
     emailAndPassword: {
       enabled: true,
       // Resend-backed reset email. Not awaited inside better-auth to avoid
