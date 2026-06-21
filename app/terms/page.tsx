@@ -17,7 +17,7 @@ export const metadata: Metadata = {
 };
 
 const CONTACT_EMAIL = "terms@pare.money";
-const LAST_UPDATED = "June 13, 2026";
+const LAST_UPDATED = "June 21, 2026";
 
 const labelClass = "font-mono text-[10px] tracking-widest uppercase text-muted-foreground";
 
@@ -157,16 +157,27 @@ export default function TermsPage() {
 
           <Section title="Not financial advice">
             <p>
-              Pare is a tool for organizing and visualizing your own spending. Its
-              summaries, trends, budgets, net-worth figures, and{" "}
-              <span className="font-medium">forecasts are estimates and
-              illustrations</span> — generated from the data you provide, not from a
-              licensed professional. They are not financial, investment, tax,
-              accounting, or legal advice, and they are not a promise of any future
-              outcome. Forecasts in particular are projections that can be wrong;
-              statements also lag the calendar, so figures may be incomplete.
-              Decisions you make are your own — for advice about your specific
-              situation, talk to a qualified professional.
+              Pare is a tool for organizing and visualizing your own spending, for{" "}
+              <span className="font-medium">informational and educational
+              purposes only</span>. Its summaries, trends, budgets, net-worth
+              figures, and forecasts are estimates and illustrations — generated
+              from the data you provide, not from a licensed professional. They are
+              not financial, investment, tax, accounting, or legal advice, and they
+              are not a promise of any future outcome.
+            </p>
+            <p>
+              Because Pare works from the statements you give it, we don&apos;t
+              guarantee its figures are accurate, complete, or applicable to your
+              particular circumstances — and they may not match what your bank or
+              card issuer shows, since parsing and categorization can differ.
+              Forecasts in particular are projections that can be wrong, and
+              statements lag the calendar, so figures may be incomplete.
+            </p>
+            <p>
+              Don&apos;t rely on Pare alone to build a financial plan or to make a
+              significant financial decision. Those decisions are your own — for
+              advice about your specific situation, talk to a qualified
+              professional.
             </p>
           </Section>
 
@@ -251,12 +262,20 @@ export default function TermsPage() {
       </main>
 
       <footer className="shrink-0 border-t border-border px-5 md:px-8 py-4 flex items-center justify-between">
-        <Link
-          href="/privacy"
-          className="font-mono text-[11px] tracking-wide uppercase text-muted-foreground hover:text-foreground transition-colors"
-        >
-          Privacy
-        </Link>
+        <div className="flex items-center gap-4">
+          <Link
+            href="/privacy"
+            className="font-mono text-[11px] tracking-wide uppercase text-muted-foreground hover:text-foreground transition-colors"
+          >
+            Privacy
+          </Link>
+          <Link
+            href="/security"
+            className="font-mono text-[11px] tracking-wide uppercase text-muted-foreground hover:text-foreground transition-colors"
+          >
+            Security
+          </Link>
+        </div>
         <Link
           href="/"
           className="font-mono text-[11px] tracking-wide uppercase text-muted-foreground hover:text-foreground transition-colors"
