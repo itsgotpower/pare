@@ -32,6 +32,7 @@
   ],
   "exclude": [
     "node_modules",
+    "spike",
     "lib/repo/test-worker.ts",
     "lib/repo/**/*.workers-spec.ts",
     "lib/queue/**/*.workers-spec.ts"
