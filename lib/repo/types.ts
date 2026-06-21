@@ -30,6 +30,10 @@ import type { Subscription } from "../db/subscriptions";
 import type { Insight } from "../db/insights";
 import type { BaselineResult } from "../db/baseline";
 import type { DailySpend } from "../db/heatmap";
+import type {
+  MerchantSummary,
+  MerchantDetail,
+} from "../db/merchants";
 import type { DataHealth } from "../db/profile";
 import type { WaitlistResult, WaitlistEntry } from "../db/waitlist";
 import type {
@@ -63,6 +67,8 @@ export type {
   Insight,
   BaselineResult,
   DailySpend,
+  MerchantSummary,
+  MerchantDetail,
   DataHealth,
   WaitlistResult,
   WaitlistEntry,
@@ -232,6 +238,13 @@ export interface HeatmapRepo {
   dailySpend(): Promise<DailySpend[]>;
 }
 
+export interface MerchantRepo {
+  // The merchant index (all card-spend merchants, biggest first).
+  list(): Promise<MerchantSummary[]>;
+  // One merchant's full history by slug, or null if it matches no spend.
+  detail(slug: string): Promise<MerchantDetail | null>;
+}
+
 export interface ProfileRepo {
   dataHealth(): Promise<DataHealth>;
 }
@@ -276,6 +289,7 @@ export interface Repo {
   insights: InsightRepo;
   baseline: BaselineRepo;
   heatmap: HeatmapRepo;
+  merchants: MerchantRepo;
   profile: ProfileRepo;
   waitlist: WaitlistRepo;
   imports: ImportRepo;

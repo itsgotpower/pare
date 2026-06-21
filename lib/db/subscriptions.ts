@@ -1,8 +1,10 @@
 import { getDb } from "../db";
 import { CARD_SPEND_WHERE } from "./account-kinds";
+import { merchantSlug } from "../merchant-key";
 
 export interface Subscription {
   merchant: string;
+  slug: string; // links to the merchant drill-down (/merchants/<slug>)
   category: string;
   charges: number;
   months: number;
@@ -121,6 +123,7 @@ export function getSubscriptions(): { subscriptions: Subscription[]; monthlyTota
 
     subs.push({
       merchant: displayName(items[0].description),
+      slug: merchantSlug(items[0].description),
       category: items[0].category,
       charges: items.length,
       months,
