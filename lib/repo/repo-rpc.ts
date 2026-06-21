@@ -92,6 +92,7 @@ export const REPO_NAMESPACES: Record<string, readonly string[]> = {
   netWorth: ["listEntries", "addEntry", "updateEntry", "deleteEntry", "get"],
   summary: ["monthlyTotals", "categoryBreakdown", "trends", "topMerchants"],
   income: ["monthly", "byType", "vsSpend"],
+  monthReview: ["get"],
   cashflow: ["get"],
   forecast: ["get"],
   cashflowForecast: ["get"],

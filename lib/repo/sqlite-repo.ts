@@ -10,6 +10,7 @@ import type {
   NetWorthRepo,
   SummaryRepo,
   IncomeRepo,
+  MonthReviewRepo,
   CashflowRepo,
   ForecastRepo,
   CashflowForecastRepo,
@@ -64,6 +65,7 @@ import {
   getTopMerchants,
 } from "../db/summary";
 import { getMonthlyIncome, getIncomeByType, getIncomeVsSpend } from "../db/income";
+import { getMonthReview } from "../db/monthReview";
 import { getCashflow } from "../db/cashflow";
 import { getForecast } from "../db/forecast";
 import { getCashflowForecast } from "../db/cashflowForecast";
@@ -216,6 +218,10 @@ export class SqliteRepo implements Repo {
     monthly: (months) => this.read(() => getMonthlyIncome(months)),
     byType: () => this.read(() => getIncomeByType()),
     vsSpend: () => this.read(() => getIncomeVsSpend()),
+  };
+
+  monthReview: MonthReviewRepo = {
+    get: (month) => this.read(() => getMonthReview(month)),
   };
 
   cashflow: CashflowRepo = {

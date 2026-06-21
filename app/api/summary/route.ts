@@ -39,6 +39,10 @@ export async function GET(request: NextRequest) {
     });
   }
 
+  if (type === "month_review") {
+    return Response.json(await repo.monthReview.get(month));
+  }
+
   if (type === "baseline") {
     const threshold = params.get("threshold") ? parseInt(params.get("threshold")!) : 300;
     return Response.json(await repo.baseline.get(threshold));
