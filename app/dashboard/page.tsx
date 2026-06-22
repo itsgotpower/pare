@@ -29,6 +29,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { CalendarHeatmap, type DailySpend } from "@/components/dashboard/calendar-heatmap";
+import { MonthReview } from "@/components/dashboard/month-review";
 import { categoryColor, PALETTE } from "@/lib/colors";
 import {
   BarChart,
@@ -710,12 +711,15 @@ export default function Dashboard() {
           </div>
         )}
         <Tabs defaultValue="overview">
-          {/* Seven tabs don't fit a phone — let the strip scroll sideways.
+          {/* Eight tabs don't fit a phone — let the strip scroll sideways.
               pb gives the active-tab underline (bottom:-5px) room to render. */}
           <div className="mb-4 -mx-4 px-4 pb-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:mx-0 md:px-0">
             <TabsList variant="line">
             <TabsTrigger value="overview" className="font-mono text-xs tracking-widest">
               OVERVIEW
+            </TabsTrigger>
+            <TabsTrigger value="review" className="font-mono text-xs tracking-widest">
+              REVIEW
             </TabsTrigger>
             <TabsTrigger value="categories" className="font-mono text-xs tracking-widest">
               BY CATEGORY
@@ -737,6 +741,10 @@ export default function Dashboard() {
             </TabsTrigger>
           </TabsList>
           </div>
+
+          <TabsContent value="review">
+            <MonthReview />
+          </TabsContent>
 
           <TabsContent value="overview">
         {filterLabel && (
