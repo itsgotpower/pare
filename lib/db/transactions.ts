@@ -40,6 +40,16 @@ export function computeDedupKey(
   return createHash("sha256").update(raw).digest("hex");
 }
 
+// Dedup key for an OFX/QFX import, seeded from the bank-assigned FITID (stable and
+// unique per account). Namespacing by `source` (which encodes the account) keeps
+// two accounts' identical FITIDs distinct and prevents collision with the
+// positional PDF key above, so re-importing an overlapping OFX file is a no-op
+// instead of a silent duplicate. Callers fall back to computeDedupKey() when a
+// row has no FITID.
+export function computeOfxDedupKey(source: string, fitId: string): string {
+  return createHash("sha256").update(`ofx|${source}|${fitId}`).digest("hex");
+}
+
 export function insertTransaction(tx: {
   statement_id: number | null;
   source: string;

@@ -12,6 +12,12 @@ contracts, on-disk and crypto formats) may change between minor versions — see
 
 ### Added
 
+- **OFX / QFX import** on `/upload` — drop a `.ofx` / `.qfx` export and Pare reads
+  the transactions directly, no PDF or bank login required. Dedup is keyed on each
+  transaction's bank-assigned `FITID`, so re-importing an overlapping file is a
+  no-op instead of the silent duplicates the old CSV import produced. Account type
+  from the file (chequing / savings / credit card) sets `account_kind`, so imported
+  accounts light up every chart; deposit-account closing balances feed net worth.
 - Display the app version in the landing-page footer and in-app, linked to the
   matching GitHub release ([#27]).
 
