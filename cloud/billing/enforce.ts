@@ -6,7 +6,7 @@
  * enforcement helpers no-op / allow everything, so no proprietary path runs.
  */
 
-import { PLANS, DEFAULT_PLAN, type PlanId } from "../plans";
+import { PLANS, DEFAULT_PLAN, type PlanId, type Feature } from "../plans";
 
 export function cloudEnabled(): boolean {
   return process.env.PARE_CLOUD === "1";
@@ -41,4 +41,14 @@ export function checkStatementLimit(q: UsageQuery): LimitResult {
     };
   }
   return { allowed: true };
+}
+
+/**
+ * Whether a plan unlocks a given feature. Like the limit checks, this no-ops to
+ * ALLOW when the cloud layer is disabled, so the open-source core / self-host keeps
+ * every feature.
+ */
+export function hasFeature(planId: PlanId, feature: Feature): boolean {
+  if (!cloudEnabled()) return true;
+  return (PLANS[planId] ?? PLANS[DEFAULT_PLAN]).features.has(feature);
 }
