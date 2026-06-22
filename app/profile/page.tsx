@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import { PALETTE } from "@/lib/colors";
 import { LogOut, Pencil, Download, Database, FileJson, CreditCard } from "lucide-react";
+import { IngestInbox } from "@/components/profile/ingest-inbox";
 
 interface SourceHealth {
   source: string;
@@ -447,6 +448,8 @@ export default function ProfilePage() {
           )}
         </Card>
       )}
+
+      {hosted && <IngestInbox />}
 
       <Card className="rounded-none ring-0 border border-border py-0 gap-0 mb-3">
         <div className="flex items-center justify-between border-b border-border px-4 py-3">
