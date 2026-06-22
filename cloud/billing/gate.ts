@@ -11,9 +11,10 @@
  * (and any non-cloud hosted deploy) behaves exactly as before.
  */
 
-import { checkStatementLimit, cloudEnabled, type LimitResult } from "./enforce";
+import { checkStatementLimit, cloudEnabled, hasFeature, type LimitResult } from "./enforce";
 import { resolvePlan } from "./store";
 import { getStatementUsage, incrementStatementUsage } from "../metering/usage";
+import type { Feature } from "../plans";
 
 /** Allow/deny a new statement upload for the caller against their plan. */
 export async function enforceStatementUpload(userId: string): Promise<LimitResult> {
@@ -29,4 +30,15 @@ export async function enforceStatementUpload(userId: string): Promise<LimitResul
 export async function recordStatementUpload(userId: string): Promise<void> {
   if (!cloudEnabled()) return;
   await incrementStatementUsage(userId);
+}
+
+/**
+ * Whether the caller's plan unlocks `feature`. Resolves the plan from the billing
+ * store, then checks the entitlement. No-ops to ALLOW when the cloud layer is off
+ * (self-host gets everything). Enforce this SERVER-SIDE in the feature's API route
+ * (return 402 when false) — UI gating is cosmetic only.
+ */
+export async function requireFeature(userId: string, feature: Feature): Promise<boolean> {
+  if (!cloudEnabled()) return true;
+  return hasFeature(await resolvePlan(userId), feature);
 }
