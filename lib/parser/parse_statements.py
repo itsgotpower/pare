@@ -223,8 +223,16 @@ def parse_cibc_chequing(path):
 
 
 def _walk_chequing(path):
-    """Shared walk over a CIBC chequing statement. Returns (period, txns) where
-    each txn dict carries date, desc_parts, amount, balance, prev, direction.
+    """Path-based entry: extract the statement text, then walk it. See
+    _walk_chequing_text for the reconciliation core."""
+    return _walk_chequing_text(text(path))
+
+
+def _walk_chequing_text(t):
+    """Walk already-extracted CIBC chequing statement text. Returns (period, txns)
+    where each txn dict carries date, desc_parts, amount, balance, prev, direction.
+    Split from _walk_chequing so verify.py can re-walk from a text string (no path,
+    no re-extraction).
 
     Direction comes from reconciling against the printed running balance:
     prev + amount == balance => 'in'; prev - amount == balance => 'out';
@@ -232,7 +240,6 @@ def _walk_chequing(path):
     lines (recipient name, PEOPLE CENTER, CARD PRODUCTS, FX notes) are folded onto
     the preceding transaction.
     """
-    t = text(path)
     period = "".join(re.findall(r'For (\w+ \d+ to \w+ \d+, \d{4})', t)[:1]) or "cibc_chequing"
     ref_year = extract_year(period)
 
@@ -349,7 +356,7 @@ def chequing_report(path):
 
 
 def statement_meta(path):
-    """Statement-level metadata: closing balance + closing date per source.
+    """Statement-level metadata: opening + closing balance + closing date per source.
 
     Balances are stored AS PRINTED — positive means money in the account for
     chequing and amount owed for cards; the app's net-worth layer applies the
@@ -361,41 +368,60 @@ def statement_meta(path):
         period = _visa_period(t)
         # Account summary box: "Total balance   =   $167.93"
         m = re.search(r'Total balance\s*=?\s*' + money_rx, t)
+        # "Previous balance   $163.24" — opening balance; lets verify.py reconcile
+        # cards (charges - credits == closing - opening).
+        om = re.search(r'Previous balance\s+' + money_rx, t, re.IGNORECASE)
         source, account = 'cibc_visa', 'CIBC Aeroplan Visa'
         closing = _money(m.group(1)) if m else None
+        opening = _money(om.group(1)) if om else None
     elif 'CIBC Account Statement' in t:
         period, txns = _walk_chequing(path)
         # Prefer the Account-summary box ("= $2,766.00"); fall back to the last
         # reconciled running balance (same fallback chain as chequing_report).
         m = re.search(r'=\s+\$(-?[\d,]+\.\d{2})', t)
+        om = re.search(r'Opening balance on[^\n]*?\$?([\d,]+\.\d{2})', t)
         reconciled = [x for x in txns if x['direction'] != 'unreconciled']
         source, account = 'cibc_chequing', 'CIBC Chequing'
         closing = _money(m.group(1)) if m else (
             reconciled[-1]['balance'] if reconciled else None)
+        opening = _money(om.group(1)) if om else None
     elif 'American Express' in t:
         period = _amex_period(t)
         # "Equals New Balance   $1,853.01" (summary box); plain "New Balance" fallback.
         m = re.search(r'Equals New Balance\s+' + money_rx, t) or \
             re.search(r'New Balance\s+' + money_rx, t)
+        # "Previous Balance   $100.00" — opening balance (see verify.py).
+        om = re.search(r'Previous Balance\s+' + money_rx, t, re.IGNORECASE)
         source, account = 'amex', 'Amex Gold'
         closing = _money(m.group(1)) if m else None
+        opening = _money(om.group(1)) if om else None
     else:
         return None
     return {'source': source, 'account': account, 'period': period,
-            'closing_balance': closing, 'closing_date': period_end(period)}
+            'closing_balance': closing, 'closing_date': period_end(period),
+            'opening_balance': opening}
 
 
 def main(src_dir, out_csv):
+    # Routing lives in the registry (registry.py) and is driven by the
+    # orchestrator (orchestrator.py) — Phase 1 of the self-improving parser
+    # (see internal/self-improving-parser-plan.md). Behaviour is identical to the
+    # old Visa -> chequing -> Amex(fallback) if/elif: the registry encodes that
+    # precedence as parser priority, and orchestrator.parse_file() reproduces this
+    # loop body (route -> parse -> attach statement metadata). The Amex check stays
+    # the lowest-priority fallback because chequing statements contain the text
+    # "American Express" (Amex card-payment lines).
+    import sys as _sys
+    import registry, orchestrator
+    registry.register_builtins(_sys.modules[__name__])
+
     rows, metas = [], []
     for f in sorted(glob.glob(os.path.join(src_dir, '*.pdf'))):
-        t = text(f)
-        # Order matters: chequing statements contain "American Express" (Amex card
-        # payments), so check the specific CIBC titles before the Amex fallback.
-        if 'Aeroplan' in t and 'Visa' in t:    rows += parse_cibc_visa(f)
-        elif 'CIBC Account Statement' in t:    rows += parse_cibc_chequing(f)
-        elif 'American Express' in t:          rows += parse_amex(f)
-        else:                                  continue
-        meta = statement_meta(f)
+        result = orchestrator.parse_file(f, text_fn=text, meta_fn=statement_meta)
+        if result is None:
+            continue
+        frows, meta = result
+        rows += frows
         if meta:
             meta['filename'] = os.path.basename(f)
             metas.append(meta)

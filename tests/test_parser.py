@@ -21,6 +21,7 @@ from unittest import mock
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "lib", "parser"))
 
 import parse_statements as P  # noqa: E402
+import verify as V  # noqa: E402
 from categories import categorize  # noqa: E402
 
 
@@ -197,6 +198,13 @@ class TestStatementMeta(unittest.TestCase):
     def test_unrecognized_returns_none(self):
         self.assertIsNone(self._meta("Some random unrelated PDF text"))
 
+    def test_opening_balances(self):
+        # Phase 2: opening (previous) balance captured for cards + chequing,
+        # so verify.py can reconcile card balances.
+        self.assertAlmostEqual(self._meta(AMEX)["opening_balance"], 100.00)
+        self.assertAlmostEqual(self._meta(CIBC_VISA)["opening_balance"], 163.24)
+        self.assertAlmostEqual(self._meta(CIBC_CHEQUING)["opening_balance"], 1000.00)
+
     def test_period_end_shapes(self):
         self.assertEqual(P.period_end("Jan 02, 2026"), "2026-01-02")
         self.assertEqual(P.period_end("Apr 1 to Apr 30, 2026"), "2026-04-30")
@@ -204,6 +212,92 @@ class TestStatementMeta(unittest.TestCase):
             P.period_end("January 28 to September 27, 2026"), "2026-09-27"
         )
         self.assertIsNone(P.period_end("cibc_visa"))
+
+
+class TestRegistryRouting(unittest.TestCase):
+    """Phase 1 of the self-improving parser: routing moved from main()'s if/elif
+    into registry.select() + orchestrator.parse_file(). These guard that the new
+    path picks the SAME parser the old precedence did (Visa -> chequing -> Amex
+    fallback) and produces identical rows."""
+
+    def setUp(self):
+        import registry
+        registry.register_builtins(P)  # idempotent
+        self.registry = registry
+
+    def test_precedence_matches_original_if_elif(self):
+        # Visa and chequing fixtures must NOT fall through to the Amex fallback
+        # (both contain "American Express" via card-payment lines).
+        self.assertEqual(self.registry.select(CIBC_VISA).id, "cibc_visa")
+        self.assertEqual(self.registry.select(CIBC_CHEQUING).id, "cibc_chequing")
+        self.assertEqual(self.registry.select(AMEX).id, "amex")
+
+    def test_unrecognized_returns_none(self):
+        self.assertIsNone(self.registry.select("Some unrelated PDF text"))
+
+    def test_orchestrator_reproduces_direct_parse(self):
+        import orchestrator
+        with mock.patch.object(P, "text", return_value=CIBC_CHEQUING):
+            rows, meta = orchestrator.parse_file(
+                "dummy.pdf", text_fn=P.text, meta_fn=P.statement_meta)
+        # Routing through the orchestrator yields the same rows as calling the
+        # parser directly, plus the statement metadata.
+        self.assertEqual(rows, _rows(P.parse_cibc_chequing, CIBC_CHEQUING))
+        self.assertEqual(meta["source"], "cibc_chequing")
+
+    def test_orchestrator_skips_unrecognized(self):
+        import orchestrator
+        with mock.patch.object(P, "text", return_value="Some unrelated PDF text"):
+            self.assertIsNone(orchestrator.parse_file(
+                "dummy.pdf", text_fn=P.text, meta_fn=P.statement_meta))
+
+
+class TestVerify(unittest.TestCase):
+    """Phase 2: the standalone verifier (verify.py). Chequing reconciles via the
+    running-balance chain; cards via opening/closing balance. Failure cases must
+    be caught (the whole point of the verifier)."""
+
+    def _rows_meta(self, parse_fn, fixture):
+        with mock.patch.object(P, "text", return_value=fixture):
+            return parse_fn("dummy.pdf"), P.statement_meta("dummy.pdf")
+
+    def test_chequing_reconciles(self):
+        rows, meta = self._rows_meta(P.parse_cibc_chequing, CIBC_CHEQUING)
+        r = V.verify(rows, meta, CIBC_CHEQUING)
+        self.assertTrue(r.ok)
+        self.assertEqual(r.method, "running_balance")
+        self.assertEqual(r.confidence, 1.0)
+
+    def test_chequing_wrong_closing_is_caught(self):
+        rows, meta = self._rows_meta(P.parse_cibc_chequing, CIBC_CHEQUING)
+        meta = {**meta, "closing_balance": 9999.99}  # tamper the printed closing
+        self.assertFalse(V.verify(rows, meta, CIBC_CHEQUING).ok)
+
+    def test_amex_card_balance_reconciles(self):
+        rows, meta = self._rows_meta(P.parse_amex, AMEX)
+        r = V.verify(rows, meta, AMEX)
+        self.assertTrue(r.ok)
+        self.assertEqual(r.method, "card_balance")
+        self.assertAlmostEqual(r.residual, 0.0)
+
+    def test_visa_card_balance_reconciles(self):
+        rows, meta = self._rows_meta(P.parse_cibc_visa, CIBC_VISA)
+        r = V.verify(rows, meta, CIBC_VISA)
+        self.assertTrue(r.ok)
+        self.assertAlmostEqual(r.residual, 0.0)
+
+    def test_card_undercapture_is_caught(self):
+        # Dropping a charge makes Σcharges too small -> residual negative -> fail.
+        rows, meta = self._rows_meta(P.parse_cibc_visa, CIBC_VISA)
+        rows = [r for r in rows if r[4] != "BALANCE TRANSFER"]  # drop an 8000 charge
+        r = V.verify(rows, meta, CIBC_VISA)
+        self.assertFalse(r.ok)
+        self.assertLess(r.residual, 0)
+
+    def test_missing_opening_balance_does_not_pass(self):
+        rows, meta = self._rows_meta(P.parse_amex, AMEX)
+        meta = {**meta, "opening_balance": None}
+        self.assertFalse(V.verify(rows, meta, AMEX).ok)
 
 
 class TestCategorizer(unittest.TestCase):
