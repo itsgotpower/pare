@@ -83,10 +83,10 @@ export default function UploadPage() {
       >
         <CardContent className="flex flex-col items-center justify-center py-16 gap-4">
           <p className="font-mono text-sm tracking-widest uppercase text-muted-foreground">
-            {uploading ? "PROCESSING..." : "DROP PDF STATEMENT HERE"}
+            {uploading ? "PROCESSING..." : "DROP STATEMENT OR OFX/QFX HERE"}
           </p>
           <p className="text-xs text-muted-foreground">
-            Supports credit card and bank account statements
+            PDF credit-card / bank statements, or .ofx / .qfx exports
           </p>
           <label className="mt-2">
             <span className="inline-flex items-center px-4 py-2 border border-foreground font-mono text-xs tracking-widest uppercase cursor-pointer hover:bg-foreground hover:text-background transition-colors">
@@ -94,7 +94,7 @@ export default function UploadPage() {
             </span>
             <input
               type="file"
-              accept=".pdf"
+              accept=".pdf,.ofx,.qfx"
               multiple
               onChange={handleFileSelect}
               className="hidden"

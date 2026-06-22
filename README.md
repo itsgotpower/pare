@@ -52,7 +52,10 @@ npm run dev
 
 Open <http://localhost:3000>. First run prompts you to create a profile (the
 single-user gate). Drop a statement PDF on `/upload` — Amex, CIBC Visa, or CIBC
-chequing are supported today — and the dashboard fills in.
+chequing are supported today — and the dashboard fills in. No statement parser for
+your bank yet? Most banks let you **export `.ofx` / `.qfx`** ("Download to
+Quicken/Money"); drop that on `/upload` instead and Pare reads it directly —
+deduped on each transaction's bank-assigned ID, so re-importing never doubles up.
 
 Your data lives in `data/pare.db` (a local SQLite file) plus
 `data/user-rules.json` for your category rules. **The entire `data/` directory is

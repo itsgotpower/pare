@@ -6,6 +6,8 @@ import { parsePdf } from "@/lib/parser/run-parser";
 import { computeDedupKey } from "@/lib/db/transactions";
 import { getScopedRepo, unauthorized } from "@/lib/repo/scoped";
 import { insertParsedStatement } from "@/lib/repo/insert-parsed";
+import { insertOfxImport } from "@/lib/repo/insert-ofx";
+import { parseOfx, looksLikeOfx } from "@/lib/import/ofx";
 import { isHostedMode, resolveUser } from "@/lib/auth/resolve";
 import type { Repo } from "@/lib/repo";
 
@@ -94,8 +96,17 @@ async function handleSelfHostUpload(request: NextRequest) {
       return Response.json({ error: "No file provided" }, { status: 400 });
     }
 
+    // OFX/QFX import — the dedup-safe (FITID) successor to the removed CSV import.
+    // Self-host only, like the CSV path was; the hosted queue stays PDF-only.
+    if (/\.(ofx|qfx)$/i.test(file.name)) {
+      return await handleOfxImport(repo, file);
+    }
+
     if (!file.name.endsWith(".pdf")) {
-      return Response.json({ error: "Only PDF files accepted" }, { status: 400 });
+      return Response.json(
+        { error: "Only PDF, OFX, or QFX files accepted" },
+        { status: 400 }
+      );
     }
     if (file.size > MAX_UPLOAD_BYTES) {
       return Response.json({ error: "PDF too large (max 25 MB)." }, { status: 400 });
@@ -193,6 +204,34 @@ async function handleHostedUpload(request: NextRequest) {
     const message = err instanceof Error ? err.message : "Upload failed";
     return Response.json({ error: message }, { status: 500 });
   }
+}
+
+// OFX/QFX import. Parses the file in-process (pure TS, no child process), then
+// inserts via the shared insert-ofx helper: one statement per account, dedup keyed
+// on each transaction's bank-assigned FITID, recategorize once. account_kind is set
+// from the OFX account type, so imported accounts light up every chart immediately.
+// Returns the SAME shape the /upload UI expects from a PDF upload.
+async function handleOfxImport(repo: Repo, file: File) {
+  if (file.size > MAX_UPLOAD_BYTES) {
+    return Response.json({ error: "File too large (max 25 MB)." }, { status: 400 });
+  }
+
+  const text = await file.text();
+  if (!looksLikeOfx(text)) {
+    return Response.json({ error: "File is not a valid OFX/QFX file." }, { status: 400 });
+  }
+
+  const parsed = parseOfx(text);
+  const total = parsed.accounts.reduce((n, a) => n + a.transactions.length, 0);
+  if (total === 0) {
+    return Response.json(
+      { error: "No transactions found in OFX/QFX file." },
+      { status: 400 }
+    );
+  }
+
+  const { inserted, skipped } = await insertOfxImport(repo, file.name, parsed);
+  return Response.json({ inserted, skipped, total, filename: file.name });
 }
 
 // Dormant: the CSV-import UI/route were removed (PDFs only — importing the CSV
