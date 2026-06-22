@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import Link from "next/link";
+import { merchantSlug } from "@/lib/merchant-key";
 import { Card, CardContent } from "@/components/ui/card";
 import { DashboardSkeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -963,7 +965,11 @@ export default function Dashboard() {
             </h2>
             <div className="space-y-2">
               {merchants.slice(0, 8).map((m, i) => (
-                <div key={i} className="flex items-center justify-between text-xs">
+                <Link
+                  key={i}
+                  href={`/merchants/${merchantSlug(m.description)}`}
+                  className="flex items-center justify-between text-xs -mx-1 px-1 py-0.5 hover:bg-accent transition-colors"
+                >
                   <span className="truncate max-w-[300px]">{m.description}</span>
                   <div className="flex items-center gap-3">
                     <span className="text-muted-foreground">{m.count}x</span>
@@ -971,7 +977,7 @@ export default function Dashboard() {
                       {formatCurrency(m.total)}
                     </span>
                   </div>
-                </div>
+                </Link>
               ))}
             </div>
           </div>

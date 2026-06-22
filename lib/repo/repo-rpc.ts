@@ -99,6 +99,7 @@ export const REPO_NAMESPACES: Record<string, readonly string[]> = {
   insights: ["get"],
   baseline: ["get"],
   heatmap: ["dailySpend"],
+  merchants: ["list", "detail"],
   profile: ["dataHealth"],
   waitlist: ["join", "count", "list"],
   imports: ["create", "list", "delete", "watermarks", "rowsInWindow"],

@@ -17,6 +17,7 @@ import type {
   InsightRepo,
   BaselineRepo,
   HeatmapRepo,
+  MerchantRepo,
   ProfileRepo,
   WaitlistRepo,
   ImportRepo,
@@ -70,6 +71,7 @@ import { getSubscriptions } from "../db/subscriptions";
 import { getInsights } from "../db/insights";
 import { getBaseline } from "../db/baseline";
 import { getDailySpend } from "../db/heatmap";
+import { getMerchants, getMerchantDetail } from "../db/merchants";
 import { getDataHealth } from "../db/profile";
 import { joinWaitlist, waitlistCount, listWaitlist } from "../db/waitlist";
 import {
@@ -242,6 +244,11 @@ export class SqliteRepo implements Repo {
 
   heatmap: HeatmapRepo = {
     dailySpend: () => this.read(() => getDailySpend()),
+  };
+
+  merchants: MerchantRepo = {
+    list: () => this.read(() => getMerchants()),
+    detail: (slug) => this.read(() => getMerchantDetail(slug)),
   };
 
   profile: ProfileRepo = {
