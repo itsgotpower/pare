@@ -25,6 +25,7 @@ import type {
   InsightRepo,
   BaselineRepo,
   HeatmapRepo,
+  MerchantRepo,
   ProfileRepo,
   WaitlistRepo,
   WaitlistEntry,
@@ -214,6 +215,11 @@ export class DoRepoClient implements Repo {
 
   heatmap: HeatmapRepo = {
     dailySpend: () => this.call("heatmap", "dailySpend") as ReturnType<HeatmapRepo["dailySpend"]>,
+  };
+
+  merchants: MerchantRepo = {
+    list: () => this.call("merchants", "list") as ReturnType<MerchantRepo["list"]>,
+    detail: (slug) => this.call("merchants", "detail", slug) as ReturnType<MerchantRepo["detail"]>,
   };
 
   profile: ProfileRepo = {
