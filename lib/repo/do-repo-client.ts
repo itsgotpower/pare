@@ -18,6 +18,7 @@ import type {
   NetWorthRepo,
   SummaryRepo,
   IncomeRepo,
+  MonthReviewRepo,
   CashflowRepo,
   ForecastRepo,
   CashflowForecastRepo,
@@ -186,6 +187,10 @@ export class DoRepoClient implements Repo {
     monthly: (months) => this.call("income", "monthly", months) as ReturnType<IncomeRepo["monthly"]>,
     byType: () => this.call("income", "byType") as ReturnType<IncomeRepo["byType"]>,
     vsSpend: () => this.call("income", "vsSpend") as ReturnType<IncomeRepo["vsSpend"]>,
+  };
+
+  monthReview: MonthReviewRepo = {
+    get: (month) => this.call("monthReview", "get", month) as ReturnType<MonthReviewRepo["get"]>,
   };
 
   cashflow: CashflowRepo = {

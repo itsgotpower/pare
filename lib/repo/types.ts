@@ -23,6 +23,7 @@ import type {
   TopMerchant,
 } from "../db/summary";
 import type { MonthlyIncome, IncomeType, IncomeVsSpend } from "../db/income";
+import type { MonthReview } from "../db/monthReview";
 import type { Cashflow } from "../db/cashflow";
 import type { Forecast } from "../db/forecast";
 import type { CashflowForecast } from "../db/cashflowForecast";
@@ -60,6 +61,7 @@ export type {
   MonthlyIncome,
   IncomeType,
   IncomeVsSpend,
+  MonthReview,
   Cashflow,
   Forecast,
   CashflowForecast,
@@ -210,6 +212,10 @@ export interface IncomeRepo {
   vsSpend(): Promise<IncomeVsSpend[]>;
 }
 
+export interface MonthReviewRepo {
+  get(month?: string): Promise<MonthReview>;
+}
+
 export interface CashflowRepo {
   get(month?: string): Promise<Cashflow>;
 }
@@ -282,6 +288,7 @@ export interface Repo {
   netWorth: NetWorthRepo;
   summary: SummaryRepo;
   income: IncomeRepo;
+  monthReview: MonthReviewRepo;
   cashflow: CashflowRepo;
   forecast: ForecastRepo;
   cashflowForecast: CashflowForecastRepo;
