@@ -16,7 +16,22 @@ import { verifySessionToken, SESSION_COOKIE } from "@/lib/auth/session-token";
 // middleware.ts — when these land together, "/privacy" must be added to that
 // file's PUBLIC_PATHS too (in hosted mode the gate is retired, so this only
 // matters for self-host).
-const PUBLIC_PATHS = ["/login", "/api/auth", "/api/waitlist", "/about", "/mcp", "/privacy", "/terms"];
+// "/switch" (and the /switch-from-monarch SEO alias) is the public migration
+// landing — readable signed-out so it's crawlable. Its /api/import* routes are
+// NOT listed here, so they stay gated (a signed-out POST gets 401); the public
+// view is a sales pitch + "sign in to import" CTA.
+const PUBLIC_PATHS = [
+  "/login",
+  "/api/auth",
+  "/api/waitlist",
+  "/about",
+  "/mcp",
+  "/privacy",
+  "/terms",
+  "/security",
+  "/switch",
+  "/switch-from-monarch",
+];
 
 // Hosted mode is selected at build/deploy time (PARE_DEPLOY_TARGET=hosted).
 const HOSTED = process.env.PARE_DEPLOY_TARGET === "hosted";
@@ -26,7 +41,7 @@ const HOSTED = process.env.PARE_DEPLOY_TARGET === "hosted";
 // and every other app/API route redirect to "/", so the un-provisioned data plane
 // (D1/R2/Queues) is never reached. Flip the var off + redeploy to restore the app.
 const WAITLIST_ONLY = process.env.PARE_WAITLIST_ONLY === "1";
-const WAITLIST_PUBLIC = ["/", "/api/waitlist", "/about", "/mcp", "/privacy", "/terms"];
+const WAITLIST_PUBLIC = ["/", "/api/waitlist", "/about", "/mcp", "/privacy", "/terms", "/security"];
 
 // The signing secret, read from the environment — the only source the Edge
 // runtime can reach (no fs here). The Node API routes resolve the SAME value via

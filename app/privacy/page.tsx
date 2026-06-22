@@ -233,12 +233,20 @@ export default function PrivacyPage() {
       </main>
 
       <footer className="shrink-0 border-t border-border px-5 md:px-8 py-4 flex items-center justify-between">
-        <Link
-          href="/terms"
-          className="font-mono text-[11px] tracking-wide uppercase text-muted-foreground hover:text-foreground transition-colors"
-        >
-          Terms
-        </Link>
+        <div className="flex items-center gap-4">
+          <Link
+            href="/terms"
+            className="font-mono text-[11px] tracking-wide uppercase text-muted-foreground hover:text-foreground transition-colors"
+          >
+            Terms
+          </Link>
+          <Link
+            href="/security"
+            className="font-mono text-[11px] tracking-wide uppercase text-muted-foreground hover:text-foreground transition-colors"
+          >
+            Security
+          </Link>
+        </div>
         <Link
           href="/"
           className="font-mono text-[11px] tracking-wide uppercase text-muted-foreground hover:text-foreground transition-colors"

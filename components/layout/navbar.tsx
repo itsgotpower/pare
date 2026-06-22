@@ -10,6 +10,7 @@ import {
   Tag,
   Target,
   Repeat,
+  Store,
   Plug,
   PanelLeftClose,
   PanelLeft,
@@ -25,6 +26,7 @@ const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION ?? "";
 const NAV_ITEMS = [
   { href: "/dashboard", label: "DASHBOARD", icon: LayoutDashboard },
   { href: "/transactions", label: "TRANSACTIONS", icon: ArrowLeftRight },
+  { href: "/merchants", label: "MERCHANTS", icon: Store },
   { href: "/recurring", label: "RECURRING", icon: Repeat },
   { href: "/upload", label: "UPLOAD", icon: Upload },
   { href: "/categories", label: "CATEGORIES", icon: Tag },
@@ -76,14 +78,18 @@ export function Sidebar() {
     href === "/" ? pathname === "/" : pathname.startsWith(href);
 
   // The login gate, the public marketing homepage, and the public marketing /
-  // legal pages (about / mcp / privacy / terms) are full-screen — no app chrome.
+  // legal pages (about / mcp / privacy / terms / security / switch) are
+  // full-screen — no app chrome.
   if (
     pathname === "/login" ||
     pathname === "/" ||
     pathname === "/about" ||
     pathname === "/mcp" ||
     pathname === "/privacy" ||
-    pathname === "/terms"
+    pathname === "/terms" ||
+    pathname === "/security" ||
+    pathname === "/switch" ||
+    pathname === "/switch-from-monarch"
   )
     return null;
 

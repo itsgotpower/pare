@@ -35,6 +35,9 @@ contracts, on-disk and crypto formats) may change between minor versions — see
 ### Security
 
 - Pre-launch security audit fixes ([#30]).
+- Hosted accounts must now verify their email address before they can sign in. A
+  verification link is emailed on sign-up; signing up with an address you don't
+  control no longer yields a usable session.
 
 ## [0.1.0] - 2026-06-14
 

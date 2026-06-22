@@ -10,6 +10,7 @@ import type {
   NetWorthRepo,
   SummaryRepo,
   IncomeRepo,
+  MonthReviewRepo,
   CashflowRepo,
   ForecastRepo,
   CashflowForecastRepo,
@@ -17,8 +18,10 @@ import type {
   InsightRepo,
   BaselineRepo,
   HeatmapRepo,
+  MerchantRepo,
   ProfileRepo,
   WaitlistRepo,
+  ImportRepo,
 } from "./types";
 
 import {
@@ -62,6 +65,7 @@ import {
   getTopMerchants,
 } from "../db/summary";
 import { getMonthlyIncome, getIncomeByType, getIncomeVsSpend } from "../db/income";
+import { getMonthReview } from "../db/monthReview";
 import { getCashflow } from "../db/cashflow";
 import { getForecast } from "../db/forecast";
 import { getCashflowForecast } from "../db/cashflowForecast";
@@ -69,8 +73,16 @@ import { getSubscriptions } from "../db/subscriptions";
 import { getInsights } from "../db/insights";
 import { getBaseline } from "../db/baseline";
 import { getDailySpend } from "../db/heatmap";
+import { getMerchants, getMerchantDetail } from "../db/merchants";
 import { getDataHealth } from "../db/profile";
 import { joinWaitlist, waitlistCount, listWaitlist } from "../db/waitlist";
+import {
+  createImport,
+  listImports,
+  deleteImport,
+  getImportWatermarks,
+  getImportedRowsInWindow,
+} from "../db/imports";
 
 // SqliteRepo implements the async Repo contract by delegating to the existing,
 // regression-tested lib/db/* functions. better-sqlite3 is synchronous, so each
@@ -208,6 +220,10 @@ export class SqliteRepo implements Repo {
     vsSpend: () => this.read(() => getIncomeVsSpend()),
   };
 
+  monthReview: MonthReviewRepo = {
+    get: (month) => this.read(() => getMonthReview(month)),
+  };
+
   cashflow: CashflowRepo = {
     get: (month) => this.read(() => getCashflow(month)),
   };
@@ -236,6 +252,11 @@ export class SqliteRepo implements Repo {
     dailySpend: () => this.read(() => getDailySpend()),
   };
 
+  merchants: MerchantRepo = {
+    list: () => this.read(() => getMerchants()),
+    detail: (slug) => this.read(() => getMerchantDetail(slug)),
+  };
+
   profile: ProfileRepo = {
     dataHealth: () => this.read(() => getDataHealth()),
   };
@@ -244,5 +265,13 @@ export class SqliteRepo implements Repo {
     join: (email, source) => this.write(() => joinWaitlist(email, source)),
     count: () => this.read(() => waitlistCount()),
     list: () => this.read(() => listWaitlist()),
+  };
+
+  imports: ImportRepo = {
+    create: (rec) => this.write(() => createImport(rec)),
+    list: () => this.read(() => listImports()),
+    delete: (id) => this.write(() => deleteImport(id)),
+    watermarks: () => this.read(() => getImportWatermarks()),
+    rowsInWindow: (kind, from, to) => this.read(() => getImportedRowsInWindow(kind, from, to)),
   };
 }

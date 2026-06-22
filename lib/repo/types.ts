@@ -23,6 +23,7 @@ import type {
   TopMerchant,
 } from "../db/summary";
 import type { MonthlyIncome, IncomeType, IncomeVsSpend } from "../db/income";
+import type { MonthReview } from "../db/monthReview";
 import type { Cashflow } from "../db/cashflow";
 import type { Forecast } from "../db/forecast";
 import type { CashflowForecast } from "../db/cashflowForecast";
@@ -30,8 +31,17 @@ import type { Subscription } from "../db/subscriptions";
 import type { Insight } from "../db/insights";
 import type { BaselineResult } from "../db/baseline";
 import type { DailySpend } from "../db/heatmap";
+import type {
+  MerchantSummary,
+  MerchantDetail,
+} from "../db/merchants";
 import type { DataHealth } from "../db/profile";
 import type { WaitlistResult, WaitlistEntry } from "../db/waitlist";
+import type {
+  ImportRow,
+  ImportWatermark,
+  ImportedWindowRow,
+} from "../db/imports";
 
 // Re-export the row/result types so callers can import everything from the repo
 // surface without reaching into lib/db internals.
@@ -51,6 +61,7 @@ export type {
   MonthlyIncome,
   IncomeType,
   IncomeVsSpend,
+  MonthReview,
   Cashflow,
   Forecast,
   CashflowForecast,
@@ -58,9 +69,14 @@ export type {
   Insight,
   BaselineResult,
   DailySpend,
+  MerchantSummary,
+  MerchantDetail,
   DataHealth,
   WaitlistResult,
   WaitlistEntry,
+  ImportRow,
+  ImportWatermark,
+  ImportedWindowRow,
 };
 
 // --- Write input shapes (today these are inline param types) ---------------
@@ -80,6 +96,9 @@ export interface NewTransaction {
   // type level so existing callers compile; the insert layer defaults a missing
   // value to 'unknown'. insertParsedStatement derives it from `source`.
   account_kind?: string;
+  // Set ONLY by the importer (lib/repo/insert-imported.ts) to tag a row's
+  // provenance for one-click undo; null/absent for PDF-parsed rows.
+  import_id?: number | null;
 }
 
 export interface NewStatement {
@@ -193,6 +212,10 @@ export interface IncomeRepo {
   vsSpend(): Promise<IncomeVsSpend[]>;
 }
 
+export interface MonthReviewRepo {
+  get(month?: string): Promise<MonthReview>;
+}
+
 export interface CashflowRepo {
   get(month?: string): Promise<Cashflow>;
 }
@@ -221,6 +244,13 @@ export interface HeatmapRepo {
   dailySpend(): Promise<DailySpend[]>;
 }
 
+export interface MerchantRepo {
+  // The merchant index (all card-spend merchants, biggest first).
+  list(): Promise<MerchantSummary[]>;
+  // One merchant's full history by slug, or null if it matches no spend.
+  detail(slug: string): Promise<MerchantDetail | null>;
+}
+
 export interface ProfileRepo {
   dataHealth(): Promise<DataHealth>;
 }
@@ -229,6 +259,23 @@ export interface WaitlistRepo {
   join(email: string, source?: string): Promise<WaitlistResult>;
   count(): Promise<number>;
   list(): Promise<WaitlistEntry[]>;
+}
+
+// Provenance + rollback for cross-app imports (lib/db/imports.ts). `create` and
+// `delete` are writes; the rest are reads (watermarks/window feed the overlap
+// guard).
+export interface ImportRepo {
+  create(rec: {
+    provider: string;
+    row_count: number;
+    account_map: string;
+    date_min: string | null;
+    date_max: string | null;
+  }): Promise<number>;
+  list(): Promise<ImportRow[]>;
+  delete(id: number): Promise<{ deleted: number }>;
+  watermarks(): Promise<ImportWatermark[]>;
+  rowsInWindow(accountKind: string, fromDate: string, toDate: string): Promise<ImportedWindowRow[]>;
 }
 
 // --- The aggregate contract ------------------------------------------------
@@ -241,6 +288,7 @@ export interface Repo {
   netWorth: NetWorthRepo;
   summary: SummaryRepo;
   income: IncomeRepo;
+  monthReview: MonthReviewRepo;
   cashflow: CashflowRepo;
   forecast: ForecastRepo;
   cashflowForecast: CashflowForecastRepo;
@@ -248,8 +296,10 @@ export interface Repo {
   insights: InsightRepo;
   baseline: BaselineRepo;
   heatmap: HeatmapRepo;
+  merchants: MerchantRepo;
   profile: ProfileRepo;
   waitlist: WaitlistRepo;
+  imports: ImportRepo;
 
   // Group several writes into ONE durability boundary. Every write issued by `fn`
   // runs against the open connection, and the backend persists exactly once after

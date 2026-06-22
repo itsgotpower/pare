@@ -402,6 +402,12 @@ export default function MarketingHome() {
               Privacy
             </Link>
             <Link
+              href="/security"
+              className="font-mono text-[11px] tracking-wide uppercase text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Security
+            </Link>
+            <Link
               href="/terms"
               className="font-mono text-[11px] tracking-wide uppercase text-muted-foreground hover:text-foreground transition-colors"
             >

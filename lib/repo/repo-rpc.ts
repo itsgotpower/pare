@@ -92,6 +92,7 @@ export const REPO_NAMESPACES: Record<string, readonly string[]> = {
   netWorth: ["listEntries", "addEntry", "updateEntry", "deleteEntry", "get"],
   summary: ["monthlyTotals", "categoryBreakdown", "trends", "topMerchants"],
   income: ["monthly", "byType", "vsSpend"],
+  monthReview: ["get"],
   cashflow: ["get"],
   forecast: ["get"],
   cashflowForecast: ["get"],
@@ -99,8 +100,10 @@ export const REPO_NAMESPACES: Record<string, readonly string[]> = {
   insights: ["get"],
   baseline: ["get"],
   heatmap: ["dailySpend"],
+  merchants: ["list", "detail"],
   profile: ["dataHealth"],
   waitlist: ["join", "count", "list"],
+  imports: ["create", "list", "delete", "watermarks", "rowsInWindow"],
 };
 
 // Flat "namespace.method" list — handy for debugging / the DO's methods() probe.

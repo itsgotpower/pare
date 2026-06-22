@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   Table,
@@ -14,6 +15,7 @@ import { categoryColor, PALETTE } from "@/lib/colors";
 
 interface Subscription {
   merchant: string;
+  slug: string;
   category: string;
   charges: number;
   months: number;
@@ -127,7 +129,12 @@ export default function RecurringPage() {
                           className="inline-block w-2 h-2 shrink-0"
                           style={{ backgroundColor: categoryColor(s.category) }}
                         />
-                        <span className="text-sm truncate">{s.merchant}</span>
+                        <Link
+                          href={`/merchants/${s.slug}`}
+                          className="text-sm truncate hover:underline underline-offset-2"
+                        >
+                          {s.merchant}
+                        </Link>
                         {s.multiPerMonth && (
                           <span
                             className="font-mono text-[10px] px-1.5 py-0.5 border shrink-0"
@@ -175,7 +182,12 @@ export default function RecurringPage() {
                     <TableRow key={i}>
                       <TableCell>
                         <div className="flex items-center gap-2">
-                          <span className="text-sm">{s.merchant}</span>
+                          <Link
+                            href={`/merchants/${s.slug}`}
+                            className="text-sm hover:underline underline-offset-2"
+                          >
+                            {s.merchant}
+                          </Link>
                           {s.multiPerMonth && (
                             <span
                               className="font-mono text-[10px] px-1.5 py-0.5 border"

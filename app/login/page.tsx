@@ -251,6 +251,19 @@ function SelfHostForm({
 // After a successful credential sign-in we offer passkey registration so a first
 // passkey can be created without the (not-yet-built) hosted account-settings page.
 // ---------------------------------------------------------------------------
+
+// better-auth rejects a sign-in for an unverified account with a 403 whose code
+// is EMAIL_NOT_VERIFIED. Match on the code (with a message fallback) so we can
+// show the check-your-email screen instead of a generic error.
+function isUnverifiedEmailError(err: {
+  code?: string;
+  message?: string;
+}): boolean {
+  return (
+    err.code === "EMAIL_NOT_VERIFIED" || /not verified|verify/i.test(err.message ?? "")
+  );
+}
+
 function HostedForm({ from }: { from: string }) {
   const router = useRouter();
   const [isSignUp, setIsSignUp] = useState(false);
@@ -262,6 +275,12 @@ function HostedForm({ from }: { from: string }) {
   const [busyPasskey, setBusyPasskey] = useState(false);
   // After a credential sign-in, offer to register a passkey before continuing.
   const [offerPasskey, setOfferPasskey] = useState(false);
+  // After sign-up (or a blocked unverified sign-in) there is no session yet —
+  // the user must click the emailed link. Holds the address we sent it to so we
+  // can show the check-your-email screen.
+  const [pendingVerification, setPendingVerification] = useState<string | null>(
+    null
+  );
 
   // Already signed in (e.g. returning with a valid cookie)? Skip the form.
   useEffect(() => {
@@ -287,7 +306,21 @@ function HostedForm({ from }: { from: string }) {
         ? await authClient.signUp.email({ email, password, name })
         : await authClient.signIn.email({ email, password });
       if (res.error) {
+        // Email+password requires a verified address (lib/auth/hosted.ts). A
+        // sign-in against an unverified account is rejected and better-auth
+        // re-sends the link — show the check-your-email screen, not a dead end.
+        if (isUnverifiedEmailError(res.error)) {
+          setPendingVerification(email);
+          return;
+        }
         setError(res.error.message || "Sign-in failed");
+        return;
+      }
+      // Sign-up never returns a session while verification is required: the user
+      // must click the emailed link first. Show the check-your-email screen
+      // instead of the (sessionless) passkey offer / redirect.
+      if (isSignUp) {
+        setPendingVerification(email);
         return;
       }
       // Signed in. Offer a passkey for faster next time instead of redirecting
@@ -328,6 +361,37 @@ function HostedForm({ from }: { from: string }) {
       setBusyPasskey(false);
     }
   };
+
+  if (pendingVerification) {
+    return (
+      <AuthShell>
+        <div className="space-y-4">
+          <div>
+            <h1 className={headingCls}>Verify your email</h1>
+            <p className="mt-1 text-xs text-muted-foreground">
+              We sent a verification link to{" "}
+              <span className="font-mono text-foreground">
+                {pendingVerification}
+              </span>
+              . Click it to finish — your account isn&apos;t active until the
+              address is confirmed. Check spam if it isn&apos;t there in a minute.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setPendingVerification(null);
+              setError(null);
+              setIsSignUp(false);
+            }}
+            className="w-full font-mono text-xs tracking-widest uppercase text-muted-foreground hover:text-foreground"
+          >
+            Back to sign in
+          </button>
+        </div>
+      </AuthShell>
+    );
+  }
 
   if (offerPasskey) {
     return (

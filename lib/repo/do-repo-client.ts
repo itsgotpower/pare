@@ -18,6 +18,7 @@ import type {
   NetWorthRepo,
   SummaryRepo,
   IncomeRepo,
+  MonthReviewRepo,
   CashflowRepo,
   ForecastRepo,
   CashflowForecastRepo,
@@ -25,10 +26,15 @@ import type {
   InsightRepo,
   BaselineRepo,
   HeatmapRepo,
+  MerchantRepo,
   ProfileRepo,
   WaitlistRepo,
   WaitlistEntry,
   InsertManyResult,
+  ImportRepo,
+  ImportRow,
+  ImportWatermark,
+  ImportedWindowRow,
 } from "./types";
 import type { AnyRepoCall, RepoMethodCall } from "./repo-rpc";
 
@@ -51,6 +57,7 @@ const WRITE_METHODS: Record<string, ReadonlySet<string>> = {
   goals: new Set(["upsert", "delete"]),
   netWorth: new Set(["addEntry", "updateEntry", "deleteEntry"]),
   waitlist: new Set(["join"]),
+  imports: new Set(["create", "delete"]),
 };
 
 export class DoRepoClient implements Repo {
@@ -182,6 +189,10 @@ export class DoRepoClient implements Repo {
     vsSpend: () => this.call("income", "vsSpend") as ReturnType<IncomeRepo["vsSpend"]>,
   };
 
+  monthReview: MonthReviewRepo = {
+    get: (month) => this.call("monthReview", "get", month) as ReturnType<MonthReviewRepo["get"]>,
+  };
+
   cashflow: CashflowRepo = {
     get: (month) => this.call("cashflow", "get", month) as ReturnType<CashflowRepo["get"]>,
   };
@@ -211,6 +222,11 @@ export class DoRepoClient implements Repo {
     dailySpend: () => this.call("heatmap", "dailySpend") as ReturnType<HeatmapRepo["dailySpend"]>,
   };
 
+  merchants: MerchantRepo = {
+    list: () => this.call("merchants", "list") as ReturnType<MerchantRepo["list"]>,
+    detail: (slug) => this.call("merchants", "detail", slug) as ReturnType<MerchantRepo["detail"]>,
+  };
+
   profile: ProfileRepo = {
     dataHealth: () => this.call("profile", "dataHealth") as ReturnType<ProfileRepo["dataHealth"]>,
   };
@@ -220,5 +236,14 @@ export class DoRepoClient implements Repo {
       this.call("waitlist", "join", email, source) as ReturnType<WaitlistRepo["join"]>,
     count: () => this.call("waitlist", "count") as Promise<number>,
     list: () => this.call("waitlist", "list") as Promise<WaitlistEntry[]>,
+  };
+
+  imports: ImportRepo = {
+    create: (rec) => this.call("imports", "create", rec) as Promise<number>,
+    list: () => this.call("imports", "list") as Promise<ImportRow[]>,
+    delete: (id) => this.call("imports", "delete", id) as Promise<{ deleted: number }>,
+    watermarks: () => this.call("imports", "watermarks") as Promise<ImportWatermark[]>,
+    rowsInWindow: (kind, from, to) =>
+      this.call("imports", "rowsInWindow", kind, from, to) as Promise<ImportedWindowRow[]>,
   };
 }
