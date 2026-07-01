@@ -1,13 +1,37 @@
-"""Parse Amex Gold and CIBC (Visa + chequing) PDF statements into a tidy CSV.
+"""Parse Canadian bank/CC PDF statements into a tidy CSV.
 
 Usage:
     python lib/parser/parse_statements.py /path/to/statements_dir out.csv
 
 Output columns: source, account, period, txn_date, description, amount, category, flow
-  - source: 'amex' | 'cibc_visa' | 'cibc_chequing'
+  - source: 'amex' | 'cibc_visa' | 'cibc_chequing' | 'rbc_visa' | 'rbc_chequing' | …
   - flow:   'spend' | 'payment' | 'income' | 'transfer' | 'fee_interest'
 Amounts are positive for spend/outflow. Internal transfers, card payments,
 income, and balance transfers are tagged so they can be excluded from "spend".
+
+Routing lives in the registry (registry.py) driven by the orchestrator
+(orchestrator.py) — Phase 1 of the self-improving parser. The three verified
+built-ins (CIBC Visa → CIBC chequing → Amex fallback) register via
+`registry.register_builtins`; the SCAFFOLDED banks (RBC / TD / Scotia / BMO /
+Tangerine / Wealthsimple) are declared in `_SCAFFOLD_BANKS` and register via
+`registry.register_scaffolds`. Order matters: CIBC chequing PDFs contain the
+literal "American Express" (Amex card-payment lines), so the specific titles
+outrank the Amex fallback (priority 90, always last); scaffolds slot between
+(30–80).
+
+Two shared, bank-agnostic engines back the scaffolds:
+  - `_walk_ledger` + `LedgerProfile` (chequing/savings) — direction by balance
+    reconciliation, multi-line folding, FX-note exclusion. CIBC chequing is now
+    expressed as a profile (CIBC_LEDGER) over this same engine.
+  - `_parse_card` + `CardProfile` (two-date credit cards). CIBC Visa + Amex keep
+    their bespoke parsers.
+
+SCAFFOLD CAVEAT: only CIBC (Visa + chequing) and Amex are verified against real
+PDFs. The new banks are reconstructed from documented layouts and covered by
+SYNTHETIC fixtures only — expect a regex pass on the first real upload of each.
+The ledger engine fails safe (skips + logs unreconciled rows → missing rows,
+never corrupt totals); card parsers have NO running-balance checksum and are the
+riskiest surface.
 
 Requires: pdftotext (poppler-utils). pip install nothing else.
 """
@@ -186,53 +210,51 @@ def _classify_chequing(folded_text, direction):
     return 'income' if direction == 'in' else 'spend'
 
 
-def parse_cibc_chequing(path):
-    """Parse a CIBC chequing statement.
+# ===========================================================================
+# Ledger engine — balance-reconciling chequing / savings statements. The walk
+# (`_walk_ledger_text`) is bank-agnostic: direction by running balance,
+# multi-line folding, FX-note exclusion are universal. Per-issuer anchors live
+# in a `LedgerProfile`. CIBC chequing is just the CIBC_LEDGER profile over this
+# engine; its long-standing `_walk_chequing` / `_walk_chequing_text` /
+# `chequing_report` names are kept as thin CIBC-bound shims so verify.py and
+# existing callers are unchanged.
+# ===========================================================================
+class LedgerProfile:
+    """Config for the balance-reconciling ledger walk (chequing / savings).
 
-    Two structural realities of these PDFs drive the design:
-      1. Withdrawals and Deposits are separate columns. Rather than rely on
-         fragile column offsets, we use the printed running balance to decide
-         direction: prev_balance + amount == row_balance => deposit (in);
-         prev_balance - amount == row_balance => withdrawal (out). Self-verifying;
-         any row that reconciles to neither is flagged (stderr) and skipped.
-      2. Transactions span multiple lines. The date+amount line is followed by
-         continuation line(s) holding the e-transfer recipient / detail
-         (e.g. PEOPLE CENTER, a name, CIBC CARD PRODUCTS DIVISION). We fold those
-         onto the transaction so classification can see them.
-
-    Amounts are stored positive; flow encodes direction. Category stays 'Banking'
-    (chequing is not card spend). Rent is surfaced via the recipient name in the
-    description and tagged later by an in-app category rule (keeps personal
-    e-transfer handles out of tracked source).
+    Regexes are anchored to each issuer's `pdftotext -layout` output; the
+    defaults below match the CIBC shape and are overridden per bank.
     """
-    period, txns = _walk_chequing(path)
-    rows = []
-    for txn in txns:
-        if txn['direction'] == 'unreconciled':
-            sys.stderr.write(
-                f"[chequing] unreconciled row (prev={txn['prev']:.2f} "
-                f"amt={txn['amount']:.2f} bal={txn['balance']:.2f}): "
-                f"{' '.join(txn['desc_parts'])}\n")
-            continue
-        folded = ' '.join(txn['desc_parts']).strip()
-        flow = _classify_chequing(folded, txn['direction'])
-        rows.append(('cibc_chequing', 'CIBC Chequing', period,
-                     txn['date'] or '', folded or 'TRANSACTION',
-                     txn['amount'], 'Banking', flow))
-    return rows
+
+    def __init__(self, source, account, account_kind='chequing', *,
+                 period_rx, opening_rx,
+                 header_rx=r'Date\s+Description\s+Withdrawals',
+                 footer_rx=r'Page\s+\d+\s+of\s+\d+',
+                 closing_rx=r'=\s+\$(-?[\d,]+\.\d{2})',
+                 withdrawals_rx=r'Withdrawals\s+-\s+([\d,]+\.\d{2})',
+                 deposits_rx=r'Deposits\s+\+\s+([\d,]+\.\d{2})',
+                 date_rx=r'\s*([A-Z][a-z]{2})\s+(\d{1,2})\b',
+                 classify=None):
+        self.source = source
+        self.account = account
+        self.account_kind = account_kind
+        self.period_rx = period_rx          # one capture group -> period string
+        self.opening_rx = opening_rx        # opening balance value
+        self.header_rx = header_rx          # column header that STARTS capture
+        self.footer_rx = footer_rx          # page footer that STOPS capture
+        self.closing_rx = closing_rx        # summary-box closing balance
+        self.withdrawals_rx = withdrawals_rx  # summary outflow (verifier)
+        self.deposits_rx = deposits_rx        # summary inflow (verifier)
+        self.date_rx = date_rx              # leading "Mon DD" date token
+        self.classify = classify or _classify_chequing
 
 
-def _walk_chequing(path):
-    """Path-based entry: extract the statement text, then walk it. See
-    _walk_chequing_text for the reconciliation core."""
-    return _walk_chequing_text(text(path))
-
-
-def _walk_chequing_text(t):
-    """Walk already-extracted CIBC chequing statement text. Returns (period, txns)
-    where each txn dict carries date, desc_parts, amount, balance, prev, direction.
-    Split from _walk_chequing so verify.py can re-walk from a text string (no path,
-    no re-extraction).
+def _walk_ledger_text(profile, t):
+    """Walk already-extracted ledger (chequing/savings) statement text. Returns
+    (period, txns) where each txn dict carries date, desc_parts, amount, balance,
+    prev, direction. Issuer-specific anchors come from `profile`; the
+    reconciliation logic itself is bank-agnostic. Split from the path entry so
+    verify.py can re-walk from a text string (no path, no re-extraction).
 
     Direction comes from reconciling against the printed running balance:
     prev + amount == balance => 'in'; prev - amount == balance => 'out';
@@ -240,10 +262,10 @@ def _walk_chequing_text(t):
     lines (recipient name, PEOPLE CENTER, CARD PRODUCTS, FX notes) are folded onto
     the preceding transaction.
     """
-    period = "".join(re.findall(r'For (\w+ \d+ to \w+ \d+, \d{4})', t)[:1]) or "cibc_chequing"
+    period = "".join(re.findall(profile.period_rx, t)[:1]) or profile.source
     ref_year = extract_year(period)
 
-    open_m = re.search(r'Opening balance on[^\n]*?\$?([\d,]+\.\d{2})', t)
+    open_m = re.search(profile.opening_rx, t)
     running = _money(open_m.group(1)) if open_m else None
 
     capturing = False
@@ -253,10 +275,10 @@ def _walk_chequing_text(t):
 
     for ln in t.splitlines():
         # Page-aware gating: start at the column header, stop at each page footer.
-        if re.search(r'Date\s+Description\s+Withdrawals', ln):
+        if re.search(profile.header_rx, ln):
             capturing = True
             continue
-        if re.search(r'Page\s+\d+\s+of\s+\d+', ln):
+        if re.search(profile.footer_rx, ln):
             capturing = False
             continue
         if not capturing or not ln.strip():
@@ -278,7 +300,7 @@ def _walk_chequing_text(t):
             capturing = False
             continue
 
-        dm = re.match(r'\s*([A-Z][a-z]{2})\s+(\d{1,2})\b', ln)
+        dm = re.match(profile.date_rx, ln)
         if dm and dm.group(1) in MONTHS:
             cur_date = parse_date(f"{dm.group(1)} {dm.group(2)}", ref_year)
 
@@ -323,9 +345,55 @@ def _walk_chequing_text(t):
     return period, txns
 
 
-def chequing_report(path):
+def _walk_ledger(path, profile):
+    """Path entry: extract text, then walk it (see `_walk_ledger_text`)."""
+    return _walk_ledger_text(profile, text(path))
+
+
+def _walk_chequing(path):
+    """CIBC chequing path entry — the shared engine bound to CIBC_LEDGER."""
+    return _walk_ledger_text(CIBC_LEDGER, text(path))
+
+
+def _walk_chequing_text(t):
+    """CIBC chequing text entry (used by verify.py to re-walk without a path)."""
+    return _walk_ledger_text(CIBC_LEDGER, t)
+
+
+def _parse_ledger(path, profile):
+    """Parse a balance-reconciling statement (chequing / savings) into rows.
+
+    Amounts are stored positive; flow encodes direction. Category stays 'Banking'
+    (ledger accounts are not card spend). Rows that reconcile to neither
+    direction are flagged (stderr) and skipped — a mistuned profile yields
+    MISSING rows (visible), never corrupt totals.
+    """
+    period, txns = _walk_ledger(path, profile)
+    rows = []
+    for txn in txns:
+        if txn['direction'] == 'unreconciled':
+            sys.stderr.write(
+                f"[{profile.source}] unreconciled row (prev={txn['prev']:.2f} "
+                f"amt={txn['amount']:.2f} bal={txn['balance']:.2f}): "
+                f"{' '.join(txn['desc_parts'])}\n")
+            continue
+        folded = ' '.join(txn['desc_parts']).strip()
+        flow = profile.classify(folded, txn['direction'])
+        rows.append((profile.source, profile.account, period,
+                     txn['date'] or '', folded or 'TRANSACTION',
+                     txn['amount'], 'Banking', flow))
+    return rows
+
+
+def parse_cibc_chequing(path):
+    """CIBC chequing — thin wrapper over the shared ledger engine."""
+    return _parse_ledger(path, CIBC_LEDGER)
+
+
+def ledger_report(path, profile):
     """Verification helper: tie parsed inflows/outflows to the printed
     Account-summary box. Uses the same walk as the parser so they can't diverge.
+    Works for any ledger bank via its LedgerProfile.
     """
     t = text(path)
 
@@ -334,13 +402,13 @@ def chequing_report(path):
         return _money(m.group(1)) if m else None
 
     summary = {
-        'opening': grab(r'Opening balance on[^\n]*?\$?([\d,]+\.\d{2})'),
-        'withdrawals': grab(r'Withdrawals\s+-\s+([\d,]+\.\d{2})'),
-        'deposits': grab(r'Deposits\s+\+\s+([\d,]+\.\d{2})'),
-        'closing': grab(r'=\s+\$([\d,]+\.\d{2})'),
+        'opening': grab(profile.opening_rx),
+        'withdrawals': grab(profile.withdrawals_rx),
+        'deposits': grab(profile.deposits_rx),
+        'closing': grab(profile.closing_rx),
     }
 
-    period, txns = _walk_chequing(path)
+    period, txns = _walk_ledger(path, profile)
     inflow = sum(x['amount'] for x in txns if x['direction'] == 'in')
     outflow = sum(x['amount'] for x in txns if x['direction'] == 'out')
     unreconciled = sum(1 for x in txns if x['direction'] == 'unreconciled')
@@ -355,12 +423,307 @@ def chequing_report(path):
     }
 
 
+def chequing_report(path):
+    """CIBC chequing verifier — thin wrapper over `ledger_report`."""
+    return ledger_report(path, CIBC_LEDGER)
+
+
+def _ledger_meta(path, profile):
+    """Closing balance + date for a ledger statement. Prefers the summary-box
+    closing value; falls back to the last reconciled running balance (same chain
+    as `ledger_report`)."""
+    t = text(path)
+    m = re.search(profile.closing_rx, t)
+    period, txns = _walk_ledger(path, profile)
+    reconciled = [x for x in txns if x['direction'] != 'unreconciled']
+    closing = _money(m.group(1)) if m else (
+        reconciled[-1]['balance'] if reconciled else None)
+    return {'source': profile.source, 'account': profile.account, 'period': period,
+            'closing_balance': closing, 'closing_date': period_end(period)}
+
+
+# ===========================================================================
+# Card engine — two-date credit/charge statements (Amex-shaped):
+#   "MON DD   MON DD   DESCRIPTION   $AMOUNT"  (credits as "-$X" or trailing "CR").
+# A CardProfile supplies the per-issuer anchors; _parse_card is the shared engine,
+# analogous to _walk_ledger for chequing/savings. CIBC Visa keeps its bespoke
+# parser (the Spend-Categories column) and Amex its own (predates this engine);
+# RBC/TD/Scotia/BMO are SCAFFOLDS reconstructed from documented layouts (synthetic
+# fixtures only). Card statements have NO running-balance checksum, so this engine
+# is the riskiest surface — confirm against a real statement before trusting it.
+# ===========================================================================
+# Money token with optional $ and either-side sign — used by card summary-box
+# balance grabs ("Total balance = $8,401.31", "Equals New Balance $169.12").
+_MONEY_SIGNED = r'(-?\$?-?[\d,]+\.\d{2})'
+
+CARD_ROW_RX = re.compile(
+    r'^(' + DATE + r')\s+(' + DATE + r')\s+(.*?)\s+(-?\$?[\d,]+\.\d{2})(\s*CR)?\s*$')
+
+
+class CardProfile:
+    """Per-issuer config for the two-date card engine (_parse_card).
+
+    period_rx captures the CLOSING date (one group). start_rx/stop_rx gate the
+    transaction section (None on start = capture the whole document, relying on
+    the two-date row shape to exclude summary lines). row_rx defaults to the
+    Amex-shaped two-date row.
+    """
+
+    def __init__(self, source, account, *, period_rx, balance_rx,
+                 start_rx=None, stop_rx=None, row_rx=CARD_ROW_RX):
+        self.source = source
+        self.account = account
+        self.period_rx = period_rx
+        self.balance_rx = balance_rx
+        self.start_rx = start_rx
+        self.stop_rx = stop_rx
+        self.row_rx = row_rx
+
+
+def _card_period(t, profile):
+    m = re.search(profile.period_rx, t, re.I)
+    return m.group(1) if m else profile.source
+
+
+def _parse_card(path, profile):
+    rows, t = [], text(path)
+    period = _card_period(t, profile)
+    ref_year = extract_year(period)
+    cmonth_m = re.match(r'([A-Z][a-z]{2})', period)
+    closing_month = MONTHS.get(cmonth_m.group(1), 1) if cmonth_m else 1
+    cap = profile.start_rx is None
+    for ln in t.splitlines():
+        if profile.start_rx and re.search(profile.start_rx, ln, re.I):
+            cap = True; continue
+        if profile.stop_rx and re.search(profile.stop_rx, ln, re.I):
+            cap = False; continue
+        if not cap:
+            continue
+        m = profile.row_rx.match(ln.strip())
+        if not m:
+            continue
+        txn_date_raw, _post, desc, amt_raw, cr = m.groups()
+        desc = desc.strip()
+        is_credit = amt_raw.strip().startswith('-') or bool(cr)
+        amt = abs(_money(amt_raw))
+        # Year inference mirrors Amex: a December txn on a January-closing
+        # statement belongs to the prior year (the only month the period crosses).
+        txn_year = ref_year
+        tmm = re.match(r'([A-Z][a-z]{2})', txn_date_raw.strip())
+        txn_month = MONTHS.get(tmm.group(1), 1) if tmm else 1
+        if txn_month == 12 and closing_month == 1:
+            txn_year = ref_year - 1
+        txn_date = parse_date(txn_date_raw, txn_year)
+        cat = categorize(desc)
+        if is_credit and 'PAYMENT' in desc.upper():
+            flow = 'payment'           # card payment from chequing
+        elif is_credit:
+            flow = 'income'            # refund / statement credit
+        elif cat == 'Cash advance / fees':
+            flow = 'fee_interest'
+        else:
+            flow = 'spend'
+        rows.append((profile.source, profile.account, period, txn_date or '',
+                     desc, amt, cat, flow))
+    return rows
+
+
+def _card_meta(path, profile):
+    t = text(path)
+    period = _card_period(t, profile)
+    m = re.search(profile.balance_rx, t, re.I)
+    closing = _money(m.group(1)) if m else None
+    return {'source': profile.source, 'account': profile.account, 'period': period,
+            'closing_balance': closing, 'closing_date': period_end(period)}
+
+
+# ===========================================================================
+# Ledger profiles — chequing / savings statements driven by the shared
+# balance-reconciling engine (_walk_ledger). Adding a ledger bank is just a
+# LedgerProfile, no new walk logic.
+# ===========================================================================
+
+# CIBC chequing — the original behaviour, now expressed as a profile (the test
+# suite pins this exactly).
+CIBC_LEDGER = LedgerProfile(
+    'cibc_chequing', 'CIBC Chequing',
+    period_rx=r'For (\w+ \d+ to \w+ \d+, \d{4})',
+    opening_rx=r'Opening balance on[^\n]*?\$?([\d,]+\.\d{2})',
+    closing_rx=r'=\s+\$(-?[\d,]+\.\d{2})',
+    withdrawals_rx=r'Withdrawals\s+-\s+([\d,]+\.\d{2})',
+    deposits_rx=r'Deposits\s+\+\s+([\d,]+\.\d{2})',
+)
+
+# Ledger profiles for the SCAFFOLDED banks (RBC / TD / Scotia / BMO chequing,
+# Tangerine & Wealthsimple chequing+savings). Regexes reconstructed from each
+# issuer's documented "account activity" layout, NOT verified against real PDFs.
+# The reconciliation engine fails safe (skips + logs rows that don't tie out), so
+# a mistuned anchor yields missing rows, never corrupt totals. They share one
+# common shape ("Opening/Closing Balance", a Withdrawals/Deposits/Balance grid);
+# tune per bank on the first real upload.
+def _scaffold_ledger(source, account, account_kind='chequing'):
+    return LedgerProfile(
+        source, account, account_kind,
+        period_rx=r'(?:From|FROM|For the period|Statement period)\s+'
+                  r'([A-Z][a-z]+ \d{1,2}, \d{4} to [A-Z][a-z]+ \d{1,2}, \d{4})',
+        opening_rx=r'Opening [Bb]alance[^\n]*?\$?([\d,]+\.\d{2})',
+        closing_rx=r'Closing [Bb]alance[^\n]*?\$?(-?[\d,]+\.\d{2})',
+        withdrawals_rx=r'Total withdrawals[^\n]*?([\d,]+\.\d{2})',
+        deposits_rx=r'Total deposits[^\n]*?([\d,]+\.\d{2})',
+    )
+
+
+RBC_CHEQUING = _scaffold_ledger('rbc_chequing', 'RBC Chequing')
+TD_CHEQUING = _scaffold_ledger('td_chequing', 'TD Chequing')
+SCOTIA_CHEQUING = _scaffold_ledger('scotia_chequing', 'Scotiabank Chequing')
+BMO_CHEQUING = _scaffold_ledger('bmo_chequing', 'BMO Chequing')
+TANGERINE_CHEQUING = _scaffold_ledger('tangerine_chequing', 'Tangerine Chequing')
+TANGERINE_SAVINGS = _scaffold_ledger('tangerine_savings', 'Tangerine Savings', 'savings')
+WS_CASH = _scaffold_ledger('wealthsimple_cash', 'Wealthsimple Cash')
+WS_SAVINGS = _scaffold_ledger('wealthsimple_savings', 'Wealthsimple Savings', 'savings')
+
+
+# Card profiles — all SCAFFOLDS. RBC keeps section gating (its layout prints a
+# clear "Transaction/Posting/Description" header); TD/Scotia/BMO run ungated and
+# lean on the two-date row shape. balance_rx grabs the printed closing balance.
+RBC_CARD = CardProfile(
+    'rbc_visa', 'RBC Visa',
+    period_rx=r'STATEMENT FROM .*? TO ([A-Z][a-z]+\s+\d{1,2},\s*\d{4})',
+    balance_rx=r'NEW BALANCE[^\n]*?' + _MONEY_SIGNED,
+    start_rx=r'transaction.*posting.*description',
+    stop_rx=r'new balance|subtotal|total account balance',
+)
+
+TD_CARD = CardProfile(
+    'td_visa', 'TD Visa',
+    period_rx=r'STATEMENT PERIOD[^\n]*?to\s+([A-Z][a-z]+\s+\d{1,2},\s*\d{4})',
+    balance_rx=r'NEW BALANCE[^\n]*?' + _MONEY_SIGNED,
+)
+
+SCOTIA_CARD = CardProfile(
+    'scotia_visa', 'Scotiabank Visa',
+    period_rx=r'(?:statement period|for the period)[^\n]*?to\s+([A-Z][a-z]+\s+\d{1,2},\s*\d{4})',
+    balance_rx=r'(?:NEW BALANCE|TOTAL BALANCE)[^\n]*?' + _MONEY_SIGNED,
+)
+
+BMO_CARD = CardProfile(
+    'bmo_mastercard', 'BMO Mastercard',
+    period_rx=r'(?:statement period|period covered)[^\n]*?to\s+([A-Z][a-z]+\s+\d{1,2},\s*\d{4})',
+    balance_rx=r'(?:NEW BALANCE|TOTAL BALANCE)[^\n]*?' + _MONEY_SIGNED,
+)
+
+
+def parse_rbc_visa(path):
+    """RBC Visa — thin wrapper over the shared card engine (pinned by tests)."""
+    return _parse_card(path, RBC_CARD)
+
+
+# ===========================================================================
+# Detectors — a statement's brand + shape. Card detectors require the brand, the
+# card network, and a "NEW/TOTAL BALANCE" summary line (which ledgers never
+# print). Ledger detectors require the brand, an Opening/Closing Balance line,
+# and NO card "NEW BALANCE"; `savings=` disambiguates a brand's chequing vs
+# savings statement (list savings FIRST).
+# ===========================================================================
+# Brand markers per issuer (UPPERCASE; matched against the upper-cased text).
+_BRANDS = {
+    'rbc': ('RBC', 'ROYAL BANK'),
+    'td': ('TD CANADA TRUST', 'TD BANK', 'TORONTO-DOMINION'),
+    'scotia': ('SCOTIABANK', 'BANK OF NOVA SCOTIA'),
+    'bmo': ('BMO', 'BANK OF MONTREAL'),
+}
+
+
+def _has(u, markers):
+    return any(m in u for m in markers)
+
+
+def _card_detect(brand, *, network):
+    """Detector for a card statement: brand + card network + a 'NEW/TOTAL BALANCE'
+    summary line (which chequing/savings statements never print)."""
+    markers = _BRANDS[brand]
+
+    def detect(t):
+        u = t.upper()
+        return (_has(u, markers) and network in u
+                and ('NEW BALANCE' in u or 'TOTAL BALANCE' in u))
+    return detect
+
+
+def _ledger_detect(brand, *, savings=None):
+    """Detector for a chequing/savings statement: brand + an Opening/Closing
+    Balance line and NO card 'NEW BALANCE'. `savings=True` requires a SAVINGS
+    marker; `savings=False` requires its absence (so the same brand's chequing and
+    savings statements route to distinct handlers — list savings FIRST)."""
+    markers = _BRANDS.get(brand, (brand.upper(),))
+
+    def detect(t):
+        u = t.upper()
+        if not (_has(u, markers) and 'NEW BALANCE' not in u
+                and ('OPENING BALANCE' in u or 'CLOSING BALANCE' in u)):
+            return False
+        if savings is None:
+            return True
+        has_savings = 'SAVINGS' in u or 'SAVING ACCOUNT' in u
+        return has_savings if savings else not has_savings
+    return detect
+
+
+# ===========================================================================
+# Scaffold bank registry — the single source of truth for the SCAFFOLDED banks.
+# `registry.register_scaffolds()` reads this to wire routing (main/orchestrator);
+# `statement_meta()` reads it for per-bank metadata. Each entry carries its
+# routing priority (30–80, between the CIBC built-ins at 10/20 and the Amex
+# fallback at 90). Within a brand that has both chequing AND savings (Tangerine,
+# Wealthsimple), the SAVINGS handler is listed (and prioritised) FIRST so its
+# savings-marker detector wins.
+# ===========================================================================
+class _Scaffold:
+    def __init__(self, id, account_kind, priority, detect, parse, meta):
+        self.id = id
+        self.account_kind = account_kind
+        self.priority = priority
+        self.detect = detect
+        self.parse = parse
+        self.meta = meta
+
+
+def _card_scaffold(profile, priority, detect):
+    return _Scaffold(profile.source, 'card', priority, detect,
+                     lambda p: _parse_card(p, profile),
+                     lambda p: _card_meta(p, profile))
+
+
+def _ledger_scaffold(profile, priority, detect):
+    return _Scaffold(profile.source, profile.account_kind, priority, detect,
+                     lambda p: _parse_ledger(p, profile),
+                     lambda p: _ledger_meta(p, profile))
+
+
+_SCAFFOLD_BANKS = [
+    _card_scaffold(RBC_CARD, 30, _card_detect('rbc', network='VISA')),
+    _ledger_scaffold(RBC_CHEQUING, 31, _ledger_detect('rbc')),
+    _card_scaffold(TD_CARD, 32, _card_detect('td', network='VISA')),
+    _ledger_scaffold(TD_CHEQUING, 33, _ledger_detect('td')),
+    _card_scaffold(SCOTIA_CARD, 34, _card_detect('scotia', network='VISA')),
+    _ledger_scaffold(SCOTIA_CHEQUING, 35, _ledger_detect('scotia')),
+    _card_scaffold(BMO_CARD, 36, _card_detect('bmo', network='MASTERCARD')),
+    _ledger_scaffold(BMO_CHEQUING, 37, _ledger_detect('bmo')),
+    _ledger_scaffold(TANGERINE_SAVINGS, 38, _ledger_detect('tangerine', savings=True)),
+    _ledger_scaffold(TANGERINE_CHEQUING, 39, _ledger_detect('tangerine', savings=False)),
+    _ledger_scaffold(WS_SAVINGS, 40, _ledger_detect('wealthsimple', savings=True)),
+    _ledger_scaffold(WS_CASH, 41, _ledger_detect('wealthsimple', savings=False)),
+]
+
+
 def statement_meta(path):
     """Statement-level metadata: opening + closing balance + closing date per source.
 
     Balances are stored AS PRINTED — positive means money in the account for
-    chequing and amount owed for cards; the app's net-worth layer applies the
-    liability sign. Returns None for unrecognized PDFs.
+    chequing/savings and amount owed for cards; the app's net-worth layer applies
+    the liability sign. The three verified built-ins carry an `opening_balance`
+    too (verify.py reconciles cards with it); the scaffolds don't yet. Returns
+    None for unrecognized PDFs.
     """
     t = text(path)
     money_rx = r'(-?\$?-?[\d,]+\.\d{2})'
@@ -396,6 +759,12 @@ def statement_meta(path):
         closing = _money(m.group(1)) if m else None
         opening = _money(om.group(1)) if om else None
     else:
+        # Scaffolded banks — no opening_balance yet (not verified against real
+        # PDFs). Amex is checked above so its "American Express" text never
+        # reaches here; scaffold detectors key on distinct brand markers.
+        for b in _SCAFFOLD_BANKS:
+            if b.detect(t):
+                return b.meta(path)
         return None
     return {'source': source, 'account': account, 'period': period,
             'closing_balance': closing, 'closing_date': period_end(period),
@@ -404,16 +773,15 @@ def statement_meta(path):
 
 def main(src_dir, out_csv):
     # Routing lives in the registry (registry.py) and is driven by the
-    # orchestrator (orchestrator.py) — Phase 1 of the self-improving parser
-    # (see internal/self-improving-parser-plan.md). Behaviour is identical to the
-    # old Visa -> chequing -> Amex(fallback) if/elif: the registry encodes that
-    # precedence as parser priority, and orchestrator.parse_file() reproduces this
-    # loop body (route -> parse -> attach statement metadata). The Amex check stays
-    # the lowest-priority fallback because chequing statements contain the text
-    # "American Express" (Amex card-payment lines).
+    # orchestrator (orchestrator.py) — Phase 1 of the self-improving parser.
+    # register_builtins wires the three verified parsers (Visa 10 -> chequing 20
+    # -> Amex fallback 90); register_scaffolds wires the scaffolded banks from
+    # _SCAFFOLD_BANKS (priorities 30-80, so they slot between chequing and the
+    # Amex fallback — chequing statements contain the text "American Express").
     import sys as _sys
     import registry, orchestrator
     registry.register_builtins(_sys.modules[__name__])
+    registry.register_scaffolds(_sys.modules[__name__])
 
     rows, metas = [], []
     for f in sorted(glob.glob(os.path.join(src_dir, '*.pdf'))):

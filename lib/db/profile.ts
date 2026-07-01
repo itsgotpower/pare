@@ -28,7 +28,26 @@ const SOURCE_LABELS: Record<string, string> = {
   amex: "AMEX",
   cibc_visa: "CIBC VISA",
   cibc_chequing: "CHEQUING",
+  rbc_visa: "RBC VISA",
+  rbc_chequing: "RBC CHEQUING",
+  td_visa: "TD VISA",
+  td_chequing: "TD CHEQUING",
+  scotia_visa: "SCOTIA VISA",
+  scotia_chequing: "SCOTIA CHEQUING",
+  bmo_mastercard: "BMO MASTERCARD",
+  bmo_chequing: "BMO CHEQUING",
+  tangerine_chequing: "TANGERINE CHEQUING",
+  tangerine_savings: "TANGERINE SAVINGS",
+  wealthsimple_cash: "WS CASH",
+  wealthsimple_savings: "WS SAVINGS",
 };
+
+// Human label for a parser `source`. Explicit overrides win; otherwise derive a
+// readable label from the `<bank>_<kind>` convention (rbc_chequing → "RBC
+// CHEQUING") so a newly-added bank renders sensibly without a map entry.
+function sourceLabel(source: string): string {
+  return SOURCE_LABELS[source] ?? source.replace(/_/g, " ").toUpperCase();
+}
 
 // Days without a new transaction before a source is flagged as stale.
 // Statements are monthly, so ~a cycle plus mailing slack.
@@ -136,7 +155,7 @@ export function getDataHealth(): DataHealth {
       );
       return {
         source: row.source,
-        label: SOURCE_LABELS[row.source] ?? row.source.toUpperCase(),
+        label: sourceLabel(row.source),
         statement_count: stmt?.n ?? 0,
         last_period: stmt?.last_period ?? null,
         last_txn_date: row.last_txn_date,
