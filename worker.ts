@@ -39,7 +39,10 @@ import { sentryOptions } from "./lib/sentry";
 // async parse pipeline (the `queue` handler) and the parser Container are dropped
 // from the entry module to match the trimmed wrangler.toml (no queues/containers
 // configured). The full handler — `queue` + the `ParserContainer` export — lives
-// on `main`; restore both here when re-enabling the upload pipeline.
+// on `main`; restore both here when re-enabling the upload pipeline. ALSO restore
+// an `email` handler wired to cloud/ingest/email-worker.ts's handleEmailMessage —
+// the email-ingest adapter exists but has never been wired to a Worker entry
+// (it needs an Email Routing binding in wrangler too).
 const handler = {
   // The Next.js app's fetch handler, untouched.
   fetch: (openNextHandler as { fetch: (...args: unknown[]) => Promise<Response> }).fetch,

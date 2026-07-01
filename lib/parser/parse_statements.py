@@ -35,7 +35,7 @@ riskiest surface.
 
 Requires: pdftotext (poppler-utils). pip install nothing else.
 """
-import subprocess, re, sys, glob, os, csv, json, datetime
+import subprocess, re, sys, glob, os, csv, json, datetime, functools
 sys.path.insert(0, os.path.dirname(__file__))
 from categories import categorize
 
@@ -47,6 +47,10 @@ MONTHS = {
     'Jul': 7, 'Aug': 8, 'Sep': 9, 'Oct': 10, 'Nov': 11, 'Dec': 12,
 }
 
+# Cached: each PDF is otherwise extracted 3-4x per run (route select, parse,
+# statement_meta, and the chequing meta re-walk each call text()). Tests
+# monkeypatch the `text` attribute wholesale, so they never hit the cache.
+@functools.lru_cache(maxsize=8)
 def text(path):
     r = subprocess.run(['pdftotext', '-layout', path, '-'],
                        capture_output=True, text=True)
@@ -99,6 +103,18 @@ def period_end(period_str):
     return f"{m.group(3)}-{month_num:02d}-{int(m.group(2)):02d}"
 
 
+def _infer_txn_year(txn_date_raw, ref_year, closing_month):
+    """Statement-relative year for a 'Mon DD' transaction date: the closing
+    year, except a December transaction on a January-closing statement belongs
+    to the prior year (the only month such a period crosses). Shared by the
+    bespoke Amex parser and the card engine so the rule can't drift."""
+    tmm = re.match(r'([A-Z][a-z]{2})', txn_date_raw.strip())
+    txn_month = MONTHS.get(tmm.group(1), 1) if tmm else 1
+    if txn_month == 12 and closing_month == 1:
+        return ref_year - 1
+    return ref_year
+
+
 def _amex_period(t):
     # The header value line carries BOTH dates: "... Opening Date  Closing Date"
     # then "... Feb 03, 2026   Mar 02, 2026". Grab the CLOSING date (the second);
@@ -131,14 +147,7 @@ def parse_amex(path):
         is_credit = amt_raw.strip().startswith('-') or bool(cr)
         amt = abs(float(amt_raw.replace(',', '')))
         desc = desc.strip()
-        # Year = closing year, except a December transaction on a January-closing
-        # statement belongs to the prior year (the only month the period crosses).
-        txn_year = ref_year
-        tmm = re.match(r'([A-Z][a-z]{2})', txn_date_raw.strip())
-        txn_month = MONTHS.get(tmm.group(1), 1) if tmm else 1
-        if txn_month == 12 and closing_month == 1:
-            txn_year = ref_year - 1
-        txn_date = parse_date(txn_date_raw, txn_year)
+        txn_date = parse_date(txn_date_raw, _infer_txn_year(txn_date_raw, ref_year, closing_month))
         cat = categorize(desc)
         if is_credit and 'PAYMENT' in desc.upper():
             flow = 'payment'
@@ -546,14 +555,7 @@ def _parse_card(path, profile):
         desc = desc.strip()
         is_credit = amt_raw.strip().startswith('-') or bool(cr)
         amt = abs(_money(amt_raw))
-        # Year inference mirrors Amex: a December txn on a January-closing
-        # statement belongs to the prior year (the only month the period crosses).
-        txn_year = ref_year
-        tmm = re.match(r'([A-Z][a-z]{2})', txn_date_raw.strip())
-        txn_month = MONTHS.get(tmm.group(1), 1) if tmm else 1
-        if txn_month == 12 and closing_month == 1:
-            txn_year = ref_year - 1
-        txn_date = parse_date(txn_date_raw, txn_year)
+        txn_date = parse_date(txn_date_raw, _infer_txn_year(txn_date_raw, ref_year, closing_month))
         cat = categorize(desc)
         if is_credit and 'PAYMENT' in desc.upper():
             flow = 'payment'           # card payment from chequing
