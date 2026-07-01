@@ -116,7 +116,7 @@ def parse_amex(path):
     ref_year = extract_year(period)
     cmonth_m = re.match(r'([A-Z][a-z]{2})', period)
     closing_month = MONTHS.get(cmonth_m.group(1), 1) if cmonth_m else 1
-    rx = re.compile(rf'^({DATE})\s+({DATE})\s+(.*?)\s+({MONEY})\s*$')
+    rx = re.compile(rf'^({DATE})\s+({DATE})\s+(.*?)\s+({MONEY})(\s*CR)?\s*$')
     cap = False
     for ln in t.splitlines():
         if 'New Transactions for' in ln: cap = True; continue
@@ -124,9 +124,12 @@ def parse_amex(path):
         if not cap: continue
         m = rx.match(ln.strip())
         if not m: continue
-        txn_date_raw, _, desc, amt = m.groups()
+        txn_date_raw, _, desc, amt_raw, cr = m.groups()
         if 'UNITED STATES DOLLAR' in desc: continue
-        amt = float(amt.replace(',', ''))
+        # Credits ("-12.34" or trailing "CR") are refunds/statement credits, not
+        # spend — same contract as _parse_card: amounts positive, flow encodes it.
+        is_credit = amt_raw.strip().startswith('-') or bool(cr)
+        amt = abs(float(amt_raw.replace(',', '')))
         desc = desc.strip()
         # Year = closing year, except a December transaction on a January-closing
         # statement belongs to the prior year (the only month the period crosses).
@@ -137,7 +140,14 @@ def parse_amex(path):
             txn_year = ref_year - 1
         txn_date = parse_date(txn_date_raw, txn_year)
         cat = categorize(desc)
-        flow = 'fee_interest' if cat == 'Cash advance / fees' else 'spend'
+        if is_credit and 'PAYMENT' in desc.upper():
+            flow = 'payment'
+        elif is_credit:
+            flow = 'income'
+        elif cat == 'Cash advance / fees':
+            flow = 'fee_interest'
+        else:
+            flow = 'spend'
         rows.append(('amex', 'Amex Gold', period, txn_date or '', desc, amt, cat, flow))
     return rows
 
@@ -159,7 +169,7 @@ def parse_cibc_visa(path):
     rows, t = [], text(path)
     period = _visa_period(t)
     ref_year = extract_year(period)
-    rx = re.compile(rf'^({DATE})\s+({DATE})\s+(?:Q\s+)?(.*?)\s+({CIBC_CATS})\s+({MONEY})\s*$')
+    rx = re.compile(rf'^({DATE})\s+({DATE})\s+(?:Q\s+)?(.*?)\s+({CIBC_CATS})\s+({MONEY})(\s*CR)?\s*$')
     cap = False
     for ln in t.splitlines():
         if 'Your new charges' in ln: cap = True; continue
@@ -180,12 +190,23 @@ def parse_cibc_visa(path):
             continue
         m = rx.match(ln.strip())
         if not m: continue
-        txn_date_raw, _, desc, _spendcat, amt = m.groups()
-        amt = float(amt.replace(',', ''))
+        txn_date_raw, _, desc, _spendcat, amt_raw, cr = m.groups()
+        # The section header literally says "charges and credits" — a refund
+        # ("-12.34" or trailing "CR") must not count as spend (amounts positive,
+        # flow encodes direction; same contract as _parse_card).
+        is_credit = amt_raw.strip().startswith('-') or bool(cr)
+        amt = abs(float(amt_raw.replace(',', '')))
         desc = desc.strip()
         txn_date = parse_date(txn_date_raw, ref_year)
         cat = categorize(desc)
-        flow = 'fee_interest' if cat == 'Cash advance / fees' else 'spend'
+        if is_credit and 'PAYMENT' in desc.upper():
+            flow = 'payment'
+        elif is_credit:
+            flow = 'income'
+        elif cat == 'Cash advance / fees':
+            flow = 'fee_interest'
+        else:
+            flow = 'spend'
         rows.append(('cibc_visa', 'CIBC Aeroplan Visa', period, txn_date or '', desc, amt, cat, flow))
     return rows
 
