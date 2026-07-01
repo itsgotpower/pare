@@ -17,13 +17,33 @@ export interface UserRule {
   keyword: string;
 }
 
+function loadUserRulesStrict(): UserRule[] {
+  if (!fs.existsSync(FILE)) return [];
+  const parsed = JSON.parse(fs.readFileSync(FILE, "utf-8"));
+  if (!Array.isArray(parsed)) throw new Error("expected a JSON array");
+  return parsed as UserRule[];
+}
+
 export function loadUserRules(): UserRule[] {
   try {
-    if (!fs.existsSync(FILE)) return [];
-    const raw = fs.readFileSync(FILE, "utf-8");
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? (parsed as UserRule[]) : [];
+    return loadUserRulesStrict();
   } catch {
+    return [];
+  }
+}
+
+// Write-path load: a corrupt file must NOT read as "no rules" — the next write
+// would replace every persisted rule with a single one. Set it aside instead.
+function loadUserRulesForWrite(): UserRule[] {
+  try {
+    return loadUserRulesStrict();
+  } catch (err) {
+    const bad = FILE + ".bad";
+    fs.renameSync(FILE, bad);
+    console.error(
+      `user-rules.json is unreadable (${err instanceof Error ? err.message : err}); ` +
+        `moved it to ${bad} — restore it by hand to recover the rules`
+    );
     return [];
   }
 }
@@ -50,7 +70,7 @@ function writeUserRules(rules: UserRule[]): void {
 }
 
 export function saveUserRule(category: string, keyword: string): void {
-  const rules = loadUserRules();
+  const rules = loadUserRulesForWrite();
   // Dedupe by keyword (case-insensitive) — last write wins on category.
   const filtered = rules.filter(
     (r) => r.keyword.toUpperCase() !== keyword.toUpperCase()
@@ -60,7 +80,7 @@ export function saveUserRule(category: string, keyword: string): void {
 }
 
 export function removeUserRule(keyword: string): void {
-  const rules = loadUserRules();
+  const rules = loadUserRulesForWrite();
   const filtered = rules.filter(
     (r) => r.keyword.toUpperCase() !== keyword.toUpperCase()
   );
