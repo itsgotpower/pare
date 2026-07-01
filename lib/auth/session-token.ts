@@ -27,7 +27,7 @@ const utf8 = new TextEncoder();
 
 // WebCrypto wants an ArrayBuffer-backed view; a bare Uint8Array types as
 // ArrayBufferLike under TS, which doesn't satisfy BufferSource. Copy to a
-// standalone ArrayBuffer (mirrors lib/repo/web-crypto-box.ts's `ab`).
+// standalone ArrayBuffer.
 function ab(u: Uint8Array): ArrayBuffer {
   return u.buffer.slice(u.byteOffset, u.byteOffset + u.byteLength) as ArrayBuffer;
 }

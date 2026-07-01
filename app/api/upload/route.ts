@@ -3,7 +3,6 @@ import { writeFileSync, mkdtempSync, rmSync } from "fs";
 import path from "path";
 import os from "os";
 import { parsePdf } from "@/lib/parser/run-parser";
-import { computeDedupKey } from "@/lib/db/transactions";
 import { getScopedRepo, unauthorized } from "@/lib/repo/scoped";
 import { insertParsedStatement } from "@/lib/repo/insert-parsed";
 import { insertOfxImport } from "@/lib/repo/insert-ofx";
@@ -86,11 +85,6 @@ async function handleSelfHostUpload(request: NextRequest) {
 
     const formData = await request.formData();
     const file = formData.get("file") as File | null;
-    const csvData = formData.get("csv") as string | null;
-
-    if (csvData) {
-      return await handleCsvImport(repo, csvData);
-    }
 
     if (!file) {
       return Response.json({ error: "No file provided" }, { status: 400 });
@@ -259,114 +253,4 @@ async function handleOfxImport(repo: Repo, file: File) {
 
   const { inserted, skipped } = await insertOfxImport(repo, file.name, parsed);
   return Response.json({ inserted, skipped, total, filename: file.name });
-}
-
-// Dormant: the CSV-import UI/route were removed (PDFs only — importing the CSV
-// used period-start dates, creating silent duplicates); nothing triggers this
-// branch. Kept (and migrated) for parity.
-async function handleCsvImport(repo: Repo, csvData: string) {
-  await repo.categories.seed();
-
-  const lines = csvData.replace(/\r/g, "").trim().split("\n");
-  const header = lines[0];
-  const hasDateCol = header.includes("txn_date");
-
-  const seqMap = new Map<string, number>();
-
-  const statementId = await repo.statements.insert({
-    filename: "csv-import",
-    source: "csv",
-    account: "CSV Import",
-    period: "imported",
-    row_count: lines.length - 1,
-  });
-
-  const newTxns: Parameters<typeof repo.transactions.insertMany>[0] = [];
-
-  for (let i = 1; i < lines.length; i++) {
-    const parts = parseCSVLine(lines[i]);
-    if (parts.length < 7) continue;
-
-    let source: string, account: string, period: string, txnDate: string;
-    let description: string, amount: number, category: string, flow: string;
-
-    if (hasDateCol) {
-      [source, account, period, txnDate, description, amount, category, flow] = [
-        parts[0], parts[1], parts[2], parts[3], parts[4],
-        parseFloat(parts[5]), parts[6], parts[7],
-      ] as [string, string, string, string, string, number, string, string];
-    } else {
-      [source, account, period, description, amount, category, flow] = [
-        parts[0], parts[1], parts[2], parts[3],
-        parseFloat(parts[4]), parts[5], parts[6],
-      ] as [string, string, string, string, number, string, string];
-      txnDate = extractDateFromPeriod(period);
-    }
-
-    const seqKey = `${source}|${txnDate}|${description}|${amount}`;
-    const seq = (seqMap.get(seqKey) || 0) + 1;
-    seqMap.set(seqKey, seq);
-
-    newTxns.push({
-      statement_id: statementId || null,
-      source, account, period,
-      txn_date: txnDate,
-      description,
-      amount,
-      category,
-      flow,
-      dedup_key: computeDedupKey(source, txnDate, description, amount, seq),
-    });
-  }
-
-  const { inserted, skipped } = await repo.transactions.insertMany(newTxns);
-
-  return Response.json({ inserted, skipped, total: lines.length - 1, filename: "csv-import" });
-}
-
-function extractDateFromPeriod(period: string): string {
-  const m = period.match(/(\w+)\s+(\d+),?\s*(\d{4})/);
-  if (m) {
-    const months: Record<string, string> = {
-      Jan: "01", Feb: "02", Mar: "03", Apr: "04", May: "05", Jun: "06",
-      Jul: "07", Aug: "08", Sep: "09", Oct: "10", Nov: "11", Dec: "12",
-    };
-    const mon = months[m[1]] || "01";
-    return `${m[3]}-${mon}-${m[2].padStart(2, "0")}`;
-  }
-  const rangeMatch = period.match(/(\w+)\s+(\d+)\s+to\s+\w+\s+\d+,?\s*(\d{4})/);
-  if (rangeMatch) {
-    const months: Record<string, string> = {
-      January: "01", February: "02", March: "03", April: "04", May: "05", June: "06",
-      July: "07", August: "08", September: "09", October: "10", November: "11", December: "12",
-    };
-    const mon = months[rangeMatch[1]] || "01";
-    return `${rangeMatch[3]}-${mon}-${rangeMatch[2].padStart(2, "0")}`;
-  }
-  return "2026-01-01";
-}
-
-function parseCSVLine(line: string): string[] {
-  const result: string[] = [];
-  let current = "";
-  let inQuotes = false;
-
-  for (let i = 0; i < line.length; i++) {
-    const ch = line[i];
-    if (ch === '"') {
-      if (inQuotes && line[i + 1] === '"') {
-        current += '"';
-        i++;
-      } else {
-        inQuotes = !inQuotes;
-      }
-    } else if (ch === "," && !inQuotes) {
-      result.push(current);
-      current = "";
-    } else {
-      current += ch;
-    }
-  }
-  result.push(current);
-  return result;
 }

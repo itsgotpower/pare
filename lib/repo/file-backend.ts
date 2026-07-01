@@ -6,8 +6,6 @@ import type { DbBackend } from "./backend";
 // (data/pare.db). SQLite's WAL handles durability, so persist() is a no-op and
 // behaviour is byte-for-byte identical to the pre-Repo getDb() singleton. The
 // connection lives for the process lifetime, so close() is a no-op too.
-//
-// The encrypted, in-memory counterpart (EncryptedBlobBackend) arrives in Step 3.
 export class FileBackend implements DbBackend {
   async open(): Promise<Database.Database> {
     return getDb();
