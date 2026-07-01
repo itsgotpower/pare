@@ -21,6 +21,7 @@ export async function GET(request: NextRequest) {
 
   const { rows, total } = await repo.transactions.list(filters);
   const categories = await repo.transactions.categories();
+  const sources = await repo.transactions.sources();
 
-  return Response.json({ rows, total, categories });
+  return Response.json({ rows, total, categories, sources });
 }

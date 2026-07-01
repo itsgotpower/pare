@@ -65,9 +65,9 @@ export async function PUT(request: NextRequest) {
 export async function DELETE(request: NextRequest) {
   const repo = await getScopedRepo(request);
   if (!repo) return unauthorized();
-  const id = request.nextUrl.searchParams.get("id");
-  if (!id) return Response.json({ error: "id required" }, { status: 400 });
+  const id = Number(request.nextUrl.searchParams.get("id"));
+  if (!Number.isInteger(id)) return Response.json({ error: "id required" }, { status: 400 });
 
-  await repo.netWorth.deleteEntry(parseInt(id));
+  await repo.netWorth.deleteEntry(id);
   return Response.json({ success: true });
 }

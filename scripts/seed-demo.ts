@@ -2,6 +2,7 @@ import Database from "better-sqlite3";
 import { createHash } from "crypto";
 import path from "path";
 import fs from "fs";
+import { runMigrationsFromStrings } from "../lib/repo/do-backend";
 
 const DB_PATH = path.join(process.cwd(), "data", "demo.db");
 const DB_DIR = path.dirname(DB_PATH);
@@ -12,15 +13,9 @@ const db = new Database(DB_PATH);
 db.pragma("journal_mode = WAL");
 db.pragma("foreign_keys = ON");
 
-// Run the init migration inline
-const migrationSql = fs.readFileSync(
-  path.join(process.cwd(), "lib/db/migrations/001_init.sql"),
-  "utf-8"
-);
-db.exec(migrationSql);
-db.prepare(
-  "INSERT INTO _migrations (name) VALUES (?)"
-).run("001_init.sql");
+// Run ALL bundled migrations (lib/db/migrations.ts) so the demo DB carries the
+// full current schema, not just 001_init — no reliance on the app back-filling.
+runMigrationsFromStrings(db);
 
 // ── Helpers ──
 

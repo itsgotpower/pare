@@ -116,6 +116,7 @@ export class DoRepoClient implements Repo {
     list: (filters) =>
       this.call("transactions", "list", filters) as ReturnType<TransactionRepo["list"]>,
     categories: () => this.call("transactions", "categories") as Promise<string[]>,
+    sources: () => this.call("transactions", "sources") as Promise<string[]>,
     categoryOf: (id) =>
       this.call("transactions", "categoryOf", id) as ReturnType<TransactionRepo["categoryOf"]>,
   };
@@ -176,7 +177,7 @@ export class DoRepoClient implements Repo {
       this.call("summary", "categoryBreakdown", month) as ReturnType<
         SummaryRepo["categoryBreakdown"]
       >,
-    trends: (months) => this.call("summary", "trends", months) as ReturnType<SummaryRepo["trends"]>,
+    trends: () => this.call("summary", "trends") as ReturnType<SummaryRepo["trends"]>,
     topMerchants: (limit, month, category) =>
       this.call("summary", "topMerchants", limit, month, category) as ReturnType<
         SummaryRepo["topMerchants"]

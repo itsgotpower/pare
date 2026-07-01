@@ -1,6 +1,7 @@
 import { getDb } from "../db";
 import { CARD_SPEND_WHERE } from "./account-kinds";
-import { merchantSlug } from "../merchant-key";
+import { merchantDisplay, merchantSlug } from "../merchant-key";
+import { median, frequencyLabel } from "./stats";
 
 export interface Subscription {
   merchant: string;
@@ -31,43 +32,10 @@ interface Row {
   category: string;
 }
 
-const median = (xs: number[]) => {
-  const s = [...xs].sort((a, b) => a - b);
-  const m = Math.floor(s.length / 2);
-  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
-};
-
 // Group key: uppercased alpha-ish prefix, which collapses the trailing
 // store numbers / locations that vary per charge.
 function merchantKey(desc: string): string {
   return desc.toUpperCase().replace(/\s+/g, " ").trim().slice(0, 14);
-}
-
-// Cleaner display name: drop long digit runs and trailing location noise.
-function displayName(desc: string): string {
-  return desc
-    .replace(/\s{2,}.*$/, "") // cut at the big gap before location
-    .replace(/[0-9*#]{4,}.*$/, "") // cut at long number/ref runs
-    .replace(/\s+/g, " ")
-    .trim()
-    .slice(0, 32) || desc.trim().slice(0, 32);
-}
-
-function frequencyLabel(dates: string[]): string {
-  if (dates.length < 2) return "monthly";
-  const days = dates
-    .map((d) => new Date(d + "T00:00:00").getTime())
-    .sort((a, b) => a - b);
-  const gaps: number[] = [];
-  for (let i = 1; i < days.length; i++) {
-    gaps.push((days[i] - days[i - 1]) / 86400000);
-  }
-  const g = median(gaps);
-  if (g <= 10) return "weekly";
-  if (g <= 20) return "biweekly";
-  if (g <= 45) return "monthly";
-  if (g <= 75) return "every ~2 months";
-  return "irregular";
 }
 
 export function getSubscriptions(): { subscriptions: Subscription[]; monthlyTotal: number } {
@@ -122,7 +90,7 @@ export function getSubscriptions(): { subscriptions: Subscription[]; monthlyTota
       frequency === "monthly" && [...perMonthCounts.values()].some((c) => c >= 2);
 
     subs.push({
-      merchant: displayName(items[0].description),
+      merchant: merchantDisplay(items[0].description),
       slug: merchantSlug(items[0].description),
       category: items[0].category,
       charges: items.length,

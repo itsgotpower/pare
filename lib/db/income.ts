@@ -19,9 +19,13 @@ export interface IncomeVsSpend {
   variable: number;
 }
 
+// Payroll detector shared with the forecast engines (forecast.ts,
+// cashflowForecast.ts) so "payroll" means the same thing everywhere.
+export const PAYROLL_WHERE = `(UPPER(description) LIKE '%PEOPLE CENTER%' OR UPPER(description) LIKE '%PAYROLL%')`;
+
 export const TYPE_CASE = `
   CASE
-    WHEN UPPER(description) LIKE '%PEOPLE CENTER%' OR UPPER(description) LIKE '%PAYROLL%' THEN 'Payroll'
+    WHEN ${PAYROLL_WHERE} THEN 'Payroll'
     WHEN UPPER(description) LIKE '%REFUND%' OR UPPER(description) LIKE '%REMBOURS%' THEN 'Tax refund'
     WHEN UPPER(description) LIKE '%HEALTHCLAIM%' THEN 'Health claim'
     WHEN UPPER(description) LIKE '%PAYOUT%' THEN 'Winnings'

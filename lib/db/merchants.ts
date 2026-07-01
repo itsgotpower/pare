@@ -1,6 +1,7 @@
 import { getDb } from "../db";
 import { CARD_SPEND_WHERE } from "./account-kinds";
 import { merchantDisplay, merchantSlug } from "../merchant-key";
+import { median, frequencyLabel } from "./stats";
 
 // Merchant drill-down queries. A "merchant" is the group of card-spend rows that
 // share a normalized slug (see lib/merchant-key.ts) — this collapses the per-charge
@@ -74,29 +75,6 @@ interface Row {
 // Same "card spend" universe as the dashboard charts / subscriptions, keyed off
 // account_kind (Part 2 refactor) so imported card data lights up here too.
 const SPEND_WHERE = `${CARD_SPEND_WHERE} AND amount > 0`;
-
-const median = (xs: number[]): number => {
-  const s = [...xs].sort((a, b) => a - b);
-  const m = Math.floor(s.length / 2);
-  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
-};
-
-// Median inter-charge gap → a human frequency label (same buckets as the
-// recurring detector, so a subscription and its merchant page read consistently).
-function frequencyLabel(dates: string[]): string {
-  if (dates.length < 2) return "one-off";
-  const days = dates
-    .map((d) => new Date(d + "T00:00:00").getTime())
-    .sort((a, b) => a - b);
-  const gaps: number[] = [];
-  for (let i = 1; i < days.length; i++) gaps.push((days[i] - days[i - 1]) / 86400000);
-  const g = median(gaps);
-  if (g <= 10) return "weekly";
-  if (g <= 20) return "biweekly";
-  if (g <= 45) return "monthly";
-  if (g <= 75) return "every ~2 months";
-  return "irregular";
-}
 
 // Pick the most common display name in the group (stable label even when the
 // representative row order shifts), tie-broken toward the longest.
@@ -220,7 +198,7 @@ export function getMerchantDetail(slug: string): MerchantDetail | null {
     monthlyAvg: total / months,
     firstDate: dates[0],
     lastDate: dates[dates.length - 1],
-    frequency: frequencyLabel(items.map((i) => i.txn_date)),
+    frequency: frequencyLabel(items.map((i) => i.txn_date), "one-off"),
     monthly,
     categories,
     transactions,

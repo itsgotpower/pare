@@ -1,7 +1,8 @@
 import { getDb } from "../db";
 import { OUTFLOW_WHERE } from "./account-kinds";
-import { getIncomeVsSpend, FIXED_CATEGORIES } from "./income";
+import { getIncomeVsSpend, FIXED_CATEGORIES, PAYROLL_WHERE } from "./income";
 import { getSubscriptions } from "./subscriptions";
+import { median } from "./stats";
 
 export interface CategoryPace {
   category: string;
@@ -23,12 +24,6 @@ export interface Forecast {
   basisMonths: string[]; // complete months the averages come from
   categories: CategoryPace[]; // pace mode only, sorted by projected desc
 }
-
-const median = (xs: number[]) => {
-  const s = [...xs].sort((a, b) => a - b);
-  const m = Math.floor(s.length / 2);
-  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
-};
 
 // Same expense universe as getIncomeVsSpend / getCashflow (account_kind-keyed,
 // shared from account-kinds.ts so imported foreign accounts join in too).
@@ -62,7 +57,7 @@ export function getForecast(now: Date = new Date()): Forecast | null {
       `SELECT substr(txn_date, 1, 7) AS m, SUM(amount) AS t
        FROM v_transactions
        WHERE flow = 'income'
-         AND (UPPER(description) LIKE '%PEOPLE CENTER%' OR UPPER(description) LIKE '%PAYROLL%')
+         AND ${PAYROLL_WHERE}
          AND substr(txn_date, 1, 7) IN (${basisList})
        GROUP BY m`
     )
