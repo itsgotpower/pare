@@ -7,9 +7,9 @@
 // callRepoMethod(repo, call); the client builds the call and ships it.
 //
 // batch() is special: its argument is a closure, which cannot cross an RPC/DO
-// boundary. The only batched write in the app is the upload flow
-// (insertMany + recategorizeAll under one durability boundary), so that exact
-// sequence is expressed as a dedicated, serialisable operation: "upload".
+// boundary. Instead the client serialises the batched writes into a generic
+// "__batch__" envelope (RepoBatchCall below) — a list of sub-calls the DO runs
+// under ONE durability boundary via repo.batch().
 
 import type { Repo } from "./types";
 
@@ -71,10 +71,11 @@ export async function callRepoMethod(repo: Repo, call: AnyRepoCall): Promise<unk
 // --- The method catalogue (for the request-side proxy) ---------------------
 //
 // Mirrors the Repo interface namespaces 1:1 (lib/repo/types.ts). DoRepoClient
-// builds a proxy from this so each Repo method becomes a forwarded RPC call. Kept
-// here next to the dispatcher so both sides reference the same source of truth.
+// hand-lists a typed forwarder per method (do-repo-client.ts); this catalogue is
+// the reference list those forwarders must cover, and feeds the DO's methods()
+// probe. Kept next to the dispatcher so both sides share one source of truth.
 export const REPO_NAMESPACES: Record<string, readonly string[]> = {
-  transactions: ["insert", "insertMany", "list", "categories", "categoryOf"],
+  transactions: ["insert", "insertMany", "list", "categories", "sources", "categoryOf"],
   statements: ["insert", "list"],
   categories: [
     "seed",

@@ -28,6 +28,7 @@ import {
   insertTransaction,
   insertManyTransactions,
   getTransactionCategory,
+  getSources,
   listTransactions,
   getCategories,
 } from "../db/transactions";
@@ -90,14 +91,13 @@ import {
 //
 // The connection comes from a DbBackend, not directly from getDb(): for the
 // FileBackend it IS getDb() (so the delegated functions and this class share one
-// connection), and for the future EncryptedBlobBackend, open() routes the same
-// getDb() to a decrypted in-memory connection. Either way, write methods call
-// backend.persist() so the encrypted backend can flush ciphertext after a change
-// (no-op on the file backend).
+// connection); for a blob backend (DoBackend), open() routes the same getDb() to
+// an in-memory connection. Either way, write methods call backend.persist() so a
+// blob backend can flush after a change (no-op on the file backend).
 //
 // Bulk writes (e.g. an upload's many inserts) go through insertMany() + batch(),
 // which collapse to a SINGLE backend.persist() instead of one flush per row — on
-// the encrypted/DO backend that turns an O(n^2) serialise+encrypt into one pass.
+// a blob backend that turns an O(n^2) serialise into one pass.
 export class SqliteRepo implements Repo {
   private backend: DbBackend;
   private opened: Promise<Database.Database> | null = null;
@@ -167,6 +167,7 @@ export class SqliteRepo implements Repo {
     insertMany: (txs) => this.write(() => insertManyTransactions(txs)),
     list: (filters) => this.read(() => listTransactions(filters)),
     categories: () => this.read(() => getCategories()),
+    sources: () => this.read(() => getSources()),
     categoryOf: (id) => this.read(() => getTransactionCategory(id)),
   };
 
@@ -209,7 +210,7 @@ export class SqliteRepo implements Repo {
   summary: SummaryRepo = {
     monthlyTotals: (months) => this.read(() => getMonthlyTotals(months)),
     categoryBreakdown: (month) => this.read(() => getCategoryBreakdown(month)),
-    trends: (months) => this.read(() => getTrends(months)),
+    trends: () => this.read(() => getTrends()),
     topMerchants: (limit, month, category) =>
       this.read(() => getTopMerchants(limit, month, category)),
   };

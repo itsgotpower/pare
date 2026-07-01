@@ -33,6 +33,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { formatCents } from "@/lib/format";
 
 interface Transaction {
   id: number;
@@ -51,6 +52,7 @@ export default function TransactionsPage() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [total, setTotal] = useState(0);
   const [categories, setCategories] = useState<string[]>([]);
+  const [sources, setSources] = useState<string[]>([]);
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState<string>("all");
@@ -67,6 +69,7 @@ export default function TransactionsPage() {
   const [keyword, setKeyword] = useState("");
   const [mode, setMode] = useState<string>("one");
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const limit = 50;
 
@@ -85,6 +88,7 @@ export default function TransactionsPage() {
     setTransactions(data.rows);
     setTotal(data.total);
     setCategories(data.categories);
+    setSources(data.sources ?? []);
     setLoading(false);
   }, [page, search, category, source, flow]);
 
@@ -98,11 +102,6 @@ export default function TransactionsPage() {
 
   const totalPages = Math.ceil(total / limit);
 
-  const formatAmount = (amount: number) =>
-    new Intl.NumberFormat("en-CA", {
-      style: "currency",
-      currency: "CAD",
-    }).format(amount);
 
   const openRecategorize = (tx: Transaction) => {
     setSelected(tx);
@@ -118,15 +117,24 @@ export default function TransactionsPage() {
 
   const finishRecategorize = () => {
     setSaving(false);
+    setSaveError(null);
     setDialogOpen(false);
     setSelected(null);
     fetchTransactions();
   };
 
+  // Shared failure path: keep the dialog open and show why instead of
+  // closing as if the change had been saved.
+  const failRecategorize = async (res: Response) => {
+    const data = await res.json().catch(() => ({}));
+    setSaveError(data.error || "Couldn't save the change");
+    setSaving(false);
+  };
+
   const handleOverride = async () => {
     if (!selected || !targetCategory) return;
     setSaving(true);
-    await fetch("/api/categories/override", {
+    const res = await fetch("/api/categories/override", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -134,13 +142,14 @@ export default function TransactionsPage() {
         new_category: targetCategory,
       }),
     });
+    if (!res.ok) return failRecategorize(res);
     finishRecategorize();
   };
 
   const handleAddRule = async () => {
     if (!selected || !targetCategory || !keyword.trim()) return;
     setSaving(true);
-    await fetch("/api/categories", {
+    const res = await fetch("/api/categories", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -149,15 +158,17 @@ export default function TransactionsPage() {
         apply_existing: true,
       }),
     });
+    if (!res.ok) return failRecategorize(res);
     finishRecategorize();
   };
 
   const handleRevert = async () => {
     if (!selected) return;
     setSaving(true);
-    await fetch(`/api/categories/override?transaction_id=${selected.id}`, {
+    const res = await fetch(`/api/categories/override?transaction_id=${selected.id}`, {
       method: "DELETE",
     });
+    if (!res.ok) return failRecategorize(res);
     finishRecategorize();
   };
 
@@ -194,9 +205,11 @@ export default function TransactionsPage() {
         </SelectTrigger>
         <SelectContent>
           <SelectItem value="all" className="font-mono text-xs">ALL SOURCES</SelectItem>
-          <SelectItem value="amex" className="font-mono text-xs">AMEX</SelectItem>
-          <SelectItem value="cibc_visa" className="font-mono text-xs">CIBC VISA</SelectItem>
-          <SelectItem value="cibc_chequing" className="font-mono text-xs">CIBC CHEQUING</SelectItem>
+          {sources.map((s) => (
+            <SelectItem key={s} value={s} className="font-mono text-xs">
+              {s.replace(/_/g, " ").toUpperCase()}
+            </SelectItem>
+          ))}
         </SelectContent>
       </Select>
     </>
@@ -300,7 +313,7 @@ export default function TransactionsPage() {
                   <div className="flex items-start justify-between gap-3">
                     <p className="text-sm truncate min-w-0">{tx.description}</p>
                     <span className="font-mono text-sm shrink-0">
-                      {formatAmount(tx.amount)}
+                      {formatCents(tx.amount)}
                     </span>
                   </div>
                   <div className="flex items-center justify-between gap-2 mt-1.5">
@@ -378,7 +391,7 @@ export default function TransactionsPage() {
                     </TableCell>
                     <TableCell className="font-mono text-xs uppercase">{tx.source}</TableCell>
                     <TableCell className="font-mono text-sm text-right">
-                      {formatAmount(tx.amount)}
+                      {formatCents(tx.amount)}
                     </TableCell>
                   </TableRow>
                 ))
@@ -416,7 +429,7 @@ export default function TransactionsPage() {
         </div>
       )}
 
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+      <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); setSaveError(null); }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle className="font-mono tracking-widest uppercase">
@@ -429,7 +442,7 @@ export default function TransactionsPage() {
                 <p className="text-sm font-medium break-words">{selected.description}</p>
                 <p className="font-mono text-xs text-muted-foreground mt-1">
                   {selected.txn_date} · {selected.source.toUpperCase()} ·{" "}
-                  {formatAmount(selected.amount)}
+                  {formatCents(selected.amount)}
                 </p>
                 <div className="flex items-center gap-3 mt-2">
                   <span className="inline-flex items-center gap-1.5 px-2 py-0.5 border text-xs font-mono">
@@ -573,6 +586,9 @@ export default function TransactionsPage() {
                     {saving ? "SAVING..." : "ADD RULE & APPLY"}
                   </Button>
                 </div>
+              )}
+              {saveError && (
+                <p className="font-mono text-xs text-destructive">{saveError}</p>
               )}
             </div>
           )}

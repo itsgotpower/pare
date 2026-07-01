@@ -114,13 +114,21 @@ export default function ProfilePage() {
   const [billingNotice, setBillingNotice] = useState<{ ok: boolean; msg: string } | null>(null);
 
   const fetchProfile = useCallback(async () => {
-    const res = await fetch("/api/auth");
-    const data = await res.json();
-    if (data.authenticated) {
-      setProfile(data.profile);
-      setName(data.profile.display_name);
+    try {
+      const res = await fetch("/api/auth");
+      const data = await res.json();
+      if (data.authenticated) {
+        setProfile(data.profile);
+        setName(data.profile.display_name);
+      } else {
+        // Session expired between the middleware check and this fetch —
+        // bounce to login instead of hanging on "Loading…" forever.
+        router.replace("/login?from=/profile");
+      }
+    } catch {
+      router.replace("/login?from=/profile");
     }
-  }, []);
+  }, [router]);
 
   const fetchBilling = useCallback(async () => {
     try {

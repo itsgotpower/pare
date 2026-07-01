@@ -54,17 +54,13 @@ export function getCategoryBreakdown(month?: string): CategoryBreakdown[] {
     .all(month ? { month } : {}) as CategoryBreakdown[];
 }
 
-export function getTrends(months: number = 6): TrendPoint[] {
+export function getTrends(): TrendPoint[] {
   const db = getDb();
   return db
     .prepare(
       `SELECT substr(txn_date, 1, 7) AS month, effective_category AS category, SUM(amount) AS total
        FROM v_transactions
        WHERE ${CARD_SPEND_WHERE}
-         AND substr(txn_date, 1, 7) >= (
-           SELECT substr(txn_date, 1, 7) FROM v_transactions
-           WHERE flow = 'spend' ORDER BY txn_date ASC LIMIT 1
-         )
        GROUP BY month, category
        ORDER BY month, total DESC`
     )

@@ -9,9 +9,10 @@ import type { Metadata } from "next";
 // describe what ships TODAY, not the roadmap. In particular, data at rest is
 // encrypted by Cloudflare (operator-managed keys) — NOT under a key only the
 // user holds — so there is no "zero-knowledge" / "we can't see your data" claim
-// here. The honest "Straight talk" section says so explicitly. If you wire
-// user-key encryption (lib/repo/web-crypto-box.ts → the hosted DO) later, update
-// the "At rest" + "Straight talk" sections; don't promise it before it ships.
+// here. The honest "Straight talk" section says so explicitly. If user-key
+// envelope encryption ever ships (the Model-B spike was removed from tree —
+// see git history for lib/repo/web-crypto-box.ts), update the "At rest" +
+// "Straight talk" sections; don't promise it before it ships.
 
 export const metadata: Metadata = {
   title: "Security — PARE",

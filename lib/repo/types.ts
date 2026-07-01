@@ -143,6 +143,8 @@ export interface TransactionRepo {
   insertMany(txs: NewTransaction[]): Promise<InsertManyResult>;
   list(filters?: TransactionFilters): Promise<{ rows: TransactionRow[]; total: number }>;
   categories(): Promise<string[]>;
+  // Distinct sources with rows — the transactions page's source-filter options.
+  sources(): Promise<string[]>;
   // The current stored category for one row, or null if it doesn't exist.
   categoryOf(id: number): Promise<TransactionCategory | null>;
 }
@@ -202,7 +204,7 @@ export interface NetWorthRepo {
 export interface SummaryRepo {
   monthlyTotals(months?: number): Promise<MonthlyTotal[]>;
   categoryBreakdown(month?: string): Promise<CategoryBreakdown[]>;
-  trends(months?: number): Promise<TrendPoint[]>;
+  trends(): Promise<TrendPoint[]>;
   topMerchants(limit?: number, month?: string, category?: string): Promise<TopMerchant[]>;
 }
 

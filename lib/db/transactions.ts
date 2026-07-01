@@ -64,19 +64,7 @@ export function insertTransaction(tx: {
   account_kind?: string;
   import_id?: number | null;
 }): boolean {
-  const db = getDb();
-  const stmt = db.prepare(`
-    INSERT OR IGNORE INTO transactions
-      (statement_id, source, account, period, txn_date, description, amount, category, flow, dedup_key, account_kind, import_id)
-    VALUES
-      (@statement_id, @source, @account, @period, @txn_date, @description, @amount, @category, @flow, @dedup_key, @account_kind, @import_id)
-  `);
-  const result = stmt.run({
-    ...tx,
-    account_kind: tx.account_kind ?? "unknown",
-    import_id: tx.import_id ?? null,
-  });
-  return result.changes > 0;
+  return insertManyTransactions([tx]).inserted > 0;
 }
 
 export function insertManyTransactions(
@@ -189,4 +177,14 @@ export function getCategories(): string[] {
     )
     .all() as { effective_category: string }[];
   return rows.map((r) => r.effective_category);
+}
+
+// Every source that actually has rows — the source filter's option list.
+// Derived (not hardcoded) so new banks/OFX imports show up automatically.
+export function getSources(): string[] {
+  const db = getDb();
+  const rows = db
+    .prepare("SELECT DISTINCT source FROM transactions ORDER BY source")
+    .all() as { source: string }[];
+  return rows.map((r) => r.source);
 }
