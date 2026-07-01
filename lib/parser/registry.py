@@ -26,6 +26,7 @@ class Parser:
     priority: int
     matches: Callable[[str], bool]
     parse: Callable[[str], list]          # takes a PDF path, returns canonical rows
+    meta: Optional[Callable[[str], dict]] = None  # statement metadata (scaffolds carry their own)
     origin: str = "builtin"
     fingerprints: Set[str] = field(default_factory=set)
 
@@ -69,3 +70,18 @@ def register_builtins(mod) -> None:
     register(Parser("amex", 90,
                     matches=lambda t: "American Express" in t,
                     parse=mod.parse_amex))
+
+
+def register_scaffolds(mod) -> None:
+    """Register the SCAFFOLDED banks from ``mod._SCAFFOLD_BANKS`` (RBC / TD /
+    Scotia / BMO / Tangerine / Wealthsimple). Idempotent. Their priorities
+    (30–80) place them between CIBC chequing (20) and the Amex fallback (90), so
+    the Amex fallback stays last. Each scaffold carries its own ``detect`` /
+    ``parse`` / ``meta`` — the same trio ``statement_meta()`` reads directly, so
+    routing (here) and metadata stay in sync from one source of truth.
+    """
+    if any(p.origin == "scaffold" for p in _REGISTRY):
+        return
+    for b in mod._SCAFFOLD_BANKS:
+        register(Parser(b.id, b.priority, matches=b.detect, parse=b.parse,
+                        meta=b.meta, origin="scaffold"))
