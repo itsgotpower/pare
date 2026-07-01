@@ -10,6 +10,7 @@ import {
   type AccountMapping,
   type NormalizedRow,
   type DropReason,
+  type DateOrder,
   suggestAccountMapping,
   normalizeAll,
 } from "./normalizer";
@@ -34,6 +35,7 @@ export interface ImportPreview {
   rowCount: number; // data rows in the file (pre-drop)
   dropped: DropReason[];
   dateRange: { min: string | null; max: string | null };
+  dateOrder: DateOrder; // how slash dates were read (detected from the whole column)
   accounts: AccountSuggestion[];
   categories: CategorySuggestion[];
   sample: NormalizedRow[]; // first ~20 normalized rows under the default maps
@@ -95,7 +97,7 @@ export function analyzeCsv(text: string, providerOverride?: Provider): AnalyzeRe
     isUnknown: unknownSet.has(foreignCategory),
   }));
 
-  const { rows, dropped } = normalizeAll(parsed.rows, parsed.headers, {
+  const { rows, dropped, dateOrder } = normalizeAll(parsed.rows, parsed.headers, {
     preset,
     accountMap,
     categoryMap,
@@ -117,6 +119,7 @@ export function analyzeCsv(text: string, providerOverride?: Provider): AnalyzeRe
       rowCount: parsed.rows.length,
       dropped,
       dateRange: { min, max },
+      dateOrder,
       accounts: accounts.sort((a, b) => b.txnCount - a.txnCount),
       categories: categories.sort((a, b) => b.txnCount - a.txnCount),
       sample: rows.slice(0, SAMPLE_SIZE),
