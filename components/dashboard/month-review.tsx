@@ -4,6 +4,13 @@ import { useEffect, useState } from "react";
 import { ChevronLeft, ChevronRight, ArrowUpRight, ArrowDownRight, Minus } from "lucide-react";
 import { categoryColor, PALETTE } from "@/lib/colors";
 import {
+  formatCurrency,
+  formatSigned,
+  formatMonthShort,
+  formatMonthFull,
+  CHART_TOOLTIP_STYLE,
+} from "@/lib/format";
+import {
   BarChart,
   Bar,
   XAxis,
@@ -62,39 +69,7 @@ interface MonthReviewData {
   avgSavingsRate: number | null;
 }
 
-const MONTH_NAMES = [
-  "January", "February", "March", "April", "May", "June",
-  "July", "August", "September", "October", "November", "December",
-];
-
-const formatCurrency = (value: number) =>
-  new Intl.NumberFormat("en-CA", {
-    style: "currency",
-    currency: "CAD",
-    maximumFractionDigits: 0,
-  }).format(value);
-
-const formatSigned = (value: number) =>
-  `${value >= 0 ? "+" : "−"}${formatCurrency(Math.abs(value))}`;
-
-const formatMonthShort = (ym: string) =>
-  MONTH_NAMES[parseInt(ym.split("-")[1], 10) - 1]?.slice(0, 3) ?? ym;
-
-const formatMonthFull = (ym: string) => {
-  const [y, m] = ym.split("-");
-  if (!m) return ym;
-  return `${MONTH_NAMES[parseInt(m, 10) - 1]} ${y}`;
-};
-
 const formatPct = (r: number | null) => (r == null ? "—" : `${(r * 100).toFixed(0)}%`);
-
-const tooltipStyle = {
-  fontFamily: "var(--font-mono)",
-  fontSize: 11,
-  backgroundColor: "var(--card)",
-  border: "1px solid var(--border)",
-  borderRadius: 0,
-} as const;
 
 // A delta sub-line under a headline figure. `goodWhenUp` flips the colour so a
 // rise in spending reads as bad (terracotta) while a rise in income reads as
@@ -133,13 +108,21 @@ export function MonthReview() {
   const [data, setData] = useState<MonthReviewData | null>(null);
   const [loading, setLoading] = useState(true);
   const [navving, setNavving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const load = (month: string | null) => {
     const q = month ? `&month=${encodeURIComponent(month)}` : "";
     setNavving(true);
     fetch(`/api/summary?type=month_review${q}`)
-      .then((r) => r.json())
-      .then((d: MonthReviewData) => setData(d))
+      .then((r) => {
+        if (!r.ok) throw new Error(`request failed (${r.status})`);
+        return r.json();
+      })
+      .then((d: MonthReviewData) => {
+        setData(d);
+        setError(null);
+      })
+      .catch((e: unknown) => setError(e instanceof Error ? e.message : "request failed"))
       .finally(() => {
         setLoading(false);
         setNavving(false);
@@ -151,6 +134,18 @@ export function MonthReview() {
   if (loading) {
     return (
       <div className="h-64 border border-border bg-card animate-pulse" aria-hidden />
+    );
+  }
+
+  // A failed request is NOT "no data yet" — say so instead of telling the user
+  // to upload a statement they may already have uploaded.
+  if (error && !data) {
+    return (
+      <div className="border border-border bg-card py-16 text-center">
+        <p className="font-mono text-sm text-destructive">
+          COULDN&apos;T LOAD MONTH REVIEW — {error.toUpperCase()}
+        </p>
+      </div>
     );
   }
 
@@ -294,7 +289,7 @@ export function MonthReview() {
               />
               <Tooltip
                 cursor={{ fill: "var(--accent)" }}
-                contentStyle={tooltipStyle}
+                contentStyle={CHART_TOOLTIP_STYLE}
                 formatter={(value, name) => [formatCurrency(Number(value)), name === "income" ? "In" : "Out"]}
                 labelFormatter={(_, p) => formatMonthFull(p?.[0]?.payload?.month ?? "")}
               />
@@ -341,7 +336,7 @@ export function MonthReview() {
                 tick={{ fontSize: 10, fontFamily: "var(--font-mono)" }}
               />
               <Tooltip
-                contentStyle={tooltipStyle}
+                contentStyle={CHART_TOOLTIP_STYLE}
                 formatter={(value) => [`${Number(value).toFixed(0)}%`, "Saved"]}
                 labelFormatter={(_, p) => formatMonthFull(p?.[0]?.payload?.month ?? "")}
               />

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { PALETTE } from "@/lib/colors";
+import { MONTH_NAMES, formatCurrency, formatMonthFull } from "@/lib/format";
 
 export interface DailySpend {
   date: string; // YYYY-MM-DD
@@ -9,29 +10,12 @@ export interface DailySpend {
   count: number;
 }
 
-const MONTH_NAMES = [
-  "January", "February", "March", "April", "May", "June",
-  "July", "August", "September", "October", "November", "December",
-];
-
 const WEEKDAYS = ["S", "M", "T", "W", "T", "F", "S"];
 const WEEKDAY_NAMES = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
 
 // Local-time parse — new Date("YYYY-MM-DD") is UTC and can shift the weekday.
 const parseDate = (s: string) =>
   new Date(parseInt(s.slice(0, 4)), parseInt(s.slice(5, 7)) - 1, parseInt(s.slice(8, 10)));
-
-const formatCurrency = (value: number) =>
-  new Intl.NumberFormat("en-CA", {
-    style: "currency",
-    currency: "CAD",
-    maximumFractionDigits: 0,
-  }).format(value);
-
-const formatMonthFull = (ym: string) => {
-  const [y, m] = ym.split("-");
-  return `${MONTH_NAMES[parseInt(m, 10) - 1]} ${y}`;
-};
 
 // Heat ramp: terracotta at varying alpha over the card background, so the
 // scale survives dark mode. Intensity is anchored to the p95 of ALL days

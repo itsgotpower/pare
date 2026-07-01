@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { formatCents as formatCurrency } from "@/lib/format";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
@@ -58,8 +59,6 @@ interface MerchantDetail {
   transactions: MerchantTxn[];
 }
 
-const formatCurrency = (n: number) =>
-  new Intl.NumberFormat("en-CA", { style: "currency", currency: "CAD" }).format(n);
 
 // "2025-03" -> "MAR" / "MAR 2025"
 const MONTHS = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
