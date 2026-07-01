@@ -31,9 +31,9 @@ function loadDatabase(): typeof Database {
   return _loadDatabase();
 }
 
-// Lets a DbBackend (EncryptedBlobBackend, or DoSqlBackend's better-sqlite3-shaped
-// adapter over a Durable Object's ctx.storage.sql) route getDb() — and therefore
-// the delegated lib/db/* query functions — at a connection it owns (a decrypted
+// Lets a DbBackend (the blob-based DoBackend, or DoSqlBackend's better-sqlite3-
+// shaped adapter over a Durable Object's ctx.storage.sql) route getDb() — and
+// therefore the delegated lib/db/* query functions — at a connection it owns (an
 // in-memory DB, or the DO's native SQLite), instead of the file singleton. Pass
 // null to restore the default. One-connection-at-a-time is correct for the target
 // model (one Durable Object per user); the file singleton path below is unchanged

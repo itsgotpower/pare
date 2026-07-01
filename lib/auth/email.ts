@@ -38,7 +38,12 @@ export async function sendPasswordResetEmail(
     return;
   }
 
-  await resend.emails.send({ from: FROM, to, subject, text });
+  // resend@6 returns { data, error } and does NOT throw on API errors — without
+  // this check a user who never receives their link leaves no trace anywhere.
+  const { error } = await resend.emails.send({ from: FROM, to, subject, text });
+  if (error) {
+    console.error(`[auth/email] password reset send failed: ${error.message}`);
+  }
 }
 
 export async function sendVerificationEmail(
@@ -62,5 +67,10 @@ export async function sendVerificationEmail(
     return;
   }
 
-  await resend.emails.send({ from: FROM, to, subject, text });
+  // resend@6 returns { data, error } and does NOT throw on API errors — without
+  // this check a user who never receives their link leaves no trace anywhere.
+  const { error } = await resend.emails.send({ from: FROM, to, subject, text });
+  if (error) {
+    console.error(`[auth/email] verification send failed: ${error.message}`);
+  }
 }

@@ -44,6 +44,7 @@ export default function CategoriesPage() {
   const [newCategory, setNewCategory] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [filter, setFilter] = useState("");
+  const [ruleError, setRuleError] = useState<string | null>(null);
 
   const fetchRules = useCallback(async () => {
     const res = await fetch("/api/categories");
@@ -60,7 +61,7 @@ export default function CategoriesPage() {
 
   const handleAdd = async () => {
     if (!newKeyword || !newCategory) return;
-    await fetch("/api/categories", {
+    const res = await fetch("/api/categories", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -69,6 +70,12 @@ export default function CategoriesPage() {
         apply_existing: true,
       }),
     });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setRuleError(data.error || "Couldn't add the rule");
+      return;
+    }
+    setRuleError(null);
     setNewKeyword("");
     setNewCategory("");
     setDialogOpen(false);
@@ -81,7 +88,7 @@ export default function CategoriesPage() {
   };
 
   const handleAcceptSuggestion = async (s: Suggestion) => {
-    await fetch("/api/categories", {
+    const res = await fetch("/api/categories", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -90,6 +97,10 @@ export default function CategoriesPage() {
         apply_existing: true,
       }),
     });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      alert(data.error || "Couldn't add the rule");
+    }
     fetchRules();
   };
 
@@ -155,7 +166,7 @@ export default function CategoriesPage() {
           >
             {recategorizing ? "WORKING..." : "RECATEGORIZE ALL"}
           </button>
-          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+          <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); setRuleError(null); }}>
             <DialogTrigger className="inline-flex items-center justify-center border border-input bg-background px-4 py-2 font-mono text-xs tracking-widest uppercase hover:bg-accent hover:text-accent-foreground">
               ADD RULE
             </DialogTrigger>
@@ -197,6 +208,9 @@ export default function CategoriesPage() {
                   ))}
                 </datalist>
               </div>
+              {ruleError && (
+                <p className="font-mono text-xs text-destructive">{ruleError}</p>
+              )}
               <Button
                 onClick={handleAdd}
                 className="w-full font-mono text-xs tracking-widest uppercase"

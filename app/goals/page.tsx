@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { formatCurrency } from "@/lib/format";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
@@ -44,12 +45,6 @@ interface Average {
   avg_monthly: number;
 }
 
-const formatCurrency = (value: number) =>
-  new Intl.NumberFormat("en-CA", {
-    style: "currency",
-    currency: "CAD",
-    maximumFractionDigits: 0,
-  }).format(value);
 
 export default function GoalsPage() {
   const [goals, setGoals] = useState<GoalRecord[]>([]);
@@ -61,6 +56,7 @@ export default function GoalsPage() {
   const [editingGoal, setEditingGoal] = useState<GoalRecord | null>(null);
   const [newCategory, setNewCategory] = useState<string>("");
   const [newLimit, setNewLimit] = useState("");
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const fetchGoals = useCallback(async () => {
     const res = await fetch("/api/goals");
@@ -78,14 +74,25 @@ export default function GoalsPage() {
 
   const handleAdd = async () => {
     if (!newCategory || !newLimit) return;
-    await fetch("/api/goals", {
+    const limit = Number(newLimit);
+    if (!Number.isFinite(limit) || limit <= 0) {
+      setSaveError("Limit must be a positive number");
+      return;
+    }
+    const res = await fetch("/api/goals", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         category: newCategory,
-        monthly_limit: parseFloat(newLimit),
+        monthly_limit: limit,
       }),
     });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setSaveError(data.error || "Couldn't save the goal");
+      return;
+    }
+    setSaveError(null);
     setNewCategory("");
     setNewLimit("");
     setEditingGoal(null);
@@ -149,6 +156,7 @@ export default function GoalsPage() {
         </div>
         <Dialog open={dialogOpen} onOpenChange={(open) => {
           setDialogOpen(open);
+          setSaveError(null);
           if (!open) {
             setEditingGoal(null);
             setNewCategory("");
@@ -222,6 +230,9 @@ export default function GoalsPage() {
                   </p>
                 )}
               </div>
+              {saveError && (
+                <p className="font-mono text-xs text-destructive">{saveError}</p>
+              )}
               <Button
                 onClick={handleAdd}
                 className="w-full font-mono text-xs tracking-widest uppercase"

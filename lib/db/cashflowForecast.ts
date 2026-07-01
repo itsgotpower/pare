@@ -1,6 +1,7 @@
 import { getDb } from "../db";
-import { getIncomeVsSpend, FIXED_CATEGORY_LIST } from "./income";
+import { getIncomeVsSpend, FIXED_CATEGORY_LIST, PAYROLL_WHERE } from "./income";
 import { getSubscriptions } from "./subscriptions";
+import { median } from "./stats";
 
 // Cash-flow forecast (30/60/90 days): project the last RECONCILED chequing
 // closing balance (statements.closing_balance, written at upload from the
@@ -70,12 +71,6 @@ export interface CashflowForecast {
 const HORIZON_DAYS = 90;
 const DAYS_PER_MONTH = 30.44;
 
-const median = (xs: number[]) => {
-  const s = [...xs].sort((a, b) => a - b);
-  const m = Math.floor(s.length / 2);
-  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
-};
-
 const round2 = (x: number) => Math.round(x * 100) / 100;
 const toDate = (s: string) => new Date(s + "T00:00:00");
 const fmt = (d: Date) =>
@@ -113,7 +108,7 @@ export function getCashflowForecast(now: Date = new Date()): CashflowForecast | 
     .prepare(
       `SELECT txn_date, amount FROM v_transactions
        WHERE flow = 'income'
-         AND (UPPER(description) LIKE '%PEOPLE CENTER%' OR UPPER(description) LIKE '%PAYROLL%')
+         AND ${PAYROLL_WHERE}
        ORDER BY txn_date`
     )
     .all() as { txn_date: string; amount: number }[];

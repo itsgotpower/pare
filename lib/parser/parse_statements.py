@@ -35,7 +35,7 @@ riskiest surface.
 
 Requires: pdftotext (poppler-utils). pip install nothing else.
 """
-import subprocess, re, sys, glob, os, csv, json
+import subprocess, re, sys, glob, os, csv, json, datetime
 sys.path.insert(0, os.path.dirname(__file__))
 from categories import categorize
 
@@ -48,8 +48,13 @@ MONTHS = {
 }
 
 def text(path):
-    return subprocess.run(['pdftotext', '-layout', path, '-'],
-                          capture_output=True, text=True).stdout
+    r = subprocess.run(['pdftotext', '-layout', path, '-'],
+                       capture_output=True, text=True)
+    if r.returncode != 0:
+        raise RuntimeError(
+            f"pdftotext failed on {os.path.basename(path)} "
+            f"(exit {r.returncode}): {r.stderr.strip() or 'no stderr'}")
+    return r.stdout
 
 def parse_date(date_str, ref_year):
     """Parse 'Mon DD' into 'YYYY-MM-DD' using ref_year for context."""
@@ -60,19 +65,23 @@ def parse_date(date_str, ref_year):
     month_num = MONTHS.get(month_name)
     if not month_num:
         return None
-    year = ref_year
-    # Handle Dec txns in a Jan-closing statement
-    if month_num == 12 and ref_year:
-        closing_month = None
-        # We'll handle this in the caller by passing period context
-        pass
-    return f"{year}-{month_num:02d}-{day:02d}"
+    return f"{ref_year}-{month_num:02d}-{day:02d}"
 
 
 def extract_year(period_str):
-    """Extract year from period string like 'Dec 03, 2025' or 'Jan 28 to Feb 27, 2026'."""
+    """Extract year from period string like 'Dec 03, 2025' or 'Jan 28 to Feb 27, 2026'.
+
+    A period with no year means the period regex missed (the fallback is the bare
+    source name) — warn and use the current year rather than dating silently wrong;
+    wrong years also change dedup keys, so re-uploads would duplicate.
+    """
     m = re.search(r'(\d{4})', period_str)
-    return int(m.group(1)) if m else 2026
+    if m:
+        return int(m.group(1))
+    sys.stderr.write(
+        f"[parser] no year found in period {period_str!r}; "
+        f"falling back to the current year\n")
+    return datetime.date.today().year
 
 
 def period_end(period_str):
@@ -157,14 +166,18 @@ def parse_cibc_visa(path):
         if 'Total for' in ln: cap = False; continue
         if not cap: continue
         u = ln.upper()
-        if 'BALANCE TRANSFER' in u:
-            amt = float(re.findall(MONEY, ln)[-1].replace(',', ''))
-            txn_date = parse_date(re.match(rf'({DATE})', ln.strip()).group(1), ref_year) if re.match(rf'({DATE})', ln.strip()) else ''
-            rows.append(('cibc_visa', 'CIBC Aeroplan Visa', period, txn_date or '', 'BALANCE TRANSFER', amt, 'Cash advance / fees', 'transfer')); continue
-        if 'CASH ADV' in u or 'CONV CHQ FEE' in u:
-            amt = float(re.findall(MONEY, ln)[-1].replace(',', ''))
-            txn_date = parse_date(re.match(rf'({DATE})', ln.strip()).group(1), ref_year) if re.match(rf'({DATE})', ln.strip()) else ''
-            rows.append(('cibc_visa', 'CIBC Aeroplan Visa', period, txn_date or '', 'CASH ADV / BT FEE', amt, 'Cash advance / fees', 'fee_interest')); continue
+        if 'BALANCE TRANSFER' in u or 'CASH ADV' in u or 'CONV CHQ FEE' in u:
+            monies = re.findall(MONEY, ln)
+            if not monies:
+                continue  # note line (e.g. interest disclosure), not a transaction
+            amt = float(monies[-1].replace(',', ''))
+            dm = re.match(rf'({DATE})', ln.strip())
+            txn_date = parse_date(dm.group(1), ref_year) if dm else ''
+            if 'BALANCE TRANSFER' in u:
+                rows.append(('cibc_visa', 'CIBC Aeroplan Visa', period, txn_date or '', 'BALANCE TRANSFER', amt, 'Cash advance / fees', 'transfer'))
+            else:
+                rows.append(('cibc_visa', 'CIBC Aeroplan Visa', period, txn_date or '', 'CASH ADV / BT FEE', amt, 'Cash advance / fees', 'fee_interest'))
+            continue
         m = rx.match(ln.strip())
         if not m: continue
         txn_date_raw, _, desc, _spendcat, amt = m.groups()
@@ -308,10 +321,15 @@ def _walk_ledger_text(profile, t):
 
         # A transaction line carries amount + running balance (>=2 money tokens)
         # and reconciles against the running balance. FX notes are never txns.
-        if len(monies) >= 2 and running is not None and not is_fx:
+        # No anchor yet (opening_rx missed AND no in-table opening line) =>
+        # 'unreconciled', NOT a continuation fold — otherwise a mistuned
+        # opening_rx yields zero rows with zero diagnostics.
+        if len(monies) >= 2 and not is_fx:
             amount = _money(monies[0].group())
             balance = _money(monies[-1].group())
-            if abs(round(running + amount - balance, 2)) < 0.01:
+            if running is None:
+                direction = 'unreconciled'
+            elif abs(round(running + amount - balance, 2)) < 0.01:
                 direction = 'in'
             elif abs(round(running - amount - balance, 2)) < 0.01:
                 direction = 'out'
@@ -372,8 +390,9 @@ def _parse_ledger(path, profile):
     rows = []
     for txn in txns:
         if txn['direction'] == 'unreconciled':
+            prev = f"{txn['prev']:.2f}" if txn['prev'] is not None else 'NO ANCHOR'
             sys.stderr.write(
-                f"[{profile.source}] unreconciled row (prev={txn['prev']:.2f} "
+                f"[{profile.source}] unreconciled row (prev={prev} "
                 f"amt={txn['amount']:.2f} bal={txn['balance']:.2f}): "
                 f"{' '.join(txn['desc_parts'])}\n")
             continue
@@ -787,6 +806,7 @@ def main(src_dir, out_csv):
     for f in sorted(glob.glob(os.path.join(src_dir, '*.pdf'))):
         result = orchestrator.parse_file(f, text_fn=text, meta_fn=statement_meta)
         if result is None:
+            sys.stderr.write(f"skip (no parser matched): {os.path.basename(f)}\n")
             continue
         frows, meta = result
         rows += frows

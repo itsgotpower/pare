@@ -41,6 +41,12 @@ export function seedCategoryRules() {
   const insert = db.prepare(
     "INSERT OR IGNORE INTO category_rules (category, keyword, sort_order) VALUES (?, ?, ?)"
   );
+  // User rules win on keyword collision: a user who remapped a seed keyword to a
+  // different category keeps that remapping across wipe + reseed.
+  const upsert = db.prepare(
+    "INSERT INTO category_rules (category, keyword, sort_order) VALUES (?, ?, ?) " +
+      "ON CONFLICT(keyword) DO UPDATE SET category = excluded.category"
+  );
 
   // Seed from the gitignored personal taxonomy if present, else the generic starter.
   const seed =
@@ -54,7 +60,7 @@ export function seedCategoryRules() {
     }
     // Restore user-defined rules (persisted outside the DB so they survive wipes).
     for (const r of loadUserRules()) {
-      insert.run(r.category, r.keyword, order++);
+      upsert.run(r.category, r.keyword, order++);
     }
   });
   tx();
@@ -74,9 +80,17 @@ export function addRule(category: string, keyword: string): void {
       max: number | null;
     }
   ).max;
-  db.prepare(
-    "INSERT INTO category_rules (category, keyword, sort_order) VALUES (?, ?, ?)"
-  ).run(category, keyword, (maxOrder ?? 0) + 1);
+  try {
+    db.prepare(
+      "INSERT INTO category_rules (category, keyword, sort_order) VALUES (?, ?, ?)"
+    ).run(category, keyword, (maxOrder ?? 0) + 1);
+  } catch (err) {
+    // Surface the UNIQUE(keyword) violation as a readable message for the UI.
+    if (err instanceof Error && err.message.includes("UNIQUE constraint failed")) {
+      throw new Error(`A rule for "${keyword}" already exists`);
+    }
+    throw err;
+  }
   // Persist outside the DB so it survives a wipe + re-ingest.
   saveUserRule(category, keyword);
 }

@@ -2,7 +2,6 @@ import { FileBackend } from "./file-backend";
 import { SqliteRepo } from "./sqlite-repo";
 import { DoRepoClient } from "./do-repo-client";
 import { callRepoMethod, type AnyRepoCall } from "./repo-rpc";
-import { isHostedMode } from "../auth/resolve";
 import type { Repo } from "./types";
 
 export * from "./types";
@@ -38,11 +37,11 @@ export function getRepo(): Repo {
 
 // Resolve the USER_DATA Durable Object namespace binding for the current request
 // (Workers only) via the shared getBinding helper. Imported lazily so the package
-// is absent in plain Node/dev. Exported so callers that already hold `env`
-// (the queue consumer) can thread env.USER_DATA into getRepoForUser directly,
-// rather than reaching back into getCloudflareContext() — which is not reliably
+// is absent in plain Node/dev. Module-internal: callers that already hold `env`
+// (the queue consumer) thread env.USER_DATA into getRepoForUser directly, rather
+// than reaching back into getCloudflareContext() — which is not reliably
 // available inside a Cloudflare queue() invocation.
-export async function getUserDataNamespace(): Promise<DoNamespaceLike | null> {
+async function getUserDataNamespace(): Promise<DoNamespaceLike | null> {
   const { getBinding } = await import("../cf-bindings");
   return getBinding<DoNamespaceLike>("USER_DATA");
 }
@@ -115,9 +114,4 @@ export async function destroyUserData(
 // per-user backend (e.g. DoBackend over a per-user MemoryDurableStore).
 export function inProcessRepoForUser(perUserRepo: Repo): Repo {
   return new DoRepoClient((call) => callRepoMethod(perUserRepo, call));
-}
-
-// Whether the per-request scoped path is active (hosted target).
-export function isScopedMode(): boolean {
-  return isHostedMode();
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { formatCurrency, formatCents } from "@/lib/format";
 import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -28,15 +29,6 @@ interface Subscription {
   lastDate: string;
 }
 
-const formatCurrency = (value: number) =>
-  new Intl.NumberFormat("en-CA", {
-    style: "currency",
-    currency: "CAD",
-    maximumFractionDigits: 0,
-  }).format(value);
-
-const formatCents = (value: number) =>
-  new Intl.NumberFormat("en-CA", { style: "currency", currency: "CAD" }).format(value);
 
 export default function RecurringPage() {
   const [subs, setSubs] = useState<Subscription[]>([]);

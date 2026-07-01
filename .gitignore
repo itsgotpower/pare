@@ -45,8 +45,9 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# financial data — NEVER commit
-data/
+# financial data — NEVER commit (root data/ only — an unanchored data/ also
+# swallowed app/api/data/, leaving that route untracked)
+/data/
 *.db
 *.pdf
 transactions.csv

@@ -46,16 +46,3 @@ export function parsePdf(pdfPath: string): ParseResult {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   }
 }
-
-export function parseCsvRow(row: string[]): ParsedTransaction {
-  return {
-    source: row[0],
-    account: row[1],
-    period: row[2],
-    txn_date: row[3] || "",
-    description: row[4] || row[3] || "",
-    amount: parseFloat(row[5] || row[4] || "0"),
-    category: row[6] || row[5] || "",
-    flow: row[7] || row[6] || "",
-  };
-}

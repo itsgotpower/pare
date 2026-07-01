@@ -19,9 +19,9 @@
 // lib/repo/do-sql-backend.workers-spec.ts (@cloudflare/vitest-pool-workers): full
 // schema incl. the v_transactions VIEW, FK enforcement, the named-param adapter
 // round-trip, and the Repo namespace methods over DoSqlBackend. The earlier
-// blob-based DoBackend + DurableObjectStore (do-backend.ts / do-store.ts) remain in
-// tree for the Node-backed tests and the encrypted self-host blob seam, but are no
-// longer on the hosted DO path.
+// blob-based DoBackend (do-backend.ts / do-store.ts) remains in tree only as
+// Node-runnable test scaffolding for the Repo contract tests — it is not on the
+// hosted DO path.
 
 import { SqliteRepo } from "./sqlite-repo";
 import { DoSqlBackend } from "./do-sql-backend";

@@ -31,7 +31,12 @@ async function send(to: string, subject: string, text: string): Promise<void> {
     console.warn(`[ingest/reply] RESEND_API_KEY unset; would email ${to}: ${subject}`);
     return;
   }
-  await resend.emails.send({ from: FROM, to, subject, text });
+  // resend@6 returns { data, error } and does NOT throw on API errors — and this
+  // runs inside ctx.waitUntil, so an unlogged failure would vanish silently.
+  const { error } = await resend.emails.send({ from: FROM, to, subject, text });
+  if (error) {
+    console.error(`[ingest/reply] send failed ("${subject}"): ${error.message}`);
+  }
 }
 
 /** Acknowledge accepted statement(s) and reaffirm the no-retention promise. */

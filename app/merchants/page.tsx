@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
+import { formatCents as formatCurrency } from "@/lib/format";
 import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -31,8 +32,6 @@ interface MerchantSummary {
   lastDate: string;
 }
 
-const formatCurrency = (n: number) =>
-  new Intl.NumberFormat("en-CA", { style: "currency", currency: "CAD" }).format(n);
 
 export default function MerchantsPage() {
   const [merchants, setMerchants] = useState<MerchantSummary[]>([]);

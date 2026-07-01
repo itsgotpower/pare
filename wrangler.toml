@@ -11,9 +11,10 @@
 # Durable Object (USER_DATA) — the waitlist persists to a single shared DO
 # (lib/repo/scoped.ts → "__shared__waitlist"); SQLite DOs are on the Free plan.
 #
-# The FULL config (all bindings + ids to paste) lives on `main`'s wrangler.toml.
+# The FULL config (all bindings + ids to paste — D1, R2, queues, containers, KV)
+# is kept alongside as wrangler.full.toml, for when the full app redeploys.
 # To restore the full app: switch off PARE_WAITLIST_ONLY, restore worker.ts's
-# queue handler + ParserContainer export, and merge main's wrangler.toml back.
+# queue handler + ParserContainer export, and merge wrangler.full.toml back in.
 
 name = "pare"
 main = "worker.ts"

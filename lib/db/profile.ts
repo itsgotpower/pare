@@ -24,20 +24,9 @@ export interface DataHealth {
   sources: SourceHealth[];
 }
 
+// Only the labels that differ from the derived `<bank>_<kind>` form below.
 const SOURCE_LABELS: Record<string, string> = {
-  amex: "AMEX",
-  cibc_visa: "CIBC VISA",
   cibc_chequing: "CHEQUING",
-  rbc_visa: "RBC VISA",
-  rbc_chequing: "RBC CHEQUING",
-  td_visa: "TD VISA",
-  td_chequing: "TD CHEQUING",
-  scotia_visa: "SCOTIA VISA",
-  scotia_chequing: "SCOTIA CHEQUING",
-  bmo_mastercard: "BMO MASTERCARD",
-  bmo_chequing: "BMO CHEQUING",
-  tangerine_chequing: "TANGERINE CHEQUING",
-  tangerine_savings: "TANGERINE SAVINGS",
   wealthsimple_cash: "WS CASH",
   wealthsimple_savings: "WS SAVINGS",
 };

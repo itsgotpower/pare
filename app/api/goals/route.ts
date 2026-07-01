@@ -20,11 +20,15 @@ export async function POST(request: NextRequest) {
   await repo.categories.seed();
   const body = await request.json();
 
-  if (!body.category || !body.monthly_limit) {
-    return Response.json({ error: "category and monthly_limit required" }, { status: 400 });
+  const limit = Number(body.monthly_limit);
+  if (!body.category || !Number.isFinite(limit) || limit <= 0) {
+    return Response.json(
+      { error: "category and a positive monthly_limit required" },
+      { status: 400 }
+    );
   }
 
-  await repo.goals.upsert(body.category, body.monthly_limit);
+  await repo.goals.upsert(body.category, limit);
   return Response.json({ success: true });
 }
 

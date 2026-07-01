@@ -15,7 +15,6 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { z } from "zod";
 
 import pkg from "../package.json";
-import { getDb } from "../lib/db";
 import { getRepo } from "../lib/repo";
 
 const repo = getRepo();
@@ -224,8 +223,7 @@ server.registerTool(
     inputSchema: { transaction_id: z.number().int(), category: z.string() },
   },
   async ({ transaction_id, category }) => {
-    const db = getDb();
-    const row = db.prepare("SELECT category FROM transactions WHERE id = ?").get(transaction_id) as { category: string } | undefined;
+    const row = await repo.transactions.categoryOf(transaction_id);
     if (!row) return json({ ok: false, error: `No transaction ${transaction_id}` });
     await repo.categories.addOverride(transaction_id, row.category, category);
     return json({ ok: true });

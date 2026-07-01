@@ -1,0 +1,203 @@
+# Cloudflare Workers config for Pare (hosted pivot — Phase 0 scaffolding).
+#
+# Deploys the CURRENT single-user Next.js app to Workers via @opennextjs/cloudflare,
+# unchanged, against the demo DB. The build emits .open-next/worker.js (the Worker
+# entrypoint) and .open-next/assets (static assets), referenced below.
+#
+# The D1 (`DB`) and Durable Object (`USER_DATA`) bindings below are LIVE as of
+# Phase 2: better-auth reads `env.DB` and getRepoForUser() routes per-user data to
+# `env.USER_DATA`. See hosted-product-plan.md (Phases 1–2) and DEPLOY.md.
+
+name = "pare"
+# Custom entrypoint (worker.ts) re-exports OpenNext's generated fetch handler
+# (.open-next/worker.js) AND the UserDataObject Durable Object class, so both are
+# registered on the same Worker (the OpenNext convention for app-owned DOs).
+main = "worker.ts"
+compatibility_date = "2024-12-30"
+compatibility_flags = ["nodejs_compat", "global_fetch_strictly_public"]
+
+# Selects the HOSTED deploy target at runtime: getScopedRepo() routes per-user
+# Durable Objects and proxy.ts retires the single-user gate. Without this the
+# Worker defaults to self-host mode (file-backed better-sqlite3, which can't load
+# on Workers) — i.e. a broken deploy. Self-host/local leaves it unset.
+[vars]
+PARE_DEPLOY_TARGET = "hosted"
+
+# --- Custom domain (Phase 4) -------------------------------------------------
+#
+# DEFERRED for the closed beta: the Worker serves on its
+# `pare.<your-subdomain>.workers.dev` URL (the Workers dev subdomain stays enabled
+# because no `[[routes]]` capture the apex). When ready to move to the real domain
+# (pare.money), UNCOMMENT the block below and deploy. A Worker custom domain created
+# this way provisions the DNS record + edge cert AUTOMATICALLY — no separate
+# dashboard DNS step — BUT the zone (pare.money) must already be active on this
+# Cloudflare account first. See DEPLOY.md → "Custom domain (Phase 4)".
+#
+# After enabling, ALSO update the BETTER_AUTH_URL secret to the new origin
+# (`wrangler secret put BETTER_AUTH_URL` -> https://app.pare.money) or sign-in
+# cookies/links get issued for the wrong origin.
+#
+# [[routes]]
+# pattern = "app.pare.money"
+# custom_domain = true
+
+# Secrets (NOT set here — provision with `wrangler secret put <NAME>`):
+#   BETTER_AUTH_SECRET   — required; session/token signing (hosted.ts fails closed
+#                          without it). Generate: `openssl rand -base64 32`.
+#   BETTER_AUTH_URL      — the deployed origin, e.g. https://pare.<sub>.workers.dev
+#   RESEND_API_KEY       — password-reset email (optional in dev).
+#   AUTH_EMAIL_FROM      — From: address for reset email.
+#   TURNSTILE_SECRET_KEY — Cloudflare Turnstile server secret (Phase 4). When SET,
+#                          the waitlist + auth endpoints require a valid Turnstile
+#                          token; when UNSET they skip the check (fail-open, so dev
+#                          and self-host are unaffected). Pair with the public site
+#                          key in NEXT_PUBLIC_TURNSTILE_SITE_KEY (a build-time var,
+#                          set in the build env — public, so not a secret).
+#   SENTRY_DSN           — error-tracking sink (Phase 4). When UNSET, Sentry is a
+#                          no-op; nothing is sent. Not committed.
+
+# Static assets emitted by the OpenNext build.
+[assets]
+directory = ".open-next/assets"
+binding = "ASSETS"
+
+# OpenNext needs a self-reference service binding for cache revalidation / RSC.
+[[services]]
+binding = "WORKER_SELF_REFERENCE"
+service = "pare"
+
+# --- Phase 3 data-plane bindings (all LIVE as of P6) ---
+# DB (D1), USER_DATA + ParserContainer (DOs), PARSE_QUEUE (Queue producer +
+# consumer), PARSE_JOBS (KV), PDF_BUCKET (R2). The ids/names below marked
+# "placeholder" need the real values from the provisioning commands in DEPLOY.md
+# pasted in before the first real deploy.
+
+# Auth database (D1) — accounts/sessions for multi-user mode (Phase 2, better-auth).
+# Replace database_id with the real id from `wrangler d1 create pare-auth`.
+[[d1_databases]]
+binding = "DB"
+database_name = "pare-auth"
+database_id = "00000000-0000-0000-0000-000000000000"
+# better-auth schema for this DB only. Apply with:
+#   npx wrangler d1 migrations apply pare-auth --remote
+# Kept separate from lib/db/migrations (the per-user DO data schema) on purpose:
+# auth tables must never land in a user's data DB, nor vice versa.
+migrations_dir = "d1/migrations"
+
+# Per-user data store (Durable Object, SQLite-backed) — one DO per user. The
+# UserDataObject class is implemented in worker.ts (delegating to
+# lib/repo/user-data-object.ts); getRepoForUser(userId) routes to it via
+# USER_DATA.idFromName(userId). Tenant isolation is by construction.
+[[durable_objects.bindings]]
+name = "USER_DATA"
+class_name = "UserDataObject"
+
+# Per-user data store (registered above) plus the parser Container — both are
+# SQLite-backed Durable Object classes, so both go in new_sqlite_classes.
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["UserDataObject", "ParserContainer"]
+
+# --- PDF parser container (hosted parsing path) ---
+#
+# Workers can't run Python/poppler/child_process, so PDF parsing runs in a
+# Cloudflare Container: the image is lib/parser/Dockerfile (Python http.server +
+# the unchanged parser). The ParserContainer class (lib/parser/parser-container.ts,
+# re-exported from worker.ts) extends @cloudflare/containers' Container base; the
+# request side routes a PDF to it via PARSER.getByName("default") (see
+# parsePdfViaContainer). A real deploy builds + pushes the image automatically on
+# `wrangler deploy`; locally the image is runnable standalone with Docker.
+[[containers]]
+class_name = "ParserContainer"
+image = "./lib/parser/Dockerfile"
+# Build context must be the repo root so the Dockerfile can COPY lib/parser/*.
+image_build_context = "."
+max_instances = 5
+instance_type = "basic"
+
+[[durable_objects.bindings]]
+name = "PARSER"
+class_name = "ParserContainer"
+
+# --- Async parse pipeline (P4 — Cloudflare Queues) ---
+#
+# Uploads (P5) don't parse inline on the hosted target: the route stores the PDF
+# in R2 (PDF_BUCKET, P3), records a `queued` job (PARSE_JOBS KV, below), and
+# enqueues ONE `{ userId, r2Key, filename, jobId }` message on PARSE_QUEUE. The
+# SAME Worker is the queue's consumer: worker.ts's default export carries a
+# `queue` handler (lib/queue/consumer.ts) that fetches the bytes, parses via the
+# ParserContainer, writes the rows to the owner's USER_DATA DO, deletes the PDF
+# (retention default), and marks the job done|failed.
+#
+# Real ids/queue provisioned in P6:
+#   npx wrangler queues create parse-jobs
+#   npx wrangler kv namespace create PARSE_JOBS   # -> paste id below
+
+# Producer binding (env.PARSE_QUEUE) — the upload route sends parse jobs here.
+[[queues.producers]]
+binding = "PARSE_QUEUE"
+queue = "parse-jobs"
+
+# Consumer registration — deliver parse-jobs messages to THIS Worker's `queue`
+# handler. max_retries bounds redelivery of a transiently-failing message (the
+# job is marked `failed` + the PDF retained on each failure, so a retry can
+# re-fetch the bytes); after that it's dropped (a dead-letter queue can be added
+# later via dead_letter_queue = "...").
+[[queues.consumers]]
+queue = "parse-jobs"
+max_batch_size = 10
+max_batch_timeout = 5
+max_retries = 3
+
+# Parse-job status records (KV) — the P5 status endpoint reads these. Keyed
+# `job/<userId>/<jobId>` so a caller can only ever read their own jobs; records
+# carry a 24h TTL (ephemeral status, not data of record).
+#
+# Real id provisioned in P6:
+#   npx wrangler kv namespace create PARSE_JOBS   # -> paste id below
+[[kv_namespaces]]
+binding = "PARSE_JOBS"
+id = "00000000000000000000000000000000"
+
+# --- Uploaded PDF object storage (P3 — R2) ---
+#
+# Uploads land here, NOT inline-parsed: the hosted upload route (P5) writes the
+# raw PDF bytes to this bucket via getPdfStore() (lib/storage/pdf-store.ts reads
+# env.PDF_BUCKET), keyed per user `u/<userId>/<uuid>-<filename>`, and enqueues a
+# parse job carrying the r2Key. The queue consumer (P4) fetches the bytes back,
+# parses, writes the rows to the owner's DO, then DELETES the object (retention
+# default — ephemeral PDFs, per the compliance posture). The binding NAME must be
+# exactly PDF_BUCKET to match getPdfBucket()'s `ctx.env.PDF_BUCKET` lookup.
+#
+# Real bucket provisioned in P6 (no id to paste — R2 binds by bucket_name):
+#   npx wrangler r2 bucket create pare-pdfs
+[[r2_buckets]]
+binding = "PDF_BUCKET"
+bucket_name = "pare-pdfs"
+
+# --- Per-IP rate limiting (Phase 4 — Workers Rate Limiting API) ---------------
+#
+# The native Cloudflare Rate Limiting binding (`env.<NAME>.limit({ key })`).
+# Counting is per-colo and best-effort — exactly right for abuse mitigation on the
+# unauthenticated public endpoints (NOT a billing-grade global counter). Used by
+# lib/ratelimit.ts; resolved via getBinding(), so when these bindings are absent
+# (plain Node/dev, self-host) the limiter FAILS OPEN and requests pass through.
+#
+# `namespace_id` is an arbitrary, stable integer you assign per limiter (it scopes
+# the counter — reusing one across limiters shares the budget). `period` MUST be
+# 10 or 60 (seconds). These are `[[unsafe.bindings]]` because the API is still in
+# open beta; they deploy fine.
+#
+# RL_AUTH — sign-in / sign-up / password-reset (/api/auth/*): 20 requests / 60s/IP.
+[[unsafe.bindings]]
+name = "RL_AUTH"
+type = "ratelimit"
+namespace_id = "2001"
+simple = { limit = 20, period = 60 }
+
+# RL_WAITLIST — marketing waitlist signup (/api/waitlist): 10 requests / 60s/IP.
+[[unsafe.bindings]]
+name = "RL_WAITLIST"
+type = "ratelimit"
+namespace_id = "2002"
+simple = { limit = 10, period = 60 }
