@@ -27,10 +27,14 @@ PARSER = os.path.join(HERE, "parse_statements.py")
 
 
 def _extract_pdf(content_type, body):
-    """Return the raw PDF bytes from a request body.
+    """Return the raw PDF bytes from a request body, or None when a multipart
+    body contains no PDF part.
 
     Supports raw application/pdf and multipart/form-data (grabs the first part
-    whose payload starts with the %PDF signature). Falls back to the whole body.
+    whose payload starts with the %PDF signature). A multipart body with no
+    %PDF part returns None (-> 400) rather than the raw body — boundary lines
+    and part headers are not a PDF, and handing them to pdftotext produced a
+    confusing parser error instead of a clean client error.
     """
     if content_type and content_type.lower().startswith("multipart/form-data"):
         m = re.search(r"boundary=(.+)", content_type)
@@ -42,6 +46,7 @@ def _extract_pdf(content_type, body):
                     payload = payload.rstrip(b"\r\n")
                     if payload.startswith(b"%PDF"):
                         return payload
+        return None
     return body
 
 
