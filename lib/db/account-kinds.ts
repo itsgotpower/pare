@@ -29,12 +29,25 @@ export const OUTFLOW_WHERE = `(
   OR (account_kind = 'chequing' AND flow = 'transfer' AND effective_category != 'Banking')
 )`;
 
-// Map a parser `source` to its account kind. The PDF parser only ever emits
-// these three sources; anything else (e.g. a future import that neglected to
-// set a kind) falls back to 'unknown' so the row is simply ABSENT from the
-// charts rather than silently miscounted.
+// Map a parser `source` to its account kind. As the parser grows to cover more
+// banks (rbc_visa, td_chequing, tangerine_savings, …), keying off an explicit
+// per-source list would mean editing this map for every new handler — and a
+// missed entry silently drops the account to 'unknown', making it ABSENT from
+// every chart. So the mapping is CONVENTION-DRIVEN: scaffolded parser sources
+// follow a `<bank>_<kind>` naming scheme, and the suffix decides the kind. The
+// three original sources keep explicit cases (amex / cibc_visa have no suffix).
 export function sourceToKind(source: string): AccountKind {
+  // Original sources (no `_<kind>` suffix convention).
   if (source === "amex" || source === "cibc_visa") return "card";
   if (source === "cibc_chequing") return "chequing";
+
+  // Convention: `<bank>_<kind>` — the suffix names the account kind.
+  if (/_chequing$/.test(source)) return "chequing";
+  if (/_savings$/.test(source)) return "savings";
+  if (/_investment$/.test(source)) return "investment";
+  if (/_cash$/.test(source)) return "chequing"; // Wealthsimple Cash spends like chequing
+  if (/_(visa|mastercard|mc|amex|card|aeroplan|infinite|cashback)$/.test(source))
+    return "card";
+
   return "unknown";
 }

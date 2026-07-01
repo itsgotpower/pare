@@ -80,6 +80,97 @@ Page 1 of 1
 """
 
 
+# --- Scaffolded banks (RBC / TD / Scotia / BMO / Tangerine / Wealthsimple) ----
+# All SYNTHETIC and UNVERIFIED against real PDFs — they pin the scaffold parsers'
+# current behaviour and the registry routing, not real-world fidelity.
+
+RBC_VISA = """\
+RBC Royal Bank
+Visa Classic
+STATEMENT FROM October 1, 2026 TO October 31, 2026
+TRANSACTION  POSTING   ACTIVITY DESCRIPTION                AMOUNT ($)
+DATE         DATE
+Oct 02       Oct 03    STARBUCKS #1234 VANCOUVER            5.75
+Oct 04       Oct 05    REAL CDN SUPERSTORE VANCOUVER       42.10
+Oct 10       Oct 11    PAYMENT - THANK YOU              -150.00
+Oct 15       Oct 16    AMZN MKTP CA REFUND               -20.00
+NEW BALANCE                                            $1,234.56
+"""
+
+RBC_CHEQUING = """\
+RBC Royal Bank
+Your account statement
+From October 1, 2026 to October 31, 2026
+Opening Balance                                                    $1,000.00
+Date          Description                          Withdrawals ($)    Deposits ($)      Balance ($)
+Oct 1         Opening Balance                                                            1,000.00
+Oct 3         Payroll Deposit                                          2,000.00          3,000.00
+              PAYROLL ACME CORP
+Oct 5         e-Transfer sent                       500.00                               2,500.00
+              jdoe
+Oct 12        Hydro Bill Payment                    120.00                               2,380.00
+Closing Balance                                                       $2,380.00
+Page 1 of 1
+"""
+
+TD_VISA = """\
+TD Canada Trust
+TD Visa Infinite
+STATEMENT PERIOD September 1 to September 30, 2026
+Sep 03   Sep 04   TIM HORTONS #456 TORONTO        4.25
+Sep 10   Sep 11   PAYMENT - THANK YOU            -300.00
+NEW BALANCE                                       $842.00
+"""
+
+SCOTIA_VISA = """\
+Scotiabank
+Scotia Momentum Visa
+For the period August 1 to August 31, 2026
+Aug 05   Aug 06   SAFEWAY #123 CALGARY            58.40
+Aug 20   Aug 21   PAYMENT THANK YOU             -200.00
+NEW BALANCE                                     $1,005.55
+"""
+
+BMO_MC = """\
+BMO Bank of Montreal
+BMO CashBack Mastercard
+Statement period July 1 to July 31, 2026
+Jul 07   Jul 08   SHELL #9001 EDMONTON            62.10
+Jul 15   Jul 16   PAYMENT RECEIVED              -150.00 CR
+NEW BALANCE                                       $512.34
+"""
+
+
+def _ledger_fixture(brand_lines, period_phrase="From"):
+    """Build a synthetic chequing/savings fixture with the common scaffold shape:
+    opening 1,000 → +2,000 payroll → -500 e-transfer → -120 bill → closing 2,380.
+    Reconciles: inflow 2,000, outflow 620, closing 2,380; flows income/transfer/spend.
+    """
+    return (
+        brand_lines + "\n"
+        + period_phrase + " October 1, 2026 to October 31, 2026\n"
+        + "Opening Balance                                   $1,000.00\n"
+        + "Date          Description            Withdrawals ($)   Deposits ($)   Balance ($)\n"
+        + "Oct 1         Opening Balance                                          1,000.00\n"
+        + "Oct 3         Payroll Deposit                          2,000.00        3,000.00\n"
+        + "              PAYROLL ACME CORP\n"
+        + "Oct 5         e-Transfer sent        500.00                            2,500.00\n"
+        + "              jdoe\n"
+        + "Oct 12        Hydro Bill Payment     120.00                            2,380.00\n"
+        + "Closing Balance                                   $2,380.00\n"
+        + "Page 1 of 1\n"
+    )
+
+
+TD_CHEQUING_FIX = _ledger_fixture("TD Canada Trust\nEveryday Chequing")
+SCOTIA_CHEQUING_FIX = _ledger_fixture("Scotiabank\nBasic Bank Account")
+BMO_CHEQUING_FIX = _ledger_fixture("BMO Bank of Montreal\nPerformance Chequing")
+TANGERINE_CHEQUING_FIX = _ledger_fixture("Tangerine\nNo-Fee Chequing Account")
+TANGERINE_SAVINGS_FIX = _ledger_fixture("Tangerine\nSavings Account")
+WS_CASH_FIX = _ledger_fixture("Wealthsimple\nWealthsimple Cash")
+WS_SAVINGS_FIX = _ledger_fixture("Wealthsimple\nWealthsimple Savings Account")
+
+
 def _rows(parse_fn, fixture):
     with mock.patch.object(P, "text", return_value=fixture):
         return parse_fn("dummy.pdf")
@@ -323,6 +414,185 @@ class TestCategorizer(unittest.TestCase):
 
     def test_unknown_is_uncategorized(self):
         self.assertEqual(categorize("ZZZ NONSENSE 999"), "Other / uncategorized")
+
+
+class TestRbcVisa(unittest.TestCase):
+    """RBC Visa scaffold via the shared two-date card engine."""
+
+    def setUp(self):
+        self.rows = _rows(P.parse_rbc_visa, RBC_VISA)
+
+    def test_count(self):
+        self.assertEqual(len(self.rows), 4)
+
+    def test_period_is_closing_date(self):
+        self.assertEqual(self.rows[0][2], "October 31, 2026")
+        self.assertEqual(self.rows[0][3], "2026-10-02")
+
+    def test_spend_rows(self):
+        sb = next(r for r in self.rows if r[4].startswith("STARBUCKS"))
+        self.assertEqual(sb[6], "Coffee")
+        self.assertEqual(sb[7], "spend")
+        self.assertAlmostEqual(sb[5], 5.75)
+
+    def test_payment_credit(self):
+        pay = next(r for r in self.rows if "PAYMENT" in r[4])
+        self.assertEqual(pay[7], "payment")
+        self.assertAlmostEqual(pay[5], 150.00)  # stored positive
+
+    def test_refund_credit_is_income(self):
+        rf = next(r for r in self.rows if "REFUND" in r[4])
+        self.assertEqual(rf[7], "income")
+        self.assertAlmostEqual(rf[5], 20.00)
+
+    def test_source(self):
+        self.assertTrue(all(r[0] == "rbc_visa" for r in self.rows))
+
+
+class TestRbcChequing(unittest.TestCase):
+    """RBC chequing scaffold via the shared balance-reconciling ledger engine."""
+
+    def setUp(self):
+        self.rows = _rows(lambda p: P._parse_ledger(p, P.RBC_CHEQUING), RBC_CHEQUING)
+
+    def test_three_transactions(self):
+        self.assertEqual(len(self.rows), 3)
+
+    def test_flows(self):
+        self.assertEqual(
+            [r[7] for r in self.rows], ["income", "transfer", "spend"]
+        )
+
+    def test_source_and_category(self):
+        self.assertTrue(all(r[0] == "rbc_chequing" for r in self.rows))
+        self.assertTrue(all(r[6] == "Banking" for r in self.rows))
+
+    def test_reconciliation(self):
+        with mock.patch.object(P, "text", return_value=RBC_CHEQUING):
+            rep = P.ledger_report("dummy.pdf", P.RBC_CHEQUING)
+        self.assertEqual(rep["unreconciled"], 0)
+        self.assertAlmostEqual(rep["parsed_inflow"], 2000.00)
+        self.assertAlmostEqual(rep["parsed_outflow"], 620.00)
+        self.assertAlmostEqual(rep["parsed_closing"], 2380.00)
+
+
+class TestScaffoldCards(unittest.TestCase):
+    """TD / Scotia / BMO card scaffolds via the shared _parse_card engine."""
+
+    CASES = [
+        (P.TD_CARD, TD_VISA, "td_visa", 842.00, "2026-09-30"),
+        (P.SCOTIA_CARD, SCOTIA_VISA, "scotia_visa", 1005.55, "2026-08-31"),
+        (P.BMO_CARD, BMO_MC, "bmo_mastercard", 512.34, "2026-07-31"),
+    ]
+
+    def test_parse_and_flows(self):
+        for profile, fix, source, _bal, _date in self.CASES:
+            rows = _rows(lambda p, _pr=profile: P._parse_card(p, _pr), fix)
+            self.assertEqual(len(rows), 2, source)
+            self.assertTrue(all(r[0] == source for r in rows), source)
+            spend = next(r for r in rows if r[7] == "spend")
+            self.assertGreater(spend[5], 0)
+            pay = next(r for r in rows if r[7] == "payment")
+            self.assertIn("PAYMENT", pay[4].upper())
+            self.assertGreater(pay[5], 0)  # stored positive
+
+    def test_meta(self):
+        for profile, fix, source, bal, date in self.CASES:
+            with mock.patch.object(P, "text", return_value=fix):
+                m = P._card_meta("dummy.pdf", profile)
+            self.assertEqual(m["source"], source)
+            self.assertAlmostEqual(m["closing_balance"], bal)
+            self.assertEqual(m["closing_date"], date)
+
+
+class TestScaffoldLedgers(unittest.TestCase):
+    """TD / Scotia / BMO chequing + Tangerine/Wealthsimple chequing & savings,
+    all via the shared balance-reconciling _walk_ledger engine."""
+
+    CASES = [
+        (P.TD_CHEQUING, TD_CHEQUING_FIX, "td_chequing"),
+        (P.SCOTIA_CHEQUING, SCOTIA_CHEQUING_FIX, "scotia_chequing"),
+        (P.BMO_CHEQUING, BMO_CHEQUING_FIX, "bmo_chequing"),
+        (P.TANGERINE_CHEQUING, TANGERINE_CHEQUING_FIX, "tangerine_chequing"),
+        (P.TANGERINE_SAVINGS, TANGERINE_SAVINGS_FIX, "tangerine_savings"),
+        (P.WS_CASH, WS_CASH_FIX, "wealthsimple_cash"),
+        (P.WS_SAVINGS, WS_SAVINGS_FIX, "wealthsimple_savings"),
+    ]
+
+    def test_parse_and_reconcile(self):
+        for profile, fix, source in self.CASES:
+            rows = _rows(lambda p, _pr=profile: P._parse_ledger(p, _pr), fix)
+            self.assertEqual([r[7] for r in rows], ["income", "transfer", "spend"], source)
+            self.assertTrue(all(r[0] == source for r in rows), source)
+            self.assertTrue(all(r[6] == "Banking" for r in rows), source)
+            with mock.patch.object(P, "text", return_value=fix):
+                rep = P.ledger_report("dummy.pdf", profile)
+            self.assertEqual(rep["unreconciled"], 0, source)
+            self.assertAlmostEqual(rep["parsed_inflow"], 2000.00, msg=source)
+            self.assertAlmostEqual(rep["parsed_outflow"], 620.00, msg=source)
+            self.assertAlmostEqual(rep["parsed_closing"], 2380.00, msg=source)
+
+
+class TestScaffoldRouting(unittest.TestCase):
+    """statement_meta() must route every fixture to the right source — proves
+    detector specificity + ordering (Amex-last fallback, and the
+    savings-before-chequing split for Tangerine/Wealthsimple)."""
+
+    CASES = [
+        (AMEX, "amex"),
+        (CIBC_VISA, "cibc_visa"),
+        (CIBC_CHEQUING, "cibc_chequing"),
+        (RBC_VISA, "rbc_visa"),
+        (RBC_CHEQUING, "rbc_chequing"),
+        (TD_VISA, "td_visa"),
+        (TD_CHEQUING_FIX, "td_chequing"),
+        (SCOTIA_VISA, "scotia_visa"),
+        (SCOTIA_CHEQUING_FIX, "scotia_chequing"),
+        (BMO_MC, "bmo_mastercard"),
+        (BMO_CHEQUING_FIX, "bmo_chequing"),
+        (TANGERINE_CHEQUING_FIX, "tangerine_chequing"),
+        (TANGERINE_SAVINGS_FIX, "tangerine_savings"),
+        (WS_CASH_FIX, "wealthsimple_cash"),
+        (WS_SAVINGS_FIX, "wealthsimple_savings"),
+    ]
+
+    def test_routes_to_expected_source(self):
+        for fix, source in self.CASES:
+            with mock.patch.object(P, "text", return_value=fix):
+                m = P.statement_meta("dummy.pdf")
+            self.assertIsNotNone(m, source)
+            self.assertEqual(m["source"], source, source)
+
+    def test_registry_routes_scaffolds(self):
+        # The routing registry (registry.select) must also pick the scaffold
+        # parsers once registered, keeping Amex the last-priority fallback.
+        import registry
+        registry.register_builtins(P)
+        registry.register_scaffolds(P)
+        self.assertEqual(registry.select(RBC_VISA).id, "rbc_visa")
+        self.assertEqual(registry.select(WS_SAVINGS_FIX).id, "wealthsimple_savings")
+        self.assertEqual(registry.select(AMEX).id, "amex")  # fallback intact
+
+
+class TestScaffoldMeta(unittest.TestCase):
+    """Scaffold statement_meta (closing balance + date). No opening_balance yet
+    (scaffolds aren't verified against real PDFs)."""
+
+    def _meta(self, fixture):
+        with mock.patch.object(P, "text", return_value=fixture):
+            return P.statement_meta("dummy.pdf")
+
+    def test_rbc_visa_new_balance(self):
+        m = self._meta(RBC_VISA)
+        self.assertEqual(m["source"], "rbc_visa")
+        self.assertAlmostEqual(m["closing_balance"], 1234.56)
+        self.assertEqual(m["closing_date"], "2026-10-31")
+
+    def test_rbc_chequing_closing_balance(self):
+        m = self._meta(RBC_CHEQUING)
+        self.assertEqual(m["source"], "rbc_chequing")
+        self.assertAlmostEqual(m["closing_balance"], 2380.00)
+        self.assertEqual(m["closing_date"], "2026-10-31")
 
 
 if __name__ == "__main__":
