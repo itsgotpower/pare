@@ -474,6 +474,11 @@ function ReviewStep({
         <Stat label="From" value={preview.dateRange.min ?? "—"} />
         <Stat label="To" value={preview.dateRange.max ?? "—"} />
       </div>
+      {preview.dateOrder === "dmy" && (
+        <p className="font-mono text-xs text-muted-foreground">
+          SLASH DATES READ AS DD/MM/YYYY (detected from the file). Check the sample dates below.
+        </p>
+      )}
 
       <div>
         <p className={labelClass}>Sample (first {preview.sample.length} rows)</p>

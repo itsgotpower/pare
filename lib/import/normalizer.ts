@@ -23,6 +23,10 @@ export interface NormalizeContext {
   preset: Preset;
   accountMap: Record<string, AccountMapping>;
   categoryMap: Record<string, string>; // foreign category -> pare category
+  // Slash-date field order. Omit to let normalizeAll() detect it from the whole
+  // date column (see detectDateOrder) — both preview and commit go through
+  // normalizeAll on the same file, so they agree.
+  dateOrder?: DateOrder;
 }
 
 export interface NormalizedRow extends ParsedTransaction {
@@ -78,9 +82,32 @@ export function parseMoney(cell: string): number {
   return neg ? -Math.abs(n) : n;
 }
 
+export type DateOrder = "mdy" | "dmy";
+
+// Slash dates are ambiguous (3/5/2026): a Canadian D/M/Y export read as M/D/Y
+// silently transposes month/day for days <= 12 — wrong dates AND wrong dedup
+// keys commit. Detect the order from the WHOLE column before parsing any row:
+// a first field > 12 can only be a day (=> dmy), a second field > 12 only in
+// mdy. Majority wins so one typo can't flip a whole file; no evidence => mdy
+// (the previous behavior).
+export function detectDateOrder(cells: string[]): DateOrder {
+  let mdy = 0;
+  let dmy = 0;
+  for (const c of cells) {
+    const m = (c || "").trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
+    if (!m) continue;
+    const a = +m[1];
+    const b = +m[2];
+    if (a > 12 && b <= 12) dmy++;
+    else if (b > 12 && a <= 12) mdy++;
+  }
+  return dmy > mdy ? "dmy" : "mdy";
+}
+
 // Parse a date cell to YYYY-MM-DD, or null if unrecognized. Accepts ISO
-// (YYYY-MM-DD) and US slash dates (M/D/YYYY, M/D/YY); 2-digit years => 2000+.
-export function parseDate(cell: string): string | null {
+// (YYYY-MM-DD) and slash dates (M/D/YYYY or, with order="dmy", D/M/YYYY;
+// 2-digit years => 2000+).
+export function parseDate(cell: string, order: DateOrder = "mdy"): string | null {
   const s = (cell || "").trim();
   const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
   if (iso) {
@@ -90,7 +117,8 @@ export function parseDate(cell: string): string | null {
   }
   const slash = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
   if (slash) {
-    const [, mm, dd, yy] = slash;
+    const [mm, dd] = order === "dmy" ? [slash[2], slash[1]] : [slash[1], slash[2]];
+    const yy = slash[3];
     if (+mm < 1 || +mm > 12 || +dd < 1 || +dd > 31) return null;
     const year = yy.length === 2 ? `20${yy}` : yy;
     return `${year}-${mm.padStart(2, "0")}-${dd.padStart(2, "0")}`;
@@ -147,7 +175,7 @@ export function normalizeRow(
   const foreignCategory = cell(row, headers, preset.columns.category);
   const rawDesc = cell(row, headers, preset.columns.description);
 
-  const txnDate = parseDate(cell(row, headers, preset.columns.date));
+  const txnDate = parseDate(cell(row, headers, preset.columns.date), ctx.dateOrder ?? "mdy");
   if (!txnDate) {
     return { row: index, reason: "Unrecognized or missing date", raw: row };
   }
@@ -186,13 +214,20 @@ export function normalizeAll(
   rows: string[][],
   headers: string[],
   ctx: NormalizeContext
-): { rows: NormalizedRow[]; dropped: DropReason[] } {
+): { rows: NormalizedRow[]; dropped: DropReason[]; dateOrder: DateOrder } {
+  // Resolve the slash-date order ONCE from the whole column (row-by-row
+  // guessing is what transposed D/M/Y files silently).
+  const di = columnIndex(headers, ctx.preset.columns.date);
+  const dateOrder =
+    ctx.dateOrder ?? detectDateOrder(di !== -1 ? rows.map((r) => r[di] ?? "") : []);
+  const resolved = { ...ctx, dateOrder };
+
   const out: NormalizedRow[] = [];
   const dropped: DropReason[] = [];
   rows.forEach((row, i) => {
-    const r = normalizeRow(row, headers, ctx, i + 1);
+    const r = normalizeRow(row, headers, resolved, i + 1);
     if (isDrop(r)) dropped.push(r);
     else out.push(r);
   });
-  return { rows: out, dropped };
+  return { rows: out, dropped, dateOrder };
 }

@@ -6,7 +6,14 @@ import { detectPreset, PRESETS } from "./presets";
 import { inferFlow } from "./flow-rules";
 import { suggestCategory } from "./category-defaults";
 import { jaccard, descSimilar, normalizeDesc } from "./overlap";
-import { normalizeAll, slugifySource, guessKind, parseMoney, parseDate } from "./normalizer";
+import {
+  normalizeAll,
+  slugifySource,
+  guessKind,
+  parseMoney,
+  parseDate,
+  detectDateOrder,
+} from "./normalizer";
 import { analyzeCsv } from "./preview";
 
 // --- CSV hygiene -----------------------------------------------------------
@@ -43,6 +50,26 @@ test("parseDate accepts ISO and US slash, rejects junk", () => {
   assert.equal(parseDate("03/05/26"), "2026-03-05");
   assert.equal(parseDate("not a date"), null);
   assert.equal(parseDate("13/40/2026"), null);
+});
+
+test("parseDate honours dmy order; ISO is order-independent", () => {
+  assert.equal(parseDate("3/5/2026", "dmy"), "2026-05-03");
+  assert.equal(parseDate("28/2/2026", "dmy"), "2026-02-28");
+  assert.equal(parseDate("2/28/2026", "dmy"), null); // month 28 is invalid in dmy
+  assert.equal(parseDate("2026-03-01", "dmy"), "2026-03-01");
+});
+
+test("detectDateOrder: column-wide evidence, majority wins, default mdy", () => {
+  // Any first-field > 12 can only be a day.
+  assert.equal(detectDateOrder(["3/5/2026", "28/2/2026", "1/6/2026"]), "dmy");
+  // Any second-field > 12 can only be a day (US order).
+  assert.equal(detectDateOrder(["3/5/2026", "2/28/2026"]), "mdy");
+  // All-ambiguous (every field <= 12) keeps the historical default.
+  assert.equal(detectDateOrder(["3/5/2026", "4/6/2026"]), "mdy");
+  // Majority wins over a single contradictory row.
+  assert.equal(detectDateOrder(["28/2/2026", "30/1/2026", "2/28/2026"]), "dmy");
+  // ISO and junk cells contribute nothing.
+  assert.equal(detectDateOrder(["2026-03-01", "junk", ""]), "mdy");
 });
 
 test("slugifySource is stable + distinct from PDF sources; guessKind reads the name", () => {
@@ -156,6 +183,28 @@ test("normalizeAll: Mint debit/credit sign + YNAB outflow/inflow", () => {
   assert.equal(ynabOut[0].flow, "spend");
   assert.equal(ynabOut[1].amount, 2500);
   assert.equal(ynabOut[1].flow, "income");
+});
+
+test("normalizeAll: a D/M/Y file is detected column-wide, not transposed row-by-row", () => {
+  // Canadian YNAB export: 3/5 alone is ambiguous, but 28/2 proves D/M/Y —
+  // BOTH rows must then parse as D/M/Y (the old per-row M/D/Y assumption
+  // silently transposed the ambiguous ones and dropped the day>12 ones).
+  const ynab = parseCsv(
+    [
+      "Account,Date,Payee,Category,Outflow,Inflow",
+      "Checking,3/5/2026,Landlord,Rent,1200.00,0.00",
+      "Checking,28/2/2026,Employer,Ready to Assign,0.00,2500.00",
+    ].join("\n")
+  );
+  const out = normalizeAll(ynab.rows, ynab.headers, {
+    preset: PRESETS.ynab,
+    accountMap: { Checking: { source: "import:checking", account_kind: "chequing" } },
+    categoryMap: { Rent: "Rent / housing", "Ready to Assign": "Other / uncategorized" },
+  });
+  assert.equal(out.dateOrder, "dmy");
+  assert.equal(out.dropped.length, 0); // 28/2 is not "unrecognized date" anymore
+  assert.equal(out.rows[0].txn_date, "2026-05-03"); // 3 May, NOT March 5
+  assert.equal(out.rows[1].txn_date, "2026-02-28");
 });
 
 // --- Preview assembly ------------------------------------------------------

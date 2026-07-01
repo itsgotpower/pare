@@ -23,7 +23,7 @@ import parse_statements as ps
 
 TOL = 0.01
 _CHARGE_FLOWS = ("spend", "fee_interest", "transfer")   # increase card balance owed
-_CREDIT_FLOWS = ("payment", "income")                   # reduce it (not parsed today)
+_CREDIT_FLOWS = ("payment", "income")                   # reduce it (refunds/credits)
 
 
 @dataclass

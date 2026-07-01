@@ -32,9 +32,10 @@ American Express
 Prepared For              Account Number        Opening Date          Closing Date
 TEST USER                 XXXX X1003            Dec 03, 2025          Jan 02, 2026
        Previous Balance                                      $100.00
-Equals New Balance                                            $169.12
+Equals New Balance                                            $144.12
 New Transactions for TEST USER
 Dec 15        Dec 16        TEST MERCHANT VANCOUVER          12.34
+Dec 20        Dec 21        GADGET SHOP REFUND VANCOUVER          -25.00
 Jan 01        Jan 02        ANOTHER STORE TORONTO          56.78
 Total of New Transactions
 """
@@ -48,10 +49,11 @@ Feb 28         Mar 01        BLENZ COFFEE BAR         VANCOUVER  BC     Restaura
 Mar 02         Mar 03        Q REAL CDN SUPERSTORE    VANCOUVER  BC     Retail and Grocery         30.72
 Mar 05         Mar 06        BALANCE TRANSFER                           Retail and Grocery       8,000.00
 Mar 06         Mar 06        CASH ADV/BT/CONV CHQ FEE                   Professional and Financial Services    200.00
+Mar 08         Mar 09        AMZN MKTP CA REFUND      VANCOUVER  BC     Retail and Grocery         20.00 CR
 Total for 4500 XXXX XXXX 1003
 Previous balance                                                                 $163.24
-Total balance                                                       =            $8,401.31
-Amount Due1                                                                      $8,401.31
+Total balance                                                       =            $8,381.31
+Amount Due1                                                                      $8,381.31
 """
 
 CIBC_CHEQUING = """\
@@ -181,9 +183,16 @@ class TestAmex(unittest.TestCase):
         self.rows = _rows(P.parse_amex, AMEX)
 
     def test_count_and_period(self):
-        self.assertEqual(len(self.rows), 2)
+        self.assertEqual(len(self.rows), 3)
         # period must be the CLOSING date, not the opening date
         self.assertEqual(self.rows[0][2], "Jan 02, 2026")
+
+    def test_negative_amount_is_credit_not_spend(self):
+        # A refund ("-25.00") must store a POSITIVE amount with flow='income',
+        # not a negative flow='spend' row that skews the spend charts.
+        refund = next(r for r in self.rows if "GADGET SHOP REFUND" in r[4])
+        self.assertEqual(refund[7], "income")
+        self.assertAlmostEqual(refund[5], 25.00)
 
     def test_dec_rolls_back_to_prior_year(self):
         dec = next(r for r in self.rows if "TEST MERCHANT" in r[4])
@@ -220,6 +229,16 @@ class TestCibcVisa(unittest.TestCase):
         ca = next(r for r in self.rows if "CASH ADV" in r[4])
         self.assertEqual(ca[7], "fee_interest")
         self.assertAlmostEqual(ca[5], 200.00)
+
+    def test_trailing_cr_is_credit_not_spend(self):
+        # The section header says "charges and credits" — a "20.00 CR" refund
+        # must store a positive amount with flow='income', not spend.
+        refund = next(r for r in self.rows if "REFUND" in r[4])
+        self.assertEqual(refund[7], "income")
+        self.assertAlmostEqual(refund[5], 20.00)
+
+    def test_amounts_positive(self):
+        self.assertTrue(all(r[5] > 0 for r in self.rows))
 
 
 class TestCibcChequing(unittest.TestCase):
@@ -270,13 +289,13 @@ class TestStatementMeta(unittest.TestCase):
     def test_amex_new_balance(self):
         m = self._meta(AMEX)
         self.assertEqual(m["source"], "amex")
-        self.assertAlmostEqual(m["closing_balance"], 169.12)
+        self.assertAlmostEqual(m["closing_balance"], 144.12)
         self.assertEqual(m["closing_date"], "2026-01-02")
 
     def test_visa_total_balance(self):
         m = self._meta(CIBC_VISA)
         self.assertEqual(m["source"], "cibc_visa")
-        self.assertAlmostEqual(m["closing_balance"], 8401.31)
+        self.assertAlmostEqual(m["closing_balance"], 8381.31)
         # period "February 28 to March 27, 2026" -> full month names
         self.assertEqual(m["closing_date"], "2026-03-27")
 
@@ -370,6 +389,9 @@ class TestVerify(unittest.TestCase):
         self.assertTrue(r.ok)
         self.assertEqual(r.method, "card_balance")
         self.assertAlmostEqual(r.residual, 0.0)
+        # The fixture has a refund row, so both sides are present and the
+        # identity holds exactly (two-sided, high confidence).
+        self.assertAlmostEqual(r.confidence, 0.9)
 
     def test_visa_card_balance_reconciles(self):
         rows, meta = self._rows_meta(P.parse_cibc_visa, CIBC_VISA)
