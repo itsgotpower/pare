@@ -2,24 +2,13 @@
 
 import { useState } from "react";
 import { Check, Copy } from "lucide-react";
+import { copyText } from "@/lib/clipboard";
 
 export function CopyBlock({ label, text }: { label?: string; text: string }) {
   const [copied, setCopied] = useState(false);
 
   const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(text);
-    } catch {
-      // Clipboard API needs a secure context — fall back for plain-HTTP (LAN) access.
-      const ta = document.createElement("textarea");
-      ta.value = text;
-      ta.style.position = "fixed";
-      ta.style.opacity = "0";
-      document.body.appendChild(ta);
-      ta.select();
-      document.execCommand("copy");
-      ta.remove();
-    }
+    await copyText(text);
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
   };

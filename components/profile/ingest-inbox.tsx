@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Mail, Copy, Check, RefreshCw } from "lucide-react";
+import { copyText } from "@/lib/clipboard";
 
 const labelClass = "font-mono text-[10px] tracking-widest uppercase text-muted-foreground";
 
@@ -35,17 +36,7 @@ export function IngestInbox() {
 
   const copy = async () => {
     if (!address) return;
-    try {
-      await navigator.clipboard.writeText(address);
-    } catch {
-      // Fallback for non-secure contexts (mirrors components/connect/copy-block).
-      const ta = document.createElement("textarea");
-      ta.value = address;
-      document.body.appendChild(ta);
-      ta.select();
-      document.execCommand("copy");
-      document.body.removeChild(ta);
-    }
+    await copyText(address);
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
   };
