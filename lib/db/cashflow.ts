@@ -28,16 +28,16 @@ export interface Cashflow {
 // definition lives in account-kinds.ts so imported foreign accounts join in too.
 const EXPENSE_WHERE = OUTFLOW_WHERE;
 
-// Months that have chequing data — cashflow is only meaningful when both
-// sides (income and spend) are present. Card-only months (e.g. before the
-// first chequing statement) are excluded from the period.
-const INCOME_MONTHS = `(SELECT DISTINCT substr(txn_date, 1, 7) FROM v_transactions WHERE flow = 'income')`;
-
 // Money in by type → money out by category → net, for one month or the whole
 // period with chequing data. Drives the CASHFLOW tab's Sankey.
 export function getCashflow(month?: string): Cashflow {
   const db = getDb();
 
+  // Months that have income data — cashflow is only meaningful when both
+  // sides (income and spend) are present. Card-only months (e.g. before the
+  // first chequing statement) are excluded from the period. This list also
+  // becomes the whole-period filter below (internally generated YYYY-MM
+  // strings, so the literal IN list is injection-safe — same as forecast.ts).
   const months = (
     db
       .prepare(
@@ -50,7 +50,9 @@ export function getCashflow(month?: string): Cashflow {
   const selected = month && months.includes(month) ? month : null;
   const monthWhere = selected
     ? `AND substr(txn_date, 1, 7) = @month`
-    : `AND substr(txn_date, 1, 7) IN ${INCOME_MONTHS}`;
+    : months.length
+      ? `AND substr(txn_date, 1, 7) IN (${months.map((m) => `'${m}'`).join(",")})`
+      : `AND 1 = 0`;
   const params = selected ? { month: selected } : {};
 
   const income = db
