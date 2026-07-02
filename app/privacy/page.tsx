@@ -27,7 +27,7 @@ export const metadata: Metadata = {
 
 const CONTACT_EMAIL = "privacy@pare.money";
 // Security-disclosure contact per the launch brief. (General security posture
-// lives on /security, which routes vuln reports to security@pare.money.)
+// lives on /security, which routes vuln reports to the same address.)
 const SECURITY_CONTACT = "security@pare.money";
 const REPO_URL = "https://github.com/itsgotpower/pare";
 const LAST_UPDATED = "July 1, 2026";

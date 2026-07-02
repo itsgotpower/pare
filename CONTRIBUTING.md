@@ -68,7 +68,7 @@ This project follows the [Contributor Covenant](CODE_OF_CONDUCT.md). Be decent.
 
 ## Reporting security issues
 
-**Do not open a public issue for a security vulnerability.** Email Scott directly
-at **security@pare.money** with details and steps to reproduce. See
+**Do not open a public issue for a security vulnerability.** Email
+**security@pare.money** with details and steps to reproduce. See
 [SECURITY.md](SECURITY.md) for what counts as sensitive and how disclosure is
 handled.

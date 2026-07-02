@@ -13,4 +13,4 @@ good faith, and keep discussion focused on the work.
 ## Reporting
 
 Conduct concerns can be reported privately to the project maintainer at
-**security@pare.money**. All reports are reviewed and handled confidentially.
+**conduct@pare.money**. All reports are reviewed and handled confidentially.
