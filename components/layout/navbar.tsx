@@ -78,7 +78,7 @@ export function Sidebar() {
     href === "/" ? pathname === "/" : pathname.startsWith(href);
 
   // The login gate, the public marketing homepage, and the public marketing /
-  // legal pages (about / mcp / privacy / terms / security / switch) are
+  // legal pages (about / mcp / privacy / terms / security / switch / blog) are
   // full-screen — no app chrome.
   if (
     pathname === "/login" ||
@@ -89,7 +89,9 @@ export function Sidebar() {
     pathname === "/terms" ||
     pathname === "/security" ||
     pathname === "/switch" ||
-    pathname === "/switch-from-monarch"
+    pathname === "/switch-from-monarch" ||
+    pathname === "/blog" ||
+    pathname.startsWith("/blog/")
   )
     return null;
 

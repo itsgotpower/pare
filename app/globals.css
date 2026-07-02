@@ -190,3 +190,98 @@
     animation: none;
   }
 }
+
+/* Blog article body. No Tailwind typography plugin here (brutalist theme reserves
+   colour for data, not chrome), so the long-form prose is styled by hand against
+   the same tokens the rest of the site uses: mono uppercase headings, Geist body,
+   1px borders, zero radius. `scroll-margin-top` keeps in-page TOC anchors clear of
+   the sticky header. */
+.prose-pare {
+  color: var(--foreground);
+  font-size: 0.9375rem;
+  line-height: 1.75;
+}
+.prose-pare > * + * {
+  margin-top: 1.15rem;
+}
+.prose-pare h2 {
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 700;
+  font-size: 1rem;
+  margin-top: 2.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--border);
+  scroll-margin-top: 5rem;
+}
+.prose-pare h3 {
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 700;
+  font-size: 0.8125rem;
+  color: var(--muted-foreground);
+  margin-top: 1.75rem;
+  scroll-margin-top: 5rem;
+}
+.prose-pare p {
+  color: color-mix(in oklch, var(--foreground) 90%, transparent);
+}
+.prose-pare a {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.prose-pare a:hover {
+  color: var(--muted-foreground);
+}
+.prose-pare strong {
+  font-weight: 700;
+}
+.prose-pare ul,
+.prose-pare ol {
+  padding-left: 1.25rem;
+  color: color-mix(in oklch, var(--foreground) 90%, transparent);
+}
+.prose-pare ul {
+  list-style: disc;
+}
+.prose-pare ol {
+  list-style: decimal;
+}
+.prose-pare li + li {
+  margin-top: 0.4rem;
+}
+.prose-pare li > ul,
+.prose-pare li > ol {
+  margin-top: 0.4rem;
+}
+.prose-pare blockquote {
+  border-left: 2px solid var(--border);
+  padding-left: 1rem;
+  color: var(--muted-foreground);
+  font-style: italic;
+}
+.prose-pare code {
+  font-family: var(--font-mono);
+  font-size: 0.8125em;
+  background: var(--muted);
+  padding: 0.1em 0.35em;
+}
+.prose-pare pre {
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  background: var(--card);
+  border: 1px solid var(--border);
+  padding: 1rem;
+  overflow-x: auto;
+}
+.prose-pare pre code {
+  background: transparent;
+  padding: 0;
+}
+.prose-pare hr {
+  border: 0;
+  border-top: 1px solid var(--border);
+  margin: 2rem 0;
+}
