@@ -26,12 +26,15 @@ const WRITE_TOOLS = [
   ["delete_category_rule", "remove a keyword→category rule"],
   ["recategorize_all", "re-apply rules to all transactions"],
   ["tag_transaction", "override one transaction's category"],
+  ["add_manual_transaction", "record a cash / off-statement purchase"],
+  ["delete_manual_transaction", "delete a manually recorded transaction"],
 ] as const;
 
 const EXAMPLE_PROMPTS = [
   "How much did I spend on restaurants last month?",
   "What subscriptions am I paying for?",
   "Set a $400 restaurant budget.",
+  "I spent $40 cash at the market.",
   "Which categories are pacing over budget this month?",
 ];
 
@@ -90,7 +93,7 @@ export default function ConnectPage() {
             >
               Model Context Protocol
             </a>{" "}
-            server that exposes your data as 16 tools an MCP client (Claude Code, Claude
+            server that exposes your data as {READ_TOOLS.length + WRITE_TOOLS.length} tools an MCP client (Claude Code, Claude
             Desktop) can call. It talks stdio, reads and writes only the local SQLite
             database, and makes <span className="font-medium">no network calls</span> —
             everything stays on this machine.
