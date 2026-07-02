@@ -361,6 +361,18 @@ class TestRegistryRouting(unittest.TestCase):
             self.assertIsNone(orchestrator.parse_file(
                 "dummy.pdf", text_fn=P.text, meta_fn=P.statement_meta))
 
+    def test_orchestrator_meta_matches_statement_meta(self):
+        # parse_file now prefers the registered parser's own `meta` (no second
+        # detection pass) — for the built-ins it must return exactly what the
+        # statement_meta() router returns, opening_balance included.
+        import orchestrator
+        for fix in (AMEX, CIBC_VISA, CIBC_CHEQUING):
+            with mock.patch.object(P, "text", return_value=fix):
+                _, meta = orchestrator.parse_file(
+                    "dummy.pdf", text_fn=P.text, meta_fn=P.statement_meta)
+                self.assertEqual(meta, P.statement_meta("dummy.pdf"))
+                self.assertIn("opening_balance", meta)
+
 
 class TestVerify(unittest.TestCase):
     """Phase 2: the standalone verifier (verify.py). Chequing reconciles via the
@@ -584,6 +596,21 @@ class TestScaffoldRouting(unittest.TestCase):
                 m = P.statement_meta("dummy.pdf")
             self.assertIsNotNone(m, source)
             self.assertEqual(m["source"], source, source)
+
+    def test_registry_and_statement_meta_agree(self):
+        # Routing (registry.select) and metadata (statement_meta) share the
+        # same detectors — one source of truth. Every fixture must land on the
+        # SAME source through both paths.
+        import registry
+        registry.register_builtins(P)
+        registry.register_scaffolds(P)
+        for fix, source in self.CASES:
+            parser = registry.select(fix)
+            self.assertIsNotNone(parser, source)
+            self.assertEqual(parser.id, source, source)
+            with mock.patch.object(P, "text", return_value=fix):
+                m = P.statement_meta("dummy.pdf")
+            self.assertEqual(m["source"], parser.id, source)
 
     def test_registry_routes_scaffolds(self):
         # The routing registry (registry.select) must also pick the scaffold

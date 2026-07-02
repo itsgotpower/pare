@@ -1,6 +1,7 @@
 import Database from "better-sqlite3";
 import { useConnection } from "../db";
 import { MIGRATIONS, type Migration } from "../db/migrations";
+import { runMigrationList } from "../db/migration-runner";
 import type { DbBackend } from "./backend";
 import type { DurableStore } from "./do-store";
 
@@ -28,32 +29,16 @@ export type { DurableStore } from "./do-store";
 // `npm run gen:migrations`), so we consume that here instead of a local copy.
 
 // Idempotent, name-ordered migration runner over the bundled SQL strings — the
-// Worker-safe equivalent of lib/db/migrate.ts's fs-based runMigrations().
+// Worker-safe equivalent of lib/db/migrate.ts's runMigrations(). Thin wrapper
+// over the shared runner (lib/db/migration-runner.ts); unlike the other callers
+// it sorts by name first — historical behavior of this export, kept because
+// scripts/seed-demo.ts and do-backend.test.ts consume it directly (a no-op for
+// the generated MIGRATIONS list, which is already filename-sorted).
 export function runMigrationsFromStrings(
   db: Database.Database,
   migrations: readonly Migration[] = MIGRATIONS
 ): void {
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS _migrations (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT UNIQUE NOT NULL,
-      applied_at TEXT NOT NULL DEFAULT (datetime('now'))
-    )
-  `);
-
-  const applied = new Set(
-    db
-      .prepare("SELECT name FROM _migrations")
-      .all()
-      .map((row) => (row as { name: string }).name)
-  );
-
-  const ordered = [...migrations].sort((a, b) => a.name.localeCompare(b.name));
-  for (const { name, sql } of ordered) {
-    if (applied.has(name)) continue;
-    db.exec(sql);
-    db.prepare("INSERT INTO _migrations (name) VALUES (?)").run(name);
-  }
+  runMigrationList(db, [...migrations].sort((a, b) => a.name.localeCompare(b.name)));
 }
 
 export class DoBackend implements DbBackend {

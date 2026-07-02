@@ -19,10 +19,13 @@ def parse_file(path, *, text_fn, meta_fn):
 
     Returns ``(rows, meta)`` for a recognised statement, or ``None`` if no parser
     matches (the caller skips it, exactly as the old ``else: continue`` did).
+    Metadata comes from the selected parser's own ``meta`` when it registered one
+    (built-ins and scaffolds both do — no second detection pass); ``meta_fn``
+    (statement_meta, which re-detects) is the fallback for parsers without one.
     """
     parser = registry.select(text_fn(path))
     if parser is None:
         return None
     rows = parser.parse(path)
-    meta = meta_fn(path)
+    meta = parser.meta(path) if parser.meta is not None else meta_fn(path)
     return rows, meta
