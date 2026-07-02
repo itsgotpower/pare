@@ -32,6 +32,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogTrigger,
 } from "@/components/ui/dialog";
 import { formatCents } from "@/lib/format";
 
@@ -70,6 +71,16 @@ export default function TransactionsPage() {
   const [mode, setMode] = useState<string>("one");
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+
+  // Add-cash dialog
+  const [addOpen, setAddOpen] = useState(false);
+  const [addDate, setAddDate] = useState("");
+  const [addAmount, setAddAmount] = useState("");
+  const [addDescription, setAddDescription] = useState("");
+  const [addCategory, setAddCategory] = useState("");
+  const [addCustomCategory, setAddCustomCategory] = useState("");
+  const [adding, setAdding] = useState(false);
+  const [addError, setAddError] = useState<string | null>(null);
 
   const limit = 50;
 
@@ -182,6 +193,64 @@ export default function TransactionsPage() {
   const activeFilters =
     (category !== "all" ? 1 : 0) + (source !== "all" ? 1 : 0);
 
+  const addTargetCategory =
+    addCategory === CUSTOM_CATEGORY ? addCustomCategory.trim() : addCategory;
+  const addAmountNumber = parseFloat(addAmount);
+  const addValid =
+    addDate &&
+    addDescription.trim() &&
+    addTargetCategory &&
+    Number.isFinite(addAmountNumber) &&
+    addAmountNumber > 0;
+
+  const openAddCash = (open: boolean) => {
+    setAddOpen(open);
+    setAddError(null);
+    if (open) {
+      // toLocaleDateString("en-CA") = local YYYY-MM-DD (UTC would shift the
+      // date after ~4pm Pacific).
+      setAddDate(new Date().toLocaleDateString("en-CA"));
+      setAddAmount("");
+      setAddDescription("");
+      setAddCategory("");
+      setAddCustomCategory("");
+    }
+  };
+
+  const handleAddCash = async () => {
+    if (!addValid) return;
+    setAdding(true);
+    const res = await fetch("/api/transactions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        txn_date: addDate,
+        description: addDescription.trim(),
+        amount: addAmountNumber,
+        category: addTargetCategory,
+      }),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setAddError(data.error || "Couldn't add the transaction");
+      setAdding(false);
+      return;
+    }
+    setAdding(false);
+    setAddOpen(false);
+    fetchTransactions();
+  };
+
+  const handleDeleteManual = async () => {
+    if (!selected) return;
+    setSaving(true);
+    const res = await fetch(`/api/transactions?id=${selected.id}`, {
+      method: "DELETE",
+    });
+    if (!res.ok) return failRecategorize(res);
+    finishRecategorize();
+  };
+
   const filterSelects = (
     <>
       <Select value={category} onValueChange={(v) => setCategory(v ?? "all")}>
@@ -257,6 +326,109 @@ export default function TransactionsPage() {
           )}
         </button>
         <div className="hidden sm:flex gap-3">{filterSelects}</div>
+        <Dialog open={addOpen} onOpenChange={openAddCash}>
+          <DialogTrigger className="inline-flex items-center justify-center border border-input bg-background px-3 sm:px-4 font-mono text-xs tracking-widest uppercase hover:bg-accent hover:text-accent-foreground shrink-0 sm:ml-auto">
+            + ADD CASH
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle className="font-mono tracking-widest uppercase">
+                ADD CASH TRANSACTION
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 mt-2">
+              <p className="text-xs text-muted-foreground">
+                For spending that never hits a statement — cash, someone paid
+                back in person, the farmers market. Counts in every spend chart.
+              </p>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="font-mono text-xs tracking-widest text-muted-foreground">
+                    DATE
+                  </label>
+                  <Input
+                    type="date"
+                    value={addDate}
+                    onChange={(e) => setAddDate(e.target.value)}
+                    className="mt-1 font-mono text-xs"
+                  />
+                </div>
+                <div>
+                  <label className="font-mono text-xs tracking-widest text-muted-foreground">
+                    AMOUNT (CAD)
+                  </label>
+                  <Input
+                    type="number"
+                    inputMode="decimal"
+                    min="0.01"
+                    step="0.01"
+                    placeholder="0.00"
+                    value={addAmount}
+                    onChange={(e) => setAddAmount(e.target.value)}
+                    className="mt-1 font-mono"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="font-mono text-xs tracking-widest text-muted-foreground">
+                  DESCRIPTION
+                </label>
+                <Input
+                  value={addDescription}
+                  onChange={(e) => setAddDescription(e.target.value)}
+                  placeholder="e.g. Farmers market"
+                  className="mt-1 font-mono"
+                />
+              </div>
+              <div>
+                <label className="font-mono text-xs tracking-widest text-muted-foreground">
+                  CATEGORY
+                </label>
+                <Select
+                  value={addCategory}
+                  onValueChange={(v) => setAddCategory(v ?? "")}
+                >
+                  <SelectTrigger className="w-full mt-1 font-mono text-xs">
+                    <SelectValue placeholder="Category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {categories.map((c) => (
+                      <SelectItem key={c} value={c} className="font-mono text-xs">
+                        <span
+                          className="inline-block w-2 h-2 shrink-0"
+                          style={{ backgroundColor: categoryColor(c) }}
+                        />
+                        {c.toUpperCase()}
+                      </SelectItem>
+                    ))}
+                    <SelectItem value={CUSTOM_CATEGORY} className="font-mono text-xs">
+                      + NEW CATEGORY…
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+                {addCategory === CUSTOM_CATEGORY && (
+                  <Input
+                    value={addCustomCategory}
+                    onChange={(e) => setAddCustomCategory(e.target.value)}
+                    placeholder="e.g. Haircuts"
+                    className="mt-2 font-mono"
+                    autoFocus
+                  />
+                )}
+              </div>
+              <Button
+                onClick={handleAddCash}
+                disabled={adding || !addValid}
+                className="w-full font-mono text-xs tracking-widest uppercase"
+              >
+                {adding ? "ADDING..." : "ADD TRANSACTION"}
+              </Button>
+              {addError && (
+                <p className="font-mono text-xs text-destructive">{addError}</p>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
 
       <Dialog open={filterSheetOpen} onOpenChange={setFilterSheetOpen}>
@@ -585,6 +757,21 @@ export default function TransactionsPage() {
                   >
                     {saving ? "SAVING..." : "ADD RULE & APPLY"}
                   </Button>
+                </div>
+              )}
+              {selected.source === "manual" && (
+                <div className="border p-3 flex items-center justify-between gap-3">
+                  <p className="text-xs text-muted-foreground">
+                    Quick-added cash entry — not from a statement, safe to
+                    remove.
+                  </p>
+                  <button
+                    onClick={handleDeleteManual}
+                    disabled={saving}
+                    className="font-mono text-xs tracking-widest uppercase underline underline-offset-2 text-destructive hover:opacity-80 disabled:opacity-50 shrink-0"
+                  >
+                    DELETE ENTRY
+                  </button>
                 </div>
               )}
               {saveError && (

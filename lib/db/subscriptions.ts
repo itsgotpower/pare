@@ -1,5 +1,5 @@
 import { getDb } from "../db";
-import { CARD_SPEND_WHERE } from "./account-kinds";
+import { SPEND_WHERE } from "./account-kinds";
 import { merchantDisplay, merchantSlug } from "../merchant-key";
 import { median, frequencyLabel } from "./stats";
 
@@ -44,7 +44,7 @@ export function getSubscriptions(): { subscriptions: Subscription[]; monthlyTota
     .prepare(
       `SELECT description, amount, txn_date, effective_category AS category
        FROM v_transactions
-       WHERE ${CARD_SPEND_WHERE} AND amount > 0`
+       WHERE ${SPEND_WHERE} AND amount > 0`
     )
     .all() as Row[];
 

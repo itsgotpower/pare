@@ -1,5 +1,5 @@
 import { getDb } from "../db";
-import { CARD_SPEND_WHERE } from "./account-kinds";
+import { SPEND_WHERE } from "./account-kinds";
 
 export interface SpendingGoal {
   id: number;
@@ -54,7 +54,7 @@ export function getCategoryAverages(): CategoryAverage[] {
        FROM (
          SELECT effective_category, substr(txn_date, 1, 7) AS month, SUM(amount) AS monthly_total
          FROM v_transactions
-         WHERE ${CARD_SPEND_WHERE}
+         WHERE ${SPEND_WHERE}
          GROUP BY effective_category, month
        )
        GROUP BY category
@@ -70,7 +70,7 @@ export function getCurrentProgress(): GoalProgress[] {
   const latest = db
     .prepare(
       `SELECT substr(txn_date, 1, 7) AS m FROM v_transactions
-       WHERE ${CARD_SPEND_WHERE}
+       WHERE ${SPEND_WHERE}
        ORDER BY m DESC LIMIT 1`
     )
     .get() as { m: string } | undefined;

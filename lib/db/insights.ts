@@ -1,5 +1,5 @@
 import { getDb } from "../db";
-import { CARD_SPEND_WHERE } from "./account-kinds";
+import { SPEND_WHERE } from "./account-kinds";
 import { getForecast } from "./forecast";
 import { listGoals } from "./goals";
 import { getIncomeVsSpend } from "./income";
@@ -41,7 +41,7 @@ export function getInsights(): Insight[] {
     db
       .prepare(
         `SELECT DISTINCT substr(txn_date, 1, 7) m FROM v_transactions
-         WHERE ${CARD_SPEND_WHERE}
+         WHERE ${SPEND_WHERE}
          ORDER BY m DESC LIMIT 2`
       )
       .all() as { m: string }[]
@@ -55,7 +55,7 @@ export function getInsights(): Insight[] {
     db
       .prepare(
         `SELECT effective_category cat, SUM(amount) total FROM v_transactions
-         WHERE ${CARD_SPEND_WHERE}
+         WHERE ${SPEND_WHERE}
            AND substr(txn_date, 1, 7) = ? GROUP BY cat`
       )
       .all(month) as CatTotal[];
@@ -126,7 +126,7 @@ export function getInsights(): Insight[] {
   const oneoffs = db
     .prepare(
       `SELECT description, amount FROM v_transactions
-       WHERE ${CARD_SPEND_WHERE}
+       WHERE ${SPEND_WHERE}
          AND substr(txn_date, 1, 7) = ? AND amount >= 300
        ORDER BY amount DESC`
     )
