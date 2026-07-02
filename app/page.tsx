@@ -49,6 +49,32 @@ const PREVIEW_MONTHS = [
 ];
 const LATEST_MONTH = PREVIEW_MONTHS.length - 1;
 
+// "What you don't have to do anymore" — the pain-led module from the offer-
+// engineering doc (§4.1). Each card names a thing users of Mint/Monarch/etc.
+// hate, states Pare's removal, and backs it with the architectural proof. Copy is
+// fixed by the brief; keep the brutalist voice (no "seamless"/"intuitive"/etc.).
+const PAINS = [
+  {
+    color: PALETTE.celadon,
+    title: "No bank login",
+    sub: "Drop in a PDF. No aggregators, no MFA hell, no “your bank doesn’t sync anymore” emails.",
+    proof: "Statements you already have — we never touch your bank.",
+  },
+  {
+    color: PALETTE.dustyblue,
+    title: "No category tagging",
+    sub: "Auto-categorization on parse. Corrections learn.",
+    proof: "We process 300 transactions in seconds so you don’t have to touch 300 dropdowns.",
+  },
+  {
+    color: PALETTE.wheat,
+    title: "No data sold",
+    sub: "Per-user database, ephemeral PDF parsing, open source.",
+    proof: "The proof is in the code, not the marketing.",
+    proofHref: "/privacy",
+  },
+];
+
 const FEATURES = [
   { label: "Runs on your machine", color: PALETTE.slate },
   { label: "Statements shredded on import", color: PALETTE.celadon },
@@ -153,7 +179,11 @@ export default function MarketingHome() {
   };
 
   return (
-    <div className="h-full flex flex-col overflow-hidden">
+    // The landing now SCROLLS: the hero is a full-height first screen (unchanged
+    // at-a-glance), and the "what you don't have to do anymore" pain module sits
+    // below it (offer-engineering §4.1/§6.1). The zero-scroll invariant applies to
+    // the hero screen only, not the whole page.
+    <div className="flex flex-col min-h-full">
       {/* Top bar */}
       <header className="shrink-0 flex items-center justify-between px-5 md:px-8 h-14 border-b border-border">
         <div className="flex items-center gap-4 md:gap-5">
@@ -192,8 +222,8 @@ export default function MarketingHome() {
         </div>
       </header>
 
-      {/* Hero */}
-      <main className="flex-1 min-h-0 grid grid-cols-1 md:grid-cols-2">
+      {/* Hero — full-height first screen (header h-14 = 3.5rem). */}
+      <main className="grid grid-cols-1 md:grid-cols-2 min-h-[calc(100svh-3.5rem)]">
         {/* Pitch + CTA */}
         <div className="flex flex-col justify-center px-5 md:px-12 py-6 md:py-0 min-h-0">
           <p className="font-mono text-[10px] md:text-xs tracking-[0.25em] uppercase text-muted-foreground">
@@ -336,6 +366,41 @@ export default function MarketingHome() {
         </div>
       </main>
 
+      {/* What you don't have to do anymore — pain-led module under the hero. */}
+      <section className="border-t border-border px-5 md:px-8 py-10 md:py-14">
+        <p className="font-mono text-[10px] md:text-xs tracking-[0.25em] uppercase text-muted-foreground">
+          What you don’t have to do anymore
+        </p>
+        <h2 className="font-mono font-bold tracking-tight leading-[1] mt-2 text-2xl sm:text-3xl">
+          Pare wins by removing what you hate.
+        </h2>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-[1px] bg-border border border-border mt-6 md:mt-8">
+          {PAINS.map((p) => (
+            <div key={p.title} className="bg-card p-5 md:p-6 flex flex-col">
+              <div className="flex items-center gap-2">
+                <span
+                  className="inline-block w-2.5 h-2.5 shrink-0"
+                  style={{ backgroundColor: p.color }}
+                />
+                <h3 className="font-mono text-sm font-bold tracking-widest uppercase">
+                  {p.title}
+                </h3>
+              </div>
+              <p className="text-sm text-foreground/90 leading-relaxed mt-3">{p.sub}</p>
+              <p className="mt-auto pt-4 text-xs text-muted-foreground leading-relaxed border-t border-border/60">
+                {p.proofHref ? (
+                  <Link href={p.proofHref} className="underline hover:text-foreground transition-colors">
+                    {p.proof}
+                  </Link>
+                ) : (
+                  p.proof
+                )}
+              </p>
+            </div>
+          ))}
+        </div>
+      </section>
+
       {/* Footer — two tiers: the feature claims, then a thin meta/nav bar. The
           split keeps product claims (colour-dotted) from blurring into
           navigation. Stays compact for the zero-scroll landing. */}
@@ -394,6 +459,18 @@ export default function MarketingHome() {
               className="font-mono text-[11px] tracking-wide uppercase text-muted-foreground hover:text-foreground transition-colors"
             >
               MCP
+            </Link>
+            <Link
+              href="/how-it-works"
+              className="font-mono text-[11px] tracking-wide uppercase text-muted-foreground hover:text-foreground transition-colors"
+            >
+              How it works
+            </Link>
+            <Link
+              href="/switching"
+              className="font-mono text-[11px] tracking-wide uppercase text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Switching
             </Link>
             <Link
               href="/privacy"
