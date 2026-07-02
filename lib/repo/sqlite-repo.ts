@@ -27,6 +27,8 @@ import type {
 import {
   insertTransaction,
   insertManyTransactions,
+  insertManualTransaction,
+  deleteManualTransaction,
   getTransactionCategory,
   getSources,
   listTransactions,
@@ -169,6 +171,8 @@ export class SqliteRepo implements Repo {
     categories: () => this.read(() => getCategories()),
     sources: () => this.read(() => getSources()),
     categoryOf: (id) => this.read(() => getTransactionCategory(id)),
+    insertManual: (input) => this.write(() => insertManualTransaction(input)),
+    deleteManual: (id) => this.write(() => deleteManualTransaction(id)),
   };
 
   statements: StatementRepo = {

@@ -1,5 +1,5 @@
 import { getDb } from "../db";
-import { CARD_SPEND_WHERE } from "./account-kinds";
+import { SPEND_WHERE } from "./account-kinds";
 
 export interface MonthlyTotal {
   month: string;
@@ -30,7 +30,7 @@ export function getMonthlyTotals(months: number = 12): MonthlyTotal[] {
     .prepare(
       `SELECT substr(txn_date, 1, 7) AS month, SUM(amount) AS total
        FROM v_transactions
-       WHERE ${CARD_SPEND_WHERE}
+       WHERE ${SPEND_WHERE}
        GROUP BY month
        ORDER BY month DESC
        LIMIT @months`
@@ -47,7 +47,7 @@ export function getCategoryBreakdown(month?: string): CategoryBreakdown[] {
     .prepare(
       `SELECT effective_category AS category, SUM(amount) AS total, COUNT(*) AS count
        FROM v_transactions
-       WHERE ${CARD_SPEND_WHERE} ${where}
+       WHERE ${SPEND_WHERE} ${where}
        GROUP BY effective_category
        ORDER BY total DESC`
     )
@@ -60,7 +60,7 @@ export function getTrends(): TrendPoint[] {
     .prepare(
       `SELECT substr(txn_date, 1, 7) AS month, effective_category AS category, SUM(amount) AS total
        FROM v_transactions
-       WHERE ${CARD_SPEND_WHERE}
+       WHERE ${SPEND_WHERE}
        GROUP BY month, category
        ORDER BY month, total DESC`
     )

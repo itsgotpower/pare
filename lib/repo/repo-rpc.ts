@@ -97,6 +97,8 @@ export const REPO_CATALOGUE: RepoCatalogue = {
     categories: "read",
     sources: "read",
     categoryOf: "read",
+    insertManual: "write",
+    deleteManual: "write",
   },
   statements: { insert: "write", list: "read" },
   categories: {

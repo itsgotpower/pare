@@ -1,5 +1,5 @@
 import { getDb } from "../db";
-import { CARD_SPEND_WHERE } from "./account-kinds";
+import { SPEND_WHERE } from "./account-kinds";
 
 export interface BaselineMonth {
   month: string;
@@ -33,7 +33,7 @@ export function getBaseline(threshold: number = 300): BaselineResult {
               SUM(amount) AS total,
               SUM(CASE WHEN amount < @threshold THEN amount ELSE 0 END) AS baseline
        FROM v_transactions
-       WHERE ${CARD_SPEND_WHERE}
+       WHERE ${SPEND_WHERE}
        GROUP BY month
        ORDER BY month`
     )
@@ -43,7 +43,7 @@ export function getBaseline(threshold: number = 300): BaselineResult {
     .prepare(
       `SELECT txn_date, description, amount, effective_category AS category
        FROM v_transactions
-       WHERE ${CARD_SPEND_WHERE}
+       WHERE ${SPEND_WHERE}
          AND amount >= @threshold
        ORDER BY amount DESC`
     )

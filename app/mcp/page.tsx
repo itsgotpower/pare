@@ -39,12 +39,15 @@ const WRITE_TOOLS = [
   ["delete_category_rule", "remove a keyword→category rule"],
   ["recategorize_all", "re-apply rules to all transactions"],
   ["tag_transaction", "override one transaction's category"],
+  ["add_manual_transaction", "record a cash / off-statement purchase"],
+  ["delete_manual_transaction", "delete a manually recorded transaction"],
 ] as const;
 
 const EXAMPLE_PROMPTS = [
   "How much did I spend on restaurants last month?",
   "What subscriptions am I paying for?",
   "Set a $400 restaurant budget.",
+  "I spent $40 cash at the market.",
   "Which categories are pacing over budget this month?",
   "Show me my biggest one-off purchases this year.",
   "Am I on track to finish the month with a surplus?",
@@ -91,7 +94,7 @@ export default function McpPage() {
           >
             Model Context Protocol
           </a>{" "}
-          server that exposes your finance data as 16 tools an MCP client — Claude
+          server that exposes your finance data as {READ_TOOLS.length + WRITE_TOOLS.length} tools an MCP client — Claude
           Code or Claude Desktop — can call. Connect it once and you can ask Claude
           about your spending, budgets, and subscriptions in plain language, with
           the answers grounded in your actual transactions.
