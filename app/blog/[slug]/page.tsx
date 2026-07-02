@@ -3,12 +3,14 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getAllSlugs, getPost } from "@/lib/blog";
 
-// Public article page. Statically generated from content/blog/*.md — every slug is
-// prerendered at build (generateStaticParams) and unknown slugs 404 rather than
-// render on demand, so the Cloudflare Worker never touches the filesystem.
-
-export const dynamic = "force-static";
-export const dynamicParams = false;
+// Public article page. Content comes from a bundled module (lib/blog.ts →
+// blog-content.generated.ts), so no filesystem is touched at build OR runtime.
+// generateStaticParams prerenders every known slug; we intentionally keep
+// dynamicParams at its default (true) and do NOT force-static, because the
+// Cloudflare waitlist deploy has no R2 incremental cache — so these routes are
+// rendered on demand in the Worker rather than served from a prerender cache.
+// getPost() returns notFound() for any slug that isn't in the bundle, so unknown
+// paths still 404.
 
 export function generateStaticParams() {
   return getAllSlugs().map((slug) => ({ slug }));

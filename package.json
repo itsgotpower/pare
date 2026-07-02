@@ -4,7 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "gen:blog": "node scripts/gen-blog-content.mjs",
+    "build": "npm run gen:blog && next build",
     "start": "next start",
     "lint": "eslint",
     "guard": "node scripts/check-no-private.mjs",

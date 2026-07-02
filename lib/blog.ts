@@ -1,15 +1,14 @@
-import fs from "node:fs";
-import path from "node:path";
-import matter from "gray-matter";
 import { marked } from "marked";
+import { RAW_POSTS } from "./blog-content.generated";
 
-// Dead-simple, no-CMS blog. Articles are Markdown files with YAML frontmatter in
-// content/blog/*.md. Everything here runs at BUILD time only: the /blog routes
-// are statically generated (generateStaticParams + dynamicParams=false), so these
-// node:fs reads happen during `next build` on the CI runner and are baked into the
-// static output — the Cloudflare Worker never calls fs at request time.
+// Dead-simple, no-CMS blog. Articles are Markdown + YAML frontmatter in
+// content/blog/*.md; scripts/gen-blog-content.mjs inlines them into
+// blog-content.generated.ts at build time. We read from that bundled module
+// (NOT node:fs) so the pages render on Cloudflare Workers, which have no runtime
+// filesystem — see the generator's header for the full reasoning. Rendering
+// (marked / TOC / reading time) is pure computation and safe to run either at
+// build (prerender) or in the Worker (regeneration).
 
-const BLOG_DIR = path.join(process.cwd(), "content", "blog");
 const SITE_ORIGIN = "https://pare.money";
 const WORDS_PER_MINUTE = 220;
 
@@ -49,14 +48,6 @@ function readingMinutes(markdown: string): number {
   return Math.max(1, Math.round(words / WORDS_PER_MINUTE));
 }
 
-function listSlugs(): string[] {
-  if (!fs.existsSync(BLOG_DIR)) return [];
-  return fs
-    .readdirSync(BLOG_DIR)
-    .filter((f) => f.endsWith(".md"))
-    .map((f) => f.replace(/\.md$/, ""));
-}
-
 function toMeta(slug: string, data: Record<string, unknown>, markdown: string): PostMeta {
   return {
     slug,
@@ -94,24 +85,18 @@ function renderMarkdown(markdown: string): string {
 }
 
 export function getAllSlugs(): string[] {
-  return listSlugs();
+  return RAW_POSTS.map((p) => p.slug);
 }
 
 export function getAllPostMeta(): PostMeta[] {
-  return listSlugs()
-    .map((slug) => {
-      const raw = fs.readFileSync(path.join(BLOG_DIR, `${slug}.md`), "utf8");
-      const { data, content } = matter(raw);
-      return toMeta(slug, data as Record<string, unknown>, content);
-    })
-    .sort((a, b) => b.publishedAt.localeCompare(a.publishedAt));
+  return RAW_POSTS.map((p) => toMeta(p.slug, p.data, p.content)).sort((a, b) =>
+    b.publishedAt.localeCompare(a.publishedAt)
+  );
 }
 
 export function getPost(slug: string): Post | null {
-  const file = path.join(BLOG_DIR, `${slug}.md`);
-  if (!fs.existsSync(file)) return null;
-  const raw = fs.readFileSync(file, "utf8");
-  const { data, content } = matter(raw);
-  const meta = toMeta(slug, data as Record<string, unknown>, content);
-  return { ...meta, html: renderMarkdown(content), toc: extractToc(content) };
+  const raw = RAW_POSTS.find((p) => p.slug === slug);
+  if (!raw) return null;
+  const meta = toMeta(raw.slug, raw.data, raw.content);
+  return { ...meta, html: renderMarkdown(raw.content), toc: extractToc(raw.content) };
 }
