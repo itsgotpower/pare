@@ -269,7 +269,7 @@ class LedgerProfile:
     defaults below match the CIBC shape and are overridden per bank.
     """
 
-    def __init__(self, source, account, account_kind='chequing', *,
+    def __init__(self, source, account, *,
                  period_rx, opening_rx,
                  header_rx=r'Date\s+Description\s+Withdrawals',
                  footer_rx=r'Page\s+\d+\s+of\s+\d+',
@@ -280,7 +280,6 @@ class LedgerProfile:
                  classify=None):
         self.source = source
         self.account = account
-        self.account_kind = account_kind
         self.period_rx = period_rx          # one capture group -> period string
         self.opening_rx = opening_rx        # opening balance value
         self.header_rx = header_rx          # column header that STARTS capture
@@ -603,9 +602,9 @@ CIBC_LEDGER = LedgerProfile(
 # a mistuned anchor yields missing rows, never corrupt totals. They share one
 # common shape ("Opening/Closing Balance", a Withdrawals/Deposits/Balance grid);
 # tune per bank on the first real upload.
-def _scaffold_ledger(source, account, account_kind='chequing'):
+def _scaffold_ledger(source, account):
     return LedgerProfile(
-        source, account, account_kind,
+        source, account,
         period_rx=r'(?:From|FROM|For the period|Statement period)\s+'
                   r'([A-Z][a-z]+ \d{1,2}, \d{4} to [A-Z][a-z]+ \d{1,2}, \d{4})',
         opening_rx=r'Opening [Bb]alance[^\n]*?\$?([\d,]+\.\d{2})',
@@ -620,9 +619,9 @@ TD_CHEQUING = _scaffold_ledger('td_chequing', 'TD Chequing')
 SCOTIA_CHEQUING = _scaffold_ledger('scotia_chequing', 'Scotiabank Chequing')
 BMO_CHEQUING = _scaffold_ledger('bmo_chequing', 'BMO Chequing')
 TANGERINE_CHEQUING = _scaffold_ledger('tangerine_chequing', 'Tangerine Chequing')
-TANGERINE_SAVINGS = _scaffold_ledger('tangerine_savings', 'Tangerine Savings', 'savings')
+TANGERINE_SAVINGS = _scaffold_ledger('tangerine_savings', 'Tangerine Savings')
 WS_CASH = _scaffold_ledger('wealthsimple_cash', 'Wealthsimple Cash')
-WS_SAVINGS = _scaffold_ledger('wealthsimple_savings', 'Wealthsimple Savings', 'savings')
+WS_SAVINGS = _scaffold_ledger('wealthsimple_savings', 'Wealthsimple Savings')
 
 
 # Card profiles — all SCAFFOLDS. RBC keeps section gating (its layout prints a
@@ -721,9 +720,8 @@ def _ledger_detect(brand, *, savings=None):
 # savings-marker detector wins.
 # ===========================================================================
 class _Scaffold:
-    def __init__(self, id, account_kind, priority, detect, parse, meta):
+    def __init__(self, id, priority, detect, parse, meta):
         self.id = id
-        self.account_kind = account_kind
         self.priority = priority
         self.detect = detect
         self.parse = parse
@@ -731,13 +729,13 @@ class _Scaffold:
 
 
 def _card_scaffold(profile, priority, detect):
-    return _Scaffold(profile.source, 'card', priority, detect,
+    return _Scaffold(profile.source, priority, detect,
                      lambda p: _parse_card(p, profile),
                      lambda p: _card_meta(p, profile))
 
 
 def _ledger_scaffold(profile, priority, detect):
-    return _Scaffold(profile.source, profile.account_kind, priority, detect,
+    return _Scaffold(profile.source, priority, detect,
                      lambda p: _parse_ledger(p, profile),
                      lambda p: _ledger_meta(p, profile))
 
@@ -758,59 +756,93 @@ _SCAFFOLD_BANKS = [
 ]
 
 
+# ===========================================================================
+# Built-in detectors — the single source of truth for routing the three VERIFIED
+# parsers. `registry.register_builtins()` and `statement_meta()` both use these,
+# so registry routing and metadata routing can't drift. CIBC chequing PDFs
+# contain the literal "American Express" (Amex card-payment lines), so the Amex
+# detector must always be checked LAST (registry priority 90; last branch here).
+# ===========================================================================
+def _detect_cibc_visa(t):
+    return 'Aeroplan' in t and 'Visa' in t
+
+
+def _detect_cibc_chequing(t):
+    return 'CIBC Account Statement' in t
+
+
+def _detect_amex(t):
+    return 'American Express' in t
+
+
+# Per-source metadata for the three VERIFIED built-ins. Each returns the same
+# dict shape as the scaffolds' _card_meta/_ledger_meta PLUS `opening_balance`
+# (verify.py reconciles cards with it; scaffolds don't carry one yet). They are
+# registered on the built-in parsers (registry.register_builtins), so the
+# orchestrator gets metadata from the SAME parser routing picked — no second
+# detection pass.
+def _cibc_visa_meta(path):
+    t = text(path)
+    period = _visa_period(t)
+    # Account summary box: "Total balance   =   $167.93"
+    m = re.search(r'Total balance\s*=?\s*' + _MONEY_SIGNED, t)
+    # "Previous balance   $163.24" — opening balance; lets verify.py reconcile
+    # cards (charges - credits == closing - opening).
+    om = re.search(r'Previous balance\s+' + _MONEY_SIGNED, t, re.IGNORECASE)
+    return {'source': 'cibc_visa', 'account': 'CIBC Aeroplan Visa', 'period': period,
+            'closing_balance': _money(m.group(1)) if m else None,
+            'closing_date': period_end(period),
+            'opening_balance': _money(om.group(1)) if om else None}
+
+
+def _cibc_chequing_meta(path):
+    # The shared ledger meta (summary-box closing with the reconciled-balance
+    # fallback — same chain as chequing_report), plus the opening balance.
+    meta = _ledger_meta(path, CIBC_LEDGER)
+    om = re.search(CIBC_LEDGER.opening_rx, text(path))
+    meta['opening_balance'] = _money(om.group(1)) if om else None
+    return meta
+
+
+def _amex_meta(path):
+    t = text(path)
+    period = _amex_period(t)
+    # "Equals New Balance   $1,853.01" (summary box); plain "New Balance" fallback.
+    m = re.search(r'Equals New Balance\s+' + _MONEY_SIGNED, t) or \
+        re.search(r'New Balance\s+' + _MONEY_SIGNED, t)
+    # "Previous Balance   $100.00" — opening balance (see verify.py).
+    om = re.search(r'Previous Balance\s+' + _MONEY_SIGNED, t, re.IGNORECASE)
+    return {'source': 'amex', 'account': 'Amex Gold', 'period': period,
+            'closing_balance': _money(m.group(1)) if m else None,
+            'closing_date': period_end(period),
+            'opening_balance': _money(om.group(1)) if om else None}
+
+
 def statement_meta(path):
     """Statement-level metadata: opening + closing balance + closing date per source.
 
     Balances are stored AS PRINTED — positive means money in the account for
     chequing/savings and amount owed for cards; the app's net-worth layer applies
-    the liability sign. The three verified built-ins carry an `opening_balance`
-    too (verify.py reconciles cards with it); the scaffolds don't yet. Returns
-    None for unrecognized PDFs.
+    the liability sign. A thin router: the SAME detect/meta pairs the registry
+    registers (built-ins above, scaffolds via _SCAFFOLD_BANKS), one source of
+    truth. The three verified built-ins carry an `opening_balance` too (verify.py
+    reconciles cards with it); the scaffolds don't yet. Returns None for
+    unrecognized PDFs.
     """
     t = text(path)
-    money_rx = r'(-?\$?-?[\d,]+\.\d{2})'
-    if 'Aeroplan' in t and 'Visa' in t:
-        period = _visa_period(t)
-        # Account summary box: "Total balance   =   $167.93"
-        m = re.search(r'Total balance\s*=?\s*' + money_rx, t)
-        # "Previous balance   $163.24" — opening balance; lets verify.py reconcile
-        # cards (charges - credits == closing - opening).
-        om = re.search(r'Previous balance\s+' + money_rx, t, re.IGNORECASE)
-        source, account = 'cibc_visa', 'CIBC Aeroplan Visa'
-        closing = _money(m.group(1)) if m else None
-        opening = _money(om.group(1)) if om else None
-    elif 'CIBC Account Statement' in t:
-        period, txns = _walk_chequing(path)
-        # Prefer the Account-summary box ("= $2,766.00"); fall back to the last
-        # reconciled running balance (same fallback chain as chequing_report).
-        m = re.search(r'=\s+\$(-?[\d,]+\.\d{2})', t)
-        om = re.search(r'Opening balance on[^\n]*?\$?([\d,]+\.\d{2})', t)
-        reconciled = [x for x in txns if x['direction'] != 'unreconciled']
-        source, account = 'cibc_chequing', 'CIBC Chequing'
-        closing = _money(m.group(1)) if m else (
-            reconciled[-1]['balance'] if reconciled else None)
-        opening = _money(om.group(1)) if om else None
-    elif 'American Express' in t:
-        period = _amex_period(t)
-        # "Equals New Balance   $1,853.01" (summary box); plain "New Balance" fallback.
-        m = re.search(r'Equals New Balance\s+' + money_rx, t) or \
-            re.search(r'New Balance\s+' + money_rx, t)
-        # "Previous Balance   $100.00" — opening balance (see verify.py).
-        om = re.search(r'Previous Balance\s+' + money_rx, t, re.IGNORECASE)
-        source, account = 'amex', 'Amex Gold'
-        closing = _money(m.group(1)) if m else None
-        opening = _money(om.group(1)) if om else None
-    else:
-        # Scaffolded banks — no opening_balance yet (not verified against real
-        # PDFs). Amex is checked above so its "American Express" text never
-        # reaches here; scaffold detectors key on distinct brand markers.
-        for b in _SCAFFOLD_BANKS:
-            if b.detect(t):
-                return b.meta(path)
-        return None
-    return {'source': source, 'account': account, 'period': period,
-            'closing_balance': closing, 'closing_date': period_end(period),
-            'opening_balance': opening}
+    if _detect_cibc_visa(t):
+        return _cibc_visa_meta(path)
+    if _detect_cibc_chequing(t):
+        return _cibc_chequing_meta(path)
+    if _detect_amex(t):
+        # Checked before the scaffolds (unlike the registry, which keeps Amex
+        # the LAST-priority fallback) — safe either way, since scaffold
+        # detectors key on distinct brand markers.
+        return _amex_meta(path)
+    for b in _SCAFFOLD_BANKS:
+        if b.detect(t):
+            return b.meta(path)
+    return None
 
 
 def main(src_dir, out_csv):

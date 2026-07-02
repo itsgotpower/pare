@@ -26,7 +26,7 @@ class Parser:
     priority: int
     matches: Callable[[str], bool]
     parse: Callable[[str], list]          # takes a PDF path, returns canonical rows
-    meta: Optional[Callable[[str], dict]] = None  # statement metadata (scaffolds carry their own)
+    meta: Optional[Callable[[str], dict]] = None  # statement metadata (built-ins + scaffolds carry their own; the orchestrator prefers it)
     origin: str = "builtin"
     fingerprints: Set[str] = field(default_factory=set)
 
@@ -62,14 +62,17 @@ def register_builtins(mod) -> None:
     if any(p.origin == "builtin" for p in _REGISTRY):
         return
     register(Parser("cibc_visa", 10,
-                    matches=lambda t: "Aeroplan" in t and "Visa" in t,
-                    parse=mod.parse_cibc_visa))
+                    matches=mod._detect_cibc_visa,
+                    parse=mod.parse_cibc_visa,
+                    meta=mod._cibc_visa_meta))
     register(Parser("cibc_chequing", 20,
-                    matches=lambda t: "CIBC Account Statement" in t,
-                    parse=mod.parse_cibc_chequing))
+                    matches=mod._detect_cibc_chequing,
+                    parse=mod.parse_cibc_chequing,
+                    meta=mod._cibc_chequing_meta))
     register(Parser("amex", 90,
-                    matches=lambda t: "American Express" in t,
-                    parse=mod.parse_amex))
+                    matches=mod._detect_amex,
+                    parse=mod.parse_amex,
+                    meta=mod._amex_meta))
 
 
 def register_scaffolds(mod) -> None:
