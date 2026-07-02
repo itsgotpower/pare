@@ -1,14 +1,14 @@
 import { getDb } from "../db";
-import { CARD_SPEND_WHERE } from "./account-kinds";
+import { SPEND_WHERE } from "./account-kinds";
 import { merchantDisplay, merchantSlug } from "../merchant-key";
 import { median, frequencyLabel } from "./stats";
 
-// Merchant drill-down queries. A "merchant" is the group of card-spend rows that
+// Merchant drill-down queries. A "merchant" is the group of spend rows that
 // share a normalized slug (see lib/merchant-key.ts) — this collapses the per-charge
 // store-number / location noise so one brand reads as one merchant.
 //
 // Scope = the SAME spend universe as the dashboard charts, subscriptions, and
-// top-merchants: CARD_SPEND_WHERE (flow='spend' AND account_kind='card').
+// top-merchants: SPEND_WHERE (card purchases + manual cash).
 // Chequing debits are intentionally excluded so the totals here reconcile with
 // what's shown elsewhere. Grouping happens in JS (personal-scale row counts),
 // mirroring how subscriptions.ts already fetches-then-groups.
@@ -72,9 +72,9 @@ interface Row {
   source: string;
 }
 
-// Same "card spend" universe as the dashboard charts / subscriptions, keyed off
+// Same spend universe as the dashboard charts / subscriptions, keyed off
 // account_kind (Part 2 refactor) so imported card data lights up here too.
-const SPEND_WHERE = `${CARD_SPEND_WHERE} AND amount > 0`;
+const POSITIVE_SPEND_WHERE = `${SPEND_WHERE} AND amount > 0`;
 
 // Pick the most common display name in the group (stable label even when the
 // representative row order shifts), tie-broken toward the longest.
@@ -102,7 +102,7 @@ function fetchSpendRows(): Row[] {
     .prepare(
       `SELECT id, description, amount, txn_date, effective_category AS category, source
        FROM v_transactions
-       WHERE ${SPEND_WHERE}`
+       WHERE ${POSITIVE_SPEND_WHERE}`
     )
     .all() as Row[];
 }

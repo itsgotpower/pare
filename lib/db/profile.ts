@@ -29,6 +29,7 @@ const SOURCE_LABELS: Record<string, string> = {
   cibc_chequing: "CHEQUING",
   wealthsimple_cash: "WS CASH",
   wealthsimple_savings: "WS SAVINGS",
+  manual: "CASH", // in-app quick-added rows, not a bank feed
 };
 
 // Human label for a parser `source`. Explicit overrides win; otherwise derive a

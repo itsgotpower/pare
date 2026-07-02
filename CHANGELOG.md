@@ -12,6 +12,12 @@ contracts, on-disk and crypto formats) may change between minor versions — see
 
 ### Added
 
+- **Manual / cash transactions** — a `+ ADD CASH` quick-add on the transactions
+  page for spending that never hits a statement. Cash entries count in every
+  spend chart (and in cashflow's outflow), keep the category you pick even
+  through later recategorize passes, and can be deleted from the row dialog.
+  Statement-backed rows stay undeletable.
+
 - **OFX / QFX import** on `/upload` — drop a `.ofx` / `.qfx` export and Pare reads
   the transactions directly, no PDF or bank login required. Dedup is keyed on each
   transaction's bank-assigned `FITID`, so re-importing an overlapping file is a

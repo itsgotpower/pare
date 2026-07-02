@@ -13,17 +13,18 @@ export type AccountKind =
   | "investment"
   | "unknown";
 
-// Universe A — "card spend": the charts that count only credit-card purchases
-// (summary / baseline / heatmap / goals / insights). Part 2 replaces the inline
-// `flow = 'spend' AND source IN ('amex','cibc_visa')` with this.
-export const CARD_SPEND_WHERE = `flow = 'spend' AND account_kind = 'card'`;
+// Universe A — "discretionary spend": the charts that count direct purchases
+// (summary / baseline / heatmap / goals / insights / subscriptions / merchants).
+// Card purchases plus manually recorded cash spending — cash is spent the same
+// way a card is swiped, so it belongs in "where did my money go". Chequing
+// debits stay in Universe B only.
+export const SPEND_WHERE = `flow = 'spend' AND account_kind IN ('card', 'cash')`;
 
-// Universe B — "total outflow" (cashflow / forecast / income): card spend plus
-// chequing debits, fees, and categorized chequing transfers (rent). Card
-// payments stay excluded to avoid double-counting. Part 2 replaces the three
-// duplicated inline copies of this block with this constant.
+// Universe B — "total outflow" (cashflow / forecast / income): the spend
+// universe plus chequing debits, fees, and categorized chequing transfers
+// (rent). Card payments stay excluded to avoid double-counting.
 export const OUTFLOW_WHERE = `(
-  (flow = 'spend' AND account_kind = 'card')
+  (flow = 'spend' AND account_kind IN ('card', 'cash'))
   OR (account_kind = 'chequing' AND flow = 'spend')
   OR (account_kind = 'chequing' AND flow = 'fee_interest')
   OR (account_kind = 'chequing' AND flow = 'transfer' AND effective_category != 'Banking')
@@ -40,6 +41,9 @@ export function sourceToKind(source: string): AccountKind {
   // Original sources (no `_<kind>` suffix convention).
   if (source === "amex" || source === "cibc_visa") return "card";
   if (source === "cibc_chequing") return "chequing";
+
+  // In-app quick-add rows (no statement behind them) — real cash spending.
+  if (source === "manual") return "cash";
 
   // Convention: `<bank>_<kind>` — the suffix names the account kind.
   if (/_chequing$/.test(source)) return "chequing";

@@ -482,8 +482,13 @@ export default function ProfilePage() {
         </div>
         <div>
           {health.sources.map((s, i) => {
+            // Quick-added cash rows have no statement feed behind them — there
+            // is nothing to upload, so staleness doesn't apply.
+            const isManual = s.source === "manual";
             const stale =
-              s.days_since_last !== null && s.days_since_last > STALE_AFTER_DAYS;
+              !isManual &&
+              s.days_since_last !== null &&
+              s.days_since_last > STALE_AFTER_DAYS;
             return (
               <div
                 key={s.source}
@@ -495,8 +500,9 @@ export default function ProfilePage() {
                   {s.label}
                 </span>
                 <span className="text-xs text-muted-foreground flex-1 min-w-40">
-                  Last statement {formatMonth(s.last_period)} · {s.statement_count}{" "}
-                  statements · txns to {formatDate(s.last_txn_date)}
+                  {isManual
+                    ? `Quick-added in app · txns to ${formatDate(s.last_txn_date)}`
+                    : `Last statement ${formatMonth(s.last_period)} · ${s.statement_count} statements · txns to ${formatDate(s.last_txn_date)}`}
                 </span>
                 <span className="flex gap-0.5" aria-hidden>
                   {s.coverage.map((covered, j) => (
@@ -515,7 +521,7 @@ export default function ProfilePage() {
                   >
                     {s.days_since_last}d — upload
                   </Link>
-                ) : (
+                ) : isManual ? null : (
                   <span
                     className="font-mono text-[10px] tracking-widest uppercase border px-1.5 py-0.5"
                     style={{ color: PALETTE.sage, borderColor: PALETTE.sage }}
