@@ -467,7 +467,7 @@ export default function MarketingHome() {
               How it works
             </Link>
             <Link
-              href="/switching"
+              href="/switch"
               className="font-mono text-[11px] tracking-wide uppercase text-muted-foreground hover:text-foreground transition-colors"
             >
               Switching
