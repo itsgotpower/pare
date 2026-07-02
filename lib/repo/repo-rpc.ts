@@ -68,44 +68,90 @@ export async function callRepoMethod(repo: Repo, call: AnyRepoCall): Promise<unk
   return invoke(repo, call.namespace, call.method, call.args);
 }
 
-// --- The method catalogue (for the request-side proxy) ---------------------
+// --- The method catalogue (drives the request-side proxy) ------------------
 //
-// Mirrors the Repo interface namespaces 1:1 (lib/repo/types.ts). DoRepoClient
-// hand-lists a typed forwarder per method (do-repo-client.ts); this catalogue is
-// the reference list those forwarders must cover, and feeds the DO's methods()
-// probe. Kept next to the dispatcher so both sides share one source of truth.
-export const REPO_NAMESPACES: Record<string, readonly string[]> = {
-  transactions: ["insert", "insertMany", "list", "categories", "sources", "categoryOf"],
-  statements: ["insert", "list"],
-  categories: [
-    "seed",
-    "listRules",
-    "addRule",
-    "deleteRule",
-    "addOverride",
-    "removeOverride",
-    "recategorizeMatching",
-    "recategorizeAll",
-    "uncategorizedCount",
-    "ruleSuggestions",
-  ],
-  goals: ["list", "upsert", "delete", "currentProgress", "categoryAverages"],
-  netWorth: ["listEntries", "addEntry", "updateEntry", "deleteEntry", "get"],
-  summary: ["monthlyTotals", "categoryBreakdown", "trends", "topMerchants"],
-  income: ["monthly", "byType", "vsSpend"],
-  monthReview: ["get"],
-  cashflow: ["get"],
-  forecast: ["get"],
-  cashflowForecast: ["get"],
-  subscriptions: ["get"],
-  insights: ["get"],
-  baseline: ["get"],
-  heatmap: ["dailySpend"],
-  merchants: ["list", "detail"],
-  profile: ["dataHealth"],
-  waitlist: ["join", "count", "list"],
-  imports: ["create", "list", "delete", "watermarks", "rowsInWindow"],
+// ONE catalogue for the whole RPC surface: DoRepoClient GENERATES its forwarders
+// from it (do-repo-client.ts), and each method's read/write flag is what batch()
+// uses to decide buffering — so the method list and the write list cannot drift.
+//
+// The RepoCatalogue mapped type pins it to the Repo interface (lib/repo/types.ts)
+// in BOTH directions at compile time: a method added to types.ts but missing here
+// is a "property missing" error, and a catalogued name that doesn't exist on Repo
+// is an excess-property error. Kept next to the dispatcher so both sides share
+// one source of truth.
+
+// "write" methods are buffered while inside DoRepoClient.batch(); "read" methods
+// always pass straight through to the transport.
+type MethodKind = "read" | "write";
+
+type RepoSurface = Omit<Repo, "batch">;
+export type RepoCatalogue = {
+  readonly [N in keyof RepoSurface]: { readonly [M in keyof RepoSurface[N]]: MethodKind };
 };
+
+export const REPO_CATALOGUE: RepoCatalogue = {
+  transactions: {
+    insert: "write",
+    insertMany: "write",
+    list: "read",
+    categories: "read",
+    sources: "read",
+    categoryOf: "read",
+  },
+  statements: { insert: "write", list: "read" },
+  categories: {
+    seed: "write",
+    listRules: "read",
+    addRule: "write",
+    deleteRule: "write",
+    addOverride: "write",
+    removeOverride: "write",
+    recategorizeMatching: "write",
+    recategorizeAll: "write",
+    uncategorizedCount: "read",
+    ruleSuggestions: "read",
+  },
+  goals: {
+    list: "read",
+    upsert: "write",
+    delete: "write",
+    currentProgress: "read",
+    categoryAverages: "read",
+  },
+  netWorth: {
+    listEntries: "read",
+    addEntry: "write",
+    updateEntry: "write",
+    deleteEntry: "write",
+    get: "read",
+  },
+  summary: { monthlyTotals: "read", categoryBreakdown: "read", trends: "read", topMerchants: "read" },
+  income: { monthly: "read", byType: "read", vsSpend: "read" },
+  monthReview: { get: "read" },
+  cashflow: { get: "read" },
+  forecast: { get: "read" },
+  cashflowForecast: { get: "read" },
+  subscriptions: { get: "read" },
+  insights: { get: "read" },
+  baseline: { get: "read" },
+  heatmap: { dailySpend: "read" },
+  merchants: { list: "read", detail: "read" },
+  profile: { dataHealth: "read" },
+  waitlist: { join: "write", count: "read", list: "read" },
+  imports: { create: "write", list: "read", delete: "write", watermarks: "read", rowsInWindow: "read" },
+};
+
+// True for methods DoRepoClient.batch() must buffer (see MethodKind above).
+export function isRepoWriteMethod(namespace: string, method: string): boolean {
+  const ns = (REPO_CATALOGUE as Record<string, Record<string, MethodKind> | undefined>)[namespace];
+  return ns?.[method] === "write";
+}
+
+// Namespace → method-name list, derived from the catalogue (kept for callers
+// that only need names).
+export const REPO_NAMESPACES: Record<string, readonly string[]> = Object.fromEntries(
+  Object.entries(REPO_CATALOGUE).map(([ns, methods]) => [ns, Object.keys(methods)])
+);
 
 // Flat "namespace.method" list — handy for debugging / the DO's methods() probe.
 export const REPO_METHODS: readonly string[] = Object.entries(REPO_NAMESPACES).flatMap(

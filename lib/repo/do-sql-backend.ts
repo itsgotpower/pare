@@ -15,42 +15,21 @@
 
 import { useConnection } from "../db";
 import { MIGRATIONS, type Migration } from "../db/migrations";
+import { runMigrationList } from "../db/migration-runner";
 import type { DbBackend } from "./backend";
 import { DoSqlDatabase, type DoStorageWithSql } from "./do-sql-adapter";
 
 // Idempotent, declaration-ordered migration runner over the bundled SQL strings,
 // operating through the DoSqlDatabase adapter (so the SAME MIGRATIONS that build
-// the schema under better-sqlite3 build it on DO SQLite). Mirrors
-// lib/db/migrate.ts / do-backend.ts's runMigrationsFromStrings, but typed at the
-// adapter rather than better-sqlite3.
-//
-// NOTE: DO SQLite does not support `PRAGMA user_version`; this runner tracks
-// applied migrations in a `_migrations` table instead (same approach lib/db uses),
-// so that limitation does not bite us.
+// the schema under better-sqlite3 build it on DO SQLite). A thin binding of the
+// shared runner (lib/db/migration-runner.ts — which the adapter satisfies
+// structurally) to the adapter type; kept as a named export because
+// do-sql-backend.workers-spec.ts drives it directly.
 export function runMigrationsOnDoSql(
   db: DoSqlDatabase,
   migrations: readonly Migration[] = MIGRATIONS
 ): void {
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS _migrations (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT UNIQUE NOT NULL,
-      applied_at TEXT NOT NULL DEFAULT (datetime('now'))
-    )
-  `);
-
-  const applied = new Set(
-    db
-      .prepare("SELECT name FROM _migrations")
-      .all<{ name: string }>()
-      .map((row) => row.name)
-  );
-
-  for (const { name, sql } of migrations) {
-    if (applied.has(name)) continue;
-    db.exec(sql);
-    db.prepare("INSERT INTO _migrations (name) VALUES (?)").run(name);
-  }
+  runMigrationList(db, migrations);
 }
 
 export class DoSqlBackend implements DbBackend {

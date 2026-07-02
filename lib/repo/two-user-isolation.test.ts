@@ -161,19 +161,34 @@ before(async () => {
   );
   auth = createHostedAuth(makeD1Shim(db));
 
-  const a = await auth.api.signUpEmail({
-    body: { email: "alice@example.com", password: "alice-password-123", name: "Alice" },
-    returnHeaders: true,
-  });
-  userIdA = a.response.user.id;
-  tokenA = a.headers.get("set-auth-token")!;
+  // hosted.ts sets requireEmailVerification, and better-auth (>= 1.6.x) skips
+  // auto-sign-in on sign-up when that's on — sign-up returns NO session and no
+  // set-auth-token header. So, like resolve.test.ts: sign up, mark the address
+  // verified directly in the shim DB (the same end state as clicking the emailed
+  // link), then SIGN IN to obtain the bearer token from set-auth-token.
+  const markEmailVerified = (email: string) =>
+    db.prepare(`UPDATE "user" SET "emailVerified" = 1 WHERE "email" = ?`).run(email);
 
-  const b = await auth.api.signUpEmail({
-    body: { email: "bob@example.com", password: "bob-password-456", name: "Bob" },
-    returnHeaders: true,
-  });
-  userIdB = b.response.user.id;
-  tokenB = b.headers.get("set-auth-token")!;
+  async function registerAndSignIn(email: string, password: string, name: string) {
+    await auth.api.signUpEmail({ body: { email, password, name } });
+    markEmailVerified(email);
+    const login = await auth.api.signInEmail({
+      body: { email, password },
+      returnHeaders: true,
+    });
+    return {
+      userId: login.response.user.id,
+      token: login.headers.get("set-auth-token")!,
+    };
+  }
+
+  const a = await registerAndSignIn("alice@example.com", "alice-password-123", "Alice");
+  userIdA = a.userId;
+  tokenA = a.token;
+
+  const b = await registerAndSignIn("bob@example.com", "bob-password-456", "Bob");
+  userIdB = b.userId;
+  tokenB = b.token;
 
   assert.ok(tokenA && tokenB, "both users got bearer tokens");
   assert.notEqual(userIdA, userIdB, "two distinct users");
