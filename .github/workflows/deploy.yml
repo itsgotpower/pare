@@ -8,12 +8,16 @@ name: Deploy waitlist → production
 #   CLOUDFLARE_ACCOUNT_ID  — your Cloudflare account id
 # wrangler reads both from the environment automatically.
 #
-# NOTE: only `launch/waitlist` is wired up — `main` is the full app (containers
-# + R2 + Queues, needs Workers Paid) and must NOT auto-deploy yet.
+# DEPLOY BRANCH = `main`. `main` now carries the waitlist-trimmed config
+# (wrangler.toml PARE_WAITLIST_ONLY=1, no D1/R2/Queues/Containers; worker.ts omits
+# the ParserContainer export), so every push to `main` ships the public
+# marketing/waitlist landing. The former `launch/waitlist` branch has been deleted
+# and merged into `main`. When the full data plane returns, restore
+# wrangler.full.toml + worker.ts and split full-app deploys onto their own branch.
 
 on:
   push:
-    branches: [launch/waitlist]
+    branches: [main]
   workflow_dispatch: {}
 
 # Never run two production deploys at once; let an in-flight one finish.
