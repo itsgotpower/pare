@@ -1,8 +1,9 @@
 /**
  * Smoke test for the Pare MCP server: spawns it over stdio against a THROWAWAY,
  * synthetically-seeded temp DB — NEVER the real data/pare.db — lists tools, and
- * calls read tools plus the write tools (set_goal/delete_goal) so the write path
- * is exercised without touching real financial data. Run: npx tsx mcp/test-client.ts
+ * calls read tools plus write tools (set_goal/delete_goal and the manual-
+ * transaction round trip) so the write path is exercised without touching real
+ * financial data. Run: npx tsx mcp/test-client.ts
  */
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
@@ -81,6 +82,7 @@ async function main() {
       .join("");
     const oneLine = text.replace(/\s+/g, " ").slice(0, 160);
     console.log(`\n# ${name}(${JSON.stringify(args)})\n${oneLine}${text.length > 160 ? " …" : ""}`);
+    return text;
   }
 
   await call("spending_summary", { months: 3 });
@@ -91,6 +93,24 @@ async function main() {
   await call("set_goal", { category: "Coffee", monthly_limit: 60 });
   await call("goals_status");
   await call("delete_goal", { category: "Coffee" });
+
+  // Manual-transaction round trip: record a cash purchase, see it in the list,
+  // delete it by the returned id, and confirm a second delete is refused.
+  const added = JSON.parse(
+    await call("add_manual_transaction", {
+      txn_date: "2026-05-25",
+      description: "FARMERS MARKET (CASH)",
+      amount: 40,
+      category: "Groceries",
+    })
+  ) as { ok: boolean; id: number };
+  if (!added.ok) throw new Error("add_manual_transaction failed");
+  await call("list_transactions", { source: "manual" });
+  const deleted = JSON.parse(
+    await call("delete_manual_transaction", { transaction_id: added.id })
+  ) as { ok: boolean };
+  if (!deleted.ok) throw new Error("delete_manual_transaction failed");
+  await call("delete_manual_transaction", { transaction_id: added.id }); // now gone → ok:false
 
   await client.close();
   console.log("\nOK (throwaway DB:", dbPath, ")");

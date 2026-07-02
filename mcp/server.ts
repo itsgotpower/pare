@@ -230,6 +230,38 @@ server.registerTool(
   }
 );
 
+server.registerTool(
+  "add_manual_transaction",
+  {
+    title: "Add manual transaction",
+    description: "Record a cash or other off-statement purchase (e.g. \"$40 cash at the market\"). Amount is CAD dollars spent (positive); the category is your explicit pick and survives recategorization. Shows up in spend charts under the 'manual' source.",
+    inputSchema: {
+      txn_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "YYYY-MM-DD"),
+      description: z.string().min(1),
+      amount: z.number().positive(),
+      category: z.string().min(1),
+    },
+  },
+  async ({ txn_date, description, amount, category }) => {
+    const { id } = await repo.transactions.insertManual({ txn_date, description, amount, category });
+    return json({ ok: true, id });
+  }
+);
+
+server.registerTool(
+  "delete_manual_transaction",
+  {
+    title: "Delete manual transaction",
+    description: "Delete a manually recorded transaction by id (find it via list_transactions with source 'manual'). Statement-backed rows are refused.",
+    inputSchema: { transaction_id: z.number().int() },
+  },
+  async ({ transaction_id }) => {
+    const { deleted } = await repo.transactions.deleteManual(transaction_id);
+    if (!deleted) return json({ ok: false, error: `No manual transaction ${transaction_id}` });
+    return json({ ok: true });
+  }
+);
+
 async function main() {
   // Ensure schema + built-in/user rules exist before serving (opens the DB).
   await repo.categories.seed();

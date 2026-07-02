@@ -11,7 +11,11 @@
 // Pure helpers with no DB access (computeDedupKey, categorizeByRules) stay where
 // they are — they are not part of this contract.
 
-import type { TransactionRow, TransactionFilters } from "../db/transactions";
+import type {
+  TransactionRow,
+  TransactionFilters,
+  ManualTransactionInput,
+} from "../db/transactions";
 import type { StatementRow } from "../db/statements";
 import type { CategoryRule } from "../db/categories";
 import type { SpendingGoal, GoalProgress } from "../db/goals";
@@ -48,6 +52,7 @@ import type {
 export type {
   TransactionRow,
   TransactionFilters,
+  ManualTransactionInput,
   StatementRow,
   CategoryRule,
   SpendingGoal,
@@ -147,6 +152,12 @@ export interface TransactionRepo {
   sources(): Promise<string[]>;
   // The current stored category for one row, or null if it doesn't exist.
   categoryOf(id: number): Promise<TransactionCategory | null>;
+  // Record a cash purchase made outside any statement (quick-add). The user's
+  // category pick is stored as an override so recategorize passes keep it.
+  insertManual(input: ManualTransactionInput): Promise<{ id: number }>;
+  // Delete a quick-added row (and its override). Statement-backed rows are
+  // refused — deleted: 0.
+  deleteManual(id: number): Promise<{ deleted: number }>;
 }
 
 export interface StatementRepo {

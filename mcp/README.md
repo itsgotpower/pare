@@ -25,6 +25,8 @@ It reuses the app's `lib/db` query layer (no duplicated SQL) and talks **stdio**
 - `add_category_rule` / `delete_category_rule` — manage keyword→category rules (persist across DB wipes)
 - `recategorize_all` — re-apply rules to all transactions
 - `tag_transaction` — override one transaction's category by id
+- `add_manual_transaction` — record a cash / off-statement purchase (date, description, amount, category)
+- `delete_manual_transaction` — delete a manually recorded transaction by id (statement rows refused)
 
 ## Run
 
@@ -66,7 +68,8 @@ Code to load it):
 PATH: `command: "npx", args: ["tsx", "mcp/server.ts"]` with the same `cwd` + `env`.
 
 Then ask things like *"How much did I spend on restaurants last month?"*,
-*"What subscriptions am I paying for?"*, or *"Set a $400 restaurant budget."*
+*"What subscriptions am I paying for?"*, *"Set a $400 restaurant budget."*, or
+*"I spent $40 cash at the market."*
 
 ## Privacy
 

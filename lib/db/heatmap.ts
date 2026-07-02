@@ -1,5 +1,5 @@
 import { getDb } from "../db";
-import { CARD_SPEND_WHERE } from "./account-kinds";
+import { SPEND_WHERE } from "./account-kinds";
 
 export interface DailySpend {
   date: string; // YYYY-MM-DD
@@ -16,7 +16,7 @@ export function getDailySpend(): DailySpend[] {
     .prepare(
       `SELECT txn_date AS date, SUM(amount) AS total, COUNT(*) AS count
        FROM v_transactions
-       WHERE ${CARD_SPEND_WHERE}
+       WHERE ${SPEND_WHERE}
        GROUP BY txn_date ORDER BY txn_date`
     )
     .all() as DailySpend[];
