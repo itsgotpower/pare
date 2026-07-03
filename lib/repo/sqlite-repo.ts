@@ -74,7 +74,7 @@ import { getCashflow } from "../db/cashflow";
 import { getForecast } from "../db/forecast";
 import { getCashflowForecast } from "../db/cashflowForecast";
 import { getBillCalendar } from "../db/billCalendar";
-import { getSubscriptions } from "../db/subscriptions";
+import { getSubscriptions, markSubscription, unmarkSubscription } from "../db/subscriptions";
 import { getInsights } from "../db/insights";
 import { getBaseline } from "../db/baseline";
 import { getDailySpend } from "../db/heatmap";
@@ -249,6 +249,9 @@ export class SqliteRepo implements Repo {
 
   subscriptions: SubscriptionRepo = {
     get: () => this.read(() => getSubscriptions()),
+    mark: (slug, merchant, monthlyCost) =>
+      this.write(() => markSubscription(slug, merchant, monthlyCost)),
+    unmark: (slug) => this.write(() => unmarkSubscription(slug)),
   };
 
   insights: InsightRepo = {

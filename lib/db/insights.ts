@@ -3,6 +3,7 @@ import { SPEND_WHERE } from "./account-kinds";
 import { getForecast } from "./forecast";
 import { listGoals } from "./goals";
 import { getIncomeVsSpend } from "./income";
+import { getSubscriptions } from "./subscriptions";
 
 export interface Insight {
   severity: "alert" | "warn" | "good" | "info";
@@ -170,7 +171,26 @@ export function getInsights(): Insight[] {
     });
   }
 
-  // 6. Biggest category this month (context).
+  // 6. Subscription anomalies: price hikes and marked-to-cancel subs that
+  // are still charging. Both come straight from the recurring detector.
+  for (const sub of getSubscriptions().subscriptions) {
+    if (sub.priceChange && sub.priceChange.pct > 0 && !sub.lapsed) {
+      insights.push({
+        severity: "warn",
+        title: `${sub.merchant} price went up ${sub.priceChange.pct}%`,
+        detail: `${fmt(sub.priceChange.from)} → ${fmt(sub.priceChange.to)} per charge — ${fmt((sub.priceChange.to - sub.priceChange.from) * 12)}/yr more if monthly`,
+      });
+    }
+    if (sub.markedAt && sub.chargedSinceMark > 0 && !sub.lapsed) {
+      insights.push({
+        severity: "alert",
+        title: `${sub.merchant} still charging after you marked it`,
+        detail: `${fmt(sub.chargedSinceMark)} since ${sub.markedAt} — cancel it to stop the bleed`,
+      });
+    }
+  }
+
+  // 7. Biggest category this month (context).
   if (curCats.length) {
     const top = [...curCats].sort((a, b) => b.total - a.total)[0];
     insights.push({

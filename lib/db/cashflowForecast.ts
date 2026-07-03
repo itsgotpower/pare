@@ -148,8 +148,10 @@ export function getCashflowForecast(now: Date = new Date()): CashflowForecast | 
     biweekly: 14,
     "every ~2 months": 61,
   };
+  // Lapsed subs (no charge for >2× their cadence) would keep projecting
+  // phantom charges from their stale lastDate — leave them out.
   const scheduled = getSubscriptions().subscriptions.filter(
-    (s) => !fixedSet.has(s.category) && s.frequency !== "irregular"
+    (s) => !fixedSet.has(s.category) && s.frequency !== "irregular" && !s.lapsed
   );
   const recurringMonthly = round2(
     scheduled.reduce((s, x) => s + x.monthlyCost, 0)
