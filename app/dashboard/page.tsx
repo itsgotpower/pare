@@ -11,6 +11,7 @@ import type { DailySpend } from "@/components/dashboard/calendar-heatmap";
 import { MonthReview } from "@/components/dashboard/month-review";
 import { NetWorthTab, type NetWorth } from "@/components/dashboard/networth-tab";
 import { ForecastTab, type CashflowForecast } from "@/components/dashboard/forecast-tab";
+import { SafeToSpendHero } from "@/components/dashboard/safe-to-spend";
 import { BaselineTab } from "@/components/dashboard/baseline-tab";
 import { CashflowTab, type Forecast } from "@/components/dashboard/cashflow-tab";
 import type { Cashflow } from "@/components/dashboard/cashflow-sankey";
@@ -248,6 +249,7 @@ export default function Dashboard() {
         </Card>
       ) : (
         <>
+        <SafeToSpendHero cashForecast={cashForecast} />
         {insights.length > 0 && (
           <div className="mb-6 border border-border">
             <button
