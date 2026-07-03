@@ -58,6 +58,9 @@ ALL financial data is PII. Never commit real transactions, PDFs, or the SQLite d
 - Dedup: SHA-256 hash of (source|txn_date|description|amount|seq), INSERT OR IGNORE
 - Spend charts count `SPEND_WHERE` (lib/db/account-kinds.ts): flow='spend' AND account_kind IN ('card','cash') — card purchases + manual cash rows (v_transactions view resolves overrides)
 
+## PWA
+Installable PWA (Add to Home Screen, iOS + Android). Pieces: `app/manifest.ts` (manifest incl. Android `share_target` POSTing PDFs/OFX to `/upload`), `public/sw.js` (hand-rolled SW, no workbox: cache-first for hashed assets, network-first + cache fallback for navigations and GET `/api/*` — offline read-through; `/api/auth` never cached; bump `VERSION` when caching logic changes), `components/pwa/register-sw.tsx` (`RegisterSW` prod-only + `OfflineBanner`, both in the root layout), `app/offline/page.tsx` (precached fallback). Share-target flow: SW intercepts POST `/upload` → stashes files in the `pare-share-intake` cache → 303 to `/upload?share-target=1` → the page reads the stash and reuses the normal client upload path. Install prompt (`beforeinstallprompt`) is offered on /upload only after a successful upload. Icons are generated — edit `scripts/generate-pwa-icons.mjs` (pear mark master) and re-run it; never hand-edit `public/icon-*.png` / `app/icon.svg` / `app/apple-icon.png` / `public/favicon.ico`. **The middleware matcher excludes all PWA surfaces** (manifest.webmanifest, sw.js, icons, /offline) — keep that list in sync when renaming any of them.
+
 ## Gotchas
 - **shadcn here uses @base-ui/react, NOT @radix-ui.** DialogTrigger has no `asChild` — render the trigger as its own styled element. Tabs use `@base-ui/react/tabs` and support a `line` variant + vertical orientation.
 - **Dev server caches the SQLite connection in memory.** After deleting data/pare.db or changing schema/migrations, restart `npm run dev` — the in-process singleton won't pick up a fresh file otherwise.
