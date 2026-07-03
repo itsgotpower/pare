@@ -36,6 +36,15 @@ contracts, on-disk and crypto formats) may change between minor versions — see
 
 ### Fixed
 
+- **Installed-PWA chunk-load error** — after a deploy, home-screen PWA users
+  could hit a "failed to load chunk" error screen: the service worker was
+  identical across deploys, so it never updated and kept serving a stale app
+  shell pointing at chunk hashes the new build had removed. Cache names are now
+  tied to a per-deploy build id (so a new deploy evicts the old build's cached
+  chunks), and a `ChunkLoadError` now clears the cache and reloads onto the
+  current build instead of dead-ending ([#72]).
+- **Landing font fallback** — mono headings now fall back to a real monospace
+  font (not a sans-serif) if the JetBrains Mono webfont fails to load ([#72]).
 - **Installed-PWA safe area** — the marketing/landing header no longer runs
   under the iOS status bar and notch when Pare is launched from the home screen
   (standalone mode); headers now respect `safe-area-inset-top` ([#64]).
@@ -163,3 +172,4 @@ server exposing the local data to MCP clients. Ships open-source repo scaffoldin
 [#69]: https://github.com/itsgotpower/pare/pull/69
 [#70]: https://github.com/itsgotpower/pare/pull/70
 [#71]: https://github.com/itsgotpower/pare/pull/71
+[#72]: https://github.com/itsgotpower/pare/pull/72
