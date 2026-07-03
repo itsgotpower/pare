@@ -10,6 +10,20 @@ contracts, on-disk and crypto formats) may change between minor versions — see
 
 ## [Unreleased]
 
+### Added
+
+- **Bill calendar** — a new UPCOMING BILLS section on `/recurring` lists your
+  committed outflows (rent, fixed bills, and detected subscriptions) due over
+  the next 45 days, each cross-checked against your cash-flow forecast so a bill
+  your projected balance won't cover gets flagged. Shows total due, lowest
+  projected balance, and next payday ([#66]).
+
+### Fixed
+
+- **Installed-PWA safe area** — the marketing/landing header no longer runs
+  under the iOS status bar and notch when Pare is launched from the home screen
+  (standalone mode); headers now respect `safe-area-inset-top` ([#64]).
+
 ## [0.2.0] - 2026-07-02
 
 ### Added
@@ -127,3 +141,5 @@ server exposing the local data to MCP clients. Ships open-source repo scaffoldin
 [#58]: https://github.com/itsgotpower/pare/pull/58
 [#59]: https://github.com/itsgotpower/pare/pull/59
 [#60]: https://github.com/itsgotpower/pare/pull/60
+[#64]: https://github.com/itsgotpower/pare/pull/64
+[#66]: https://github.com/itsgotpower/pare/pull/66
