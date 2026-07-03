@@ -41,8 +41,13 @@ export const formatDayShort = (iso: string) => {
   return `${MONTH_NAMES[parseInt(m, 10) - 1]?.slice(0, 3)} ${parseInt(d, 10)}`;
 };
 
-// Y-axis dollars-in-thousands tick: 4200 -> "$4k"
-export const formatK = (v: number) => `$${(v / 1000).toFixed(0)}k`;
+// Y-axis dollars-in-thousands tick: 4000 -> "$4k", 2500 -> "$2.5k".
+// Keep one decimal for non-integer thousands — recharts often picks 500-step
+// ticks, and rounding those to whole k renders duplicate labels ($3k twice).
+export const formatK = (v: number) => {
+  const k = v / 1000;
+  return `$${Number.isInteger(k) ? k : k.toFixed(1)}k`;
+};
 
 // Recharts Tooltip contentStyle. Uses theme tokens (NOT hardcoded #000/white)
 // so tooltips render correctly in dark mode.

@@ -108,6 +108,39 @@ async function handleShareTarget(request) {
   return Response.redirect("/upload?share-target=1", 303);
 }
 
+// Web Push: payload is JSON { title, body, url } (see lib/push/webpush.ts).
+self.addEventListener("push", (event) => {
+  let data = { title: "pare", body: "", url: "/dashboard" };
+  try {
+    data = { ...data, ...event.data.json() };
+  } catch {
+    // Non-JSON payload — show the default.
+  }
+  event.waitUntil(
+    self.registration.showNotification(data.title, {
+      body: data.body,
+      icon: "/icon-192.png",
+      badge: "/icon-192.png",
+      data: { url: data.url },
+    })
+  );
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const url = event.notification.data?.url || "/dashboard";
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((wins) => {
+      const existing = wins.find((w) => new URL(w.url).origin === self.location.origin);
+      if (existing) {
+        existing.navigate(url);
+        return existing.focus();
+      }
+      return self.clients.openWindow(url);
+    })
+  );
+});
+
 self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url);
   if (url.origin !== self.location.origin) return;
