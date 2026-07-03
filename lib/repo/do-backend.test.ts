@@ -119,12 +119,12 @@ test("DoBackend: migrations run at first access (idempotent, full schema present
     assert.ok(tables.includes(expected), `migrations should create ${expected}`);
   }
 
-  // All six migrations recorded; re-running is a no-op (idempotent).
+  // All seven migrations recorded; re-running is a no-op (idempotent).
   const before = db.prepare("SELECT COUNT(*) c FROM _migrations").get() as { c: number };
-  assert.equal(before.c, 6);
+  assert.equal(before.c, 7);
   runMigrationsFromStrings(db);
   const after = db.prepare("SELECT COUNT(*) c FROM _migrations").get() as { c: number };
-  assert.equal(after.c, 6, "re-running migrations must not duplicate rows");
+  assert.equal(after.c, 7, "re-running migrations must not duplicate rows");
 
   await backend.close();
 });

@@ -133,6 +133,7 @@ export const REPO_CATALOGUE: RepoCatalogue = {
   cashflow: { get: "read" },
   forecast: { get: "read" },
   cashflowForecast: { get: "read" },
+  billCalendar: { get: "read" },
   subscriptions: { get: "read" },
   insights: { get: "read" },
   baseline: { get: "read" },
