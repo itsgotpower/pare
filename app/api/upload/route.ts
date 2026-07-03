@@ -143,6 +143,23 @@ async function handleSelfHostUpload(request: NextRequest) {
         )
         .catch(() => {});
 
+      // Safe-to-spend heads-up (fire-and-forget): with the new statement in,
+      // warn when the projection now dips below zero before the next payday.
+      void (async () => {
+        const fc = await repo.cashflowForecast.get();
+        if (!fc) return;
+        const { deriveSafeToSpend } = await import("@/lib/safe-to-spend");
+        const s = deriveSafeToSpend(fc);
+        if (s?.status !== "short") return;
+        const { formatCurrency, formatDayShort } = await import("@/lib/format");
+        const { sendPushToAll } = await import("@/lib/push/webpush");
+        await sendPushToAll({
+          title: "Forecast heads-up",
+          body: `Projected ${formatCurrency(Math.abs(s.cushion))} below zero around ${formatDayShort(s.lowestDate)}, before the next payday.`,
+          url: "/dashboard",
+        });
+      })().catch(() => {});
+
       return Response.json({ inserted, skipped, total: rows.length, filename: file.name });
     } finally {
       rmSync(tmpDir, { recursive: true, force: true });
