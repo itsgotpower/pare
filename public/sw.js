@@ -11,8 +11,15 @@
 //                                   /upload?share-target=1 for the page to pick
 //                                   up and run through the normal upload flow
 //
-// Bump VERSION when the caching logic changes — activate drops old caches.
-const VERSION = "v1";
+// Cache version = a base epoch (bump when the caching LOGIC changes) plus the
+// per-deploy build id. RegisterSW registers this script as `/sw.js?v=<buildId>`
+// (NEXT_PUBLIC_BUILD_ID), so the SW's own URL carries the build: a new deploy
+// gives every cache a new name, and `activate` drops the previous deploy's
+// caches. That's what fixes the installed-PWA chunk-load error — a stale app
+// shell's `/_next/static` chunks (whose hashes the new build removed from the
+// origin) are evicted on update instead of lingering and 404-ing.
+const BUILD = new URL(self.location.href).searchParams.get("v") || "dev";
+const VERSION = `v2-${BUILD}`;
 const STATIC_CACHE = `pare-static-${VERSION}`;
 const DATA_CACHE = `pare-data-${VERSION}`;
 const SHARE_CACHE = "pare-share-intake";

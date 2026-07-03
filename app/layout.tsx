@@ -1,17 +1,24 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, JetBrains_Mono } from "next/font/google";
 import { Sidebar } from "@/components/layout/navbar";
-import { RegisterSW, OfflineBanner } from "@/components/pwa/register-sw";
+import { RegisterSW, OfflineBanner, ChunkGuard } from "@/components/pwa/register-sw";
 import "./globals.css";
 
+// Explicit family fallbacks: if the self-hosted webfont ever fails to load
+// (SW cache miss, offline, blocked), the browser must fall back to a font of
+// the SAME kind — otherwise next/font's default metric-adjusted fallback is
+// Arial-based, so mono headings render as thick sans-serif (the reported
+// landing-typography glitch). Keep the mono fallback monospace.
 const geistSans = Geist({
   variable: "--font-sans",
   subsets: ["latin"],
+  fallback: ["ui-sans-serif", "system-ui", "sans-serif"],
 });
 
 const jetbrainsMono = JetBrains_Mono({
   variable: "--font-mono",
   subsets: ["latin"],
+  fallback: ["ui-monospace", "SFMono-Regular", "Menlo", "Consolas", "monospace"],
 });
 
 export const metadata: Metadata = {
@@ -70,6 +77,7 @@ export default function RootLayout({
         <Sidebar />
         <main className="flex-1 overflow-auto min-h-0">{children}</main>
         <RegisterSW />
+        <ChunkGuard />
         <OfflineBanner />
       </body>
     </html>
