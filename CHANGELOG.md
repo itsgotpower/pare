@@ -12,6 +12,22 @@ contracts, on-disk and crypto formats) may change between minor versions — see
 
 ### Added
 
+- **Safe to spend** — a hero card at the top of the dashboard answers "am I
+  clear through rent and on to the next payday?" with one calm number, derived
+  from the cash-flow forecast (short / tight / clear tiers on its ±1σ band).
+  A web-push heads-up fires when a fresh statement projects the balance below
+  zero before payday ([#68]).
+- **Subscription kill kit** — `/recurring` now detects price hikes and lapsed
+  subscriptions (which stop counting toward the monthly total and stop
+  projecting phantom forecast charges), and adds mark-to-cancel: a CANCEL LIST
+  with a running "$X since you marked" tally, per-merchant cancellation links,
+  and matching dashboard insights ([#69]).
+- **Shareable month-in-review card** — export the REVIEW tab as a 1080×1350
+  PNG. Privacy-safe by default: category percentages only, with an explicit
+  toggle for dollar amounts; merchant names never render ([#70]).
+- **Public demo & onboarding** — a no-signup `/demo` renders the dashboard
+  from synthetic sample data; `/upload` gains per-bank "where to get your
+  statement" guides with parser-status badges ([#71]).
 - **Bill calendar** — a new UPCOMING BILLS section on `/recurring` lists your
   committed outflows (rent, fixed bills, and detected subscriptions) due over
   the next 45 days, each cross-checked against your cash-flow forecast so a bill
@@ -143,3 +159,7 @@ server exposing the local data to MCP clients. Ships open-source repo scaffoldin
 [#60]: https://github.com/itsgotpower/pare/pull/60
 [#64]: https://github.com/itsgotpower/pare/pull/64
 [#66]: https://github.com/itsgotpower/pare/pull/66
+[#68]: https://github.com/itsgotpower/pare/pull/68
+[#69]: https://github.com/itsgotpower/pare/pull/69
+[#70]: https://github.com/itsgotpower/pare/pull/70
+[#71]: https://github.com/itsgotpower/pare/pull/71

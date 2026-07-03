@@ -1,0 +1,286 @@
+{
+ "monthly_totals": [
+  {
+   "month": "2026-06",
+   "total": 2466
+  },
+  {
+   "month": "2026-05",
+   "total": 2402.87
+  },
+  {
+   "month": "2026-04",
+   "total": 2822.5299999999997
+  },
+  {
+   "month": "2026-03",
+   "total": 2181.92
+  },
+  {
+   "month": "2026-02",
+   "total": 3199.9900000000002
+  },
+  {
+   "month": "2026-01",
+   "total": 2576.08
+  },
+  {
+   "month": "2025-12",
+   "total": 2540.59
+  },
+  {
+   "month": "2025-11",
+   "total": 2220.78
+  },
+  {
+   "month": "2025-10",
+   "total": 2967.17
+  },
+  {
+   "month": "2025-09",
+   "total": 2567.25
+  },
+  {
+   "month": "2025-08",
+   "total": 3251.11
+  },
+  {
+   "month": "2025-07",
+   "total": 2641.38
+  }
+ ],
+ "category_breakdown": [
+  {
+   "category": "Groceries",
+   "total": 13771.38,
+   "count": 137
+  },
+  {
+   "category": "Restaurants & takeout",
+   "total": 3971.7,
+   "count": 105
+  },
+  {
+   "category": "Transport / gas / parking",
+   "total": 3193.58,
+   "count": 84
+  },
+  {
+   "category": "Shopping / retail",
+   "total": 2389.55,
+   "count": 29
+  },
+  {
+   "category": "Travel (air/hotel)",
+   "total": 1583.23,
+   "count": 2
+  },
+  {
+   "category": "Phone / utilities",
+   "total": 1475.03,
+   "count": 17
+  },
+  {
+   "category": "Health / pharmacy",
+   "total": 1326.6,
+   "count": 14
+  },
+  {
+   "category": "Gym / fitness / recovery",
+   "total": 1325.6599999999999,
+   "count": 19
+  },
+  {
+   "category": "Running / cycling gear",
+   "total": 1090.55,
+   "count": 10
+  },
+  {
+   "category": "Coffee",
+   "total": 896.36,
+   "count": 138
+  },
+  {
+   "category": "Subscriptions",
+   "total": 814.03,
+   "count": 58
+  }
+ ],
+ "top_merchants": [
+  {
+   "description": "COSTCO WHOLESALE #468",
+   "total": 3068.97,
+   "count": 27
+  },
+  {
+   "description": "WHOLE FOODS MKT VANCOUVER",
+   "total": 2820.11,
+   "count": 27
+  },
+  {
+   "description": "SAVE-ON-FOODS #121 VAN",
+   "total": 2773.2,
+   "count": 29
+  },
+  {
+   "description": "SAFEWAY #3421 VANCOUVER",
+   "total": 2635.7400000000002,
+   "count": 29
+  },
+  {
+   "description": "REAL CDN SUPERSTORE BURNABY",
+   "total": 2473.36,
+   "count": 25
+  },
+  {
+   "description": "EXPEDIA BOOKING 77321",
+   "total": 1012.12,
+   "count": 1
+  },
+  {
+   "description": "BC HYDRO ONLINE",
+   "total": 893.97,
+   "count": 10
+  },
+  {
+   "description": "IMPARK #V8042",
+   "total": 865.78,
+   "count": 22
+  }
+ ],
+ "goals": [
+  {
+   "category": "Coffee",
+   "monthly_limit": 80,
+   "spent": 70.92,
+   "remaining": 9.079999999999998,
+   "percentage": 88.7
+  },
+  {
+   "category": "Groceries",
+   "monthly_limit": 600,
+   "spent": 1316.65,
+   "remaining": -716.6500000000001,
+   "percentage": 219.4
+  },
+  {
+   "category": "Restaurants & takeout",
+   "monthly_limit": 400,
+   "spent": 244.22,
+   "remaining": 155.78,
+   "percentage": 61.1
+  },
+  {
+   "category": "Shopping / retail",
+   "monthly_limit": 200,
+   "spent": 412.09000000000003,
+   "remaining": -212.09000000000003,
+   "percentage": 206
+  },
+  {
+   "category": "Subscriptions",
+   "monthly_limit": 100,
+   "spent": 50.42,
+   "remaining": 49.58,
+   "percentage": 50.4
+  },
+  {
+   "category": "Transport / gas / parking",
+   "monthly_limit": 150,
+   "spent": 132.96,
+   "remaining": 17.039999999999992,
+   "percentage": 88.6
+  }
+ ],
+ "income_vs_spend": [
+  {
+   "month": "2025-07",
+   "income": 6170.54,
+   "fixed": 2050.83,
+   "variable": 2497.54
+  },
+  {
+   "month": "2025-08",
+   "income": 6093.290000000001,
+   "fixed": 1962.19,
+   "variable": 3138.92
+  },
+  {
+   "month": "2025-09",
+   "income": 6212.8099999999995,
+   "fixed": 1933.73,
+   "variable": 2598.78
+  },
+  {
+   "month": "2025-10",
+   "income": 6138.68,
+   "fixed": 1923.12,
+   "variable": 2963.22
+  },
+  {
+   "month": "2025-11",
+   "income": 6232.12,
+   "fixed": 2015.62,
+   "variable": 2083.36
+  },
+  {
+   "month": "2025-12",
+   "income": 5959.16,
+   "fixed": 1987.97,
+   "variable": 2402.62
+  },
+  {
+   "month": "2026-01",
+   "income": 6680.76,
+   "fixed": 2035.88,
+   "variable": 2390.2
+  },
+  {
+   "month": "2026-02",
+   "income": 6117.14,
+   "fixed": 1968.3,
+   "variable": 3081.69
+  },
+  {
+   "month": "2026-03",
+   "income": 5715.46,
+   "fixed": 1937.6,
+   "variable": 2149.75
+  },
+  {
+   "month": "2026-04",
+   "income": 6002.8099999999995,
+   "fixed": 1992.71,
+   "variable": 2799.4
+  },
+  {
+   "month": "2026-05",
+   "income": 6000.83,
+   "fixed": 1922.39,
+   "variable": 2330.48
+  },
+  {
+   "month": "2026-06",
+   "income": 5950.83,
+   "fixed": 1944.69,
+   "variable": 2371.31
+  }
+ ],
+ "income_by_type": [
+  {
+   "type": "Payroll",
+   "total": 72287.15,
+   "count": 24
+  },
+  {
+   "type": "Other",
+   "total": 516.43,
+   "count": 1
+  },
+  {
+   "type": "Tax refund",
+   "total": 470.85,
+   "count": 1
+  }
+ ]
+}
