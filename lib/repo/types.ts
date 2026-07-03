@@ -31,6 +31,7 @@ import type { MonthReview } from "../db/monthReview";
 import type { Cashflow } from "../db/cashflow";
 import type { Forecast } from "../db/forecast";
 import type { CashflowForecast } from "../db/cashflowForecast";
+import type { BillCalendar } from "../db/billCalendar";
 import type { Subscription } from "../db/subscriptions";
 import type { Insight } from "../db/insights";
 import type { BaselineResult } from "../db/baseline";
@@ -70,6 +71,7 @@ export type {
   Cashflow,
   Forecast,
   CashflowForecast,
+  BillCalendar,
   Subscription,
   Insight,
   BaselineResult,
@@ -241,6 +243,10 @@ export interface CashflowForecastRepo {
   get(now?: Date): Promise<CashflowForecast | null>;
 }
 
+export interface BillCalendarRepo {
+  get(now?: Date, windowDays?: number): Promise<BillCalendar>;
+}
+
 export interface SubscriptionRepo {
   get(): Promise<{ subscriptions: Subscription[]; monthlyTotal: number }>;
 }
@@ -305,6 +311,7 @@ export interface Repo {
   cashflow: CashflowRepo;
   forecast: ForecastRepo;
   cashflowForecast: CashflowForecastRepo;
+  billCalendar: BillCalendarRepo;
   subscriptions: SubscriptionRepo;
   insights: InsightRepo;
   baseline: BaselineRepo;

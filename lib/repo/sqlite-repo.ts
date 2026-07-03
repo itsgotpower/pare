@@ -14,6 +14,7 @@ import type {
   CashflowRepo,
   ForecastRepo,
   CashflowForecastRepo,
+  BillCalendarRepo,
   SubscriptionRepo,
   InsightRepo,
   BaselineRepo,
@@ -72,6 +73,7 @@ import { getMonthReview } from "../db/monthReview";
 import { getCashflow } from "../db/cashflow";
 import { getForecast } from "../db/forecast";
 import { getCashflowForecast } from "../db/cashflowForecast";
+import { getBillCalendar } from "../db/billCalendar";
 import { getSubscriptions } from "../db/subscriptions";
 import { getInsights } from "../db/insights";
 import { getBaseline } from "../db/baseline";
@@ -239,6 +241,10 @@ export class SqliteRepo implements Repo {
 
   cashflowForecast: CashflowForecastRepo = {
     get: (now) => this.read(() => getCashflowForecast(now)),
+  };
+
+  billCalendar: BillCalendarRepo = {
+    get: (now, windowDays) => this.read(() => getBillCalendar(now, windowDays)),
   };
 
   subscriptions: SubscriptionRepo = {

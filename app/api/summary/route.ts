@@ -72,6 +72,10 @@ export async function GET(request: NextRequest) {
     return Response.json(await repo.cashflowForecast.get());
   }
 
+  if (type === "bill_calendar") {
+    return Response.json(await repo.billCalendar.get());
+  }
+
   return Response.json({
     monthly_totals: await repo.summary.monthlyTotals(),
     category_breakdown: await repo.summary.categoryBreakdown(month),

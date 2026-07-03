@@ -13,6 +13,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { categoryColor, PALETTE } from "@/lib/colors";
+import { BillCalendar } from "@/components/recurring/bill-calendar";
 
 interface Subscription {
   merchant: string;
@@ -47,17 +48,6 @@ export default function RecurringPage() {
 
   const flagged = subs.filter((s) => s.multiPerMonth);
 
-  if (loading) {
-    return (
-      <div className="p-4 md:p-6">
-        <h1 className="font-mono text-2xl font-bold tracking-tight uppercase mb-6">
-          RECURRING
-        </h1>
-        <p className="text-muted-foreground font-mono text-sm">LOADING...</p>
-      </div>
-    );
-  }
-
   return (
     <div className="p-4 md:p-6">
       <h1 className="font-mono text-2xl font-bold tracking-tight uppercase mb-1">
@@ -68,7 +58,11 @@ export default function RecurringPage() {
         or known recurring merchants. Review these to find subscriptions to cut.
       </p>
 
-      {subs.length === 0 ? (
+      <BillCalendar />
+
+      {loading ? (
+        <p className="text-muted-foreground font-mono text-sm">LOADING...</p>
+      ) : subs.length === 0 ? (
         <Card>
           <CardContent className="py-16 text-center">
             <p className="font-mono text-sm text-muted-foreground">
