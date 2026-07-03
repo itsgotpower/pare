@@ -39,7 +39,7 @@ export default function SecurityPage() {
   return (
     <div className="min-h-full flex flex-col bg-background">
       {/* Top bar — this page has no app sidebar. */}
-      <header className="shrink-0 flex items-center justify-between px-5 md:px-8 h-14 border-b border-border">
+      <header className="shrink-0 flex items-center justify-between px-5 md:px-8 h-[calc(3.5rem+env(safe-area-inset-top))] pt-[env(safe-area-inset-top)] border-b border-border">
         <Link href="/" className="font-mono text-sm font-bold tracking-tight">
           PARE
         </Link>

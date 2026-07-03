@@ -185,7 +185,7 @@ export default function MarketingHome() {
     // the hero screen only, not the whole page.
     <div className="flex flex-col min-h-full">
       {/* Top bar */}
-      <header className="shrink-0 flex items-center justify-between px-5 md:px-8 h-14 border-b border-border">
+      <header className="shrink-0 flex items-center justify-between px-5 md:px-8 h-[calc(3.5rem+env(safe-area-inset-top))] pt-[env(safe-area-inset-top)] border-b border-border">
         <div className="flex items-center gap-4 md:gap-5">
           <span className="font-mono text-sm font-bold tracking-tight">
             <span aria-hidden="true">🍐</span> PARE
