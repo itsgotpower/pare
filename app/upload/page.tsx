@@ -110,6 +110,45 @@ export default function UploadPage() {
     return () => window.removeEventListener("beforeinstallprompt", onPrompt);
   }, []);
 
+  // Web push opt-in, offered alongside the install prompt after a successful
+  // upload. "unavailable" = unsupported browser, permission denied, or already
+  // subscribed — in all three cases the card stays hidden.
+  const [pushState, setPushState] = useState<
+    "unavailable" | "available" | "enabling" | "enabled"
+  >("unavailable");
+  useEffect(() => {
+    if (!("serviceWorker" in navigator) || !("PushManager" in window)) return;
+    if (Notification.permission === "denied") return;
+    navigator.serviceWorker.ready.then(async (reg) => {
+      const existing = await reg.pushManager.getSubscription();
+      setPushState(existing ? "unavailable" : "available");
+    });
+  }, []);
+
+  const enablePush = useCallback(async () => {
+    setPushState("enabling");
+    try {
+      if ((await Notification.requestPermission()) !== "granted") {
+        setPushState("unavailable");
+        return;
+      }
+      const reg = await navigator.serviceWorker.ready;
+      const { publicKey } = await (await fetch("/api/push")).json();
+      const subscription = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: publicKey,
+      });
+      const res = await fetch("/api/push", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ subscription }),
+      });
+      setPushState(res.ok ? "enabled" : "unavailable");
+    } catch {
+      setPushState("unavailable");
+    }
+  }, []);
+
 
   return (
     <div className="p-4 md:p-6 max-w-3xl mx-auto">
@@ -178,6 +217,32 @@ export default function UploadPage() {
             >
               INSTALL
             </button>
+          </CardContent>
+        </Card>
+      )}
+
+      {results.length > 0 && pushState !== "unavailable" && (
+        <Card className="mt-6">
+          <CardContent className="py-4 flex items-center justify-between gap-4">
+            <div>
+              <p className="font-mono text-sm font-medium uppercase tracking-wide">
+                {pushState === "enabled" ? "ALERTS ON" : "GET PARSE ALERTS"}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {pushState === "enabled"
+                  ? "Check your notifications for the confirmation"
+                  : "A notification when a statement finishes parsing"}
+              </p>
+            </div>
+            {pushState !== "enabled" && (
+              <button
+                className="shrink-0 inline-flex items-center px-4 py-2 border border-foreground font-mono text-xs tracking-widest uppercase cursor-pointer hover:bg-foreground hover:text-background transition-colors disabled:opacity-50"
+                disabled={pushState === "enabling"}
+                onClick={enablePush}
+              >
+                {pushState === "enabling" ? "ENABLING..." : "ENABLE"}
+              </button>
+            )}
           </CardContent>
         </Card>
       )}

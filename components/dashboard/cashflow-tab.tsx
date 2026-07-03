@@ -137,6 +137,7 @@ export function CashflowTab({
           {sankey && sankey.links.length > 0 ? (
             // The sankey needs ~135px per side for its labels —
             // scrolls sideways on phones instead of squeezing.
+            <>
             <div className="overflow-x-auto">
             <div className="min-w-[560px]">
             <ResponsiveContainer width="100%" height={360}>
@@ -157,6 +158,10 @@ export function CashflowTab({
             </ResponsiveContainer>
             </div>
             </div>
+            <p className="md:hidden mt-1 font-mono text-[10px] tracking-widest uppercase text-muted-foreground text-right">
+              SWIPE FOR SPEND →
+            </p>
+            </>
           ) : (
             <p className="text-sm text-muted-foreground py-12 text-center">
               No income recorded for this period.

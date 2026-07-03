@@ -129,6 +129,20 @@ async function handleSelfHostUpload(request: NextRequest) {
       // re-inline this logic here; the two paths must never diverge.
       const { inserted, skipped } = await insertParsedStatement(repo, file.name, rows, metas);
 
+      // Parse-complete push (fire-and-forget — never delays the response).
+      // Matters most for Android share-target uploads, where the user may
+      // have backgrounded the browser before parsing finished. No-op with
+      // zero subscriptions.
+      void import("@/lib/push/webpush")
+        .then(({ sendPushToAll }) =>
+          sendPushToAll({
+            title: "Statement parsed",
+            body: `${file.name}: ${inserted} transactions added${skipped > 0 ? `, ${skipped} duplicates skipped` : ""}.`,
+            url: "/dashboard",
+          })
+        )
+        .catch(() => {});
+
       return Response.json({ inserted, skipped, total: rows.length, filename: file.name });
     } finally {
       rmSync(tmpDir, { recursive: true, force: true });

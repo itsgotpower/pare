@@ -30,7 +30,12 @@ import type { AnyRepoCall } from "./lib/repo/repo-rpc";
 // pattern — a `queue`/`scheduled` handler can't be a separate top-level export;
 // the runtime only looks at the default export's methods). So we import OpenNext's
 // handler, re-export its `fetch`, and add our P4 queue consumer.
-// @ts-expect-error — `.open-next/worker.js` exists only after `opennextjs-cloudflare build`.
+// `.open-next/worker.js` exists only after `opennextjs-cloudflare build`, so
+// this import may or may not resolve depending on build order — @ts-ignore
+// (not @ts-expect-error) because a plain `next build` run AFTER a cf:build
+// finds the file and would flag the expect-error as unused.
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore
 import openNextHandler from "./.open-next/worker.js";
 import * as Sentry from "@sentry/cloudflare";
 import { sentryOptions } from "./lib/sentry";
