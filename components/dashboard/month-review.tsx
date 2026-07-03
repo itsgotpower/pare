@@ -22,6 +22,7 @@ import {
   ReferenceLine,
   Cell,
 } from "recharts";
+import { ShareCardButton } from "./share-card";
 
 // Mirrors lib/db/monthReview.ts (MonthReview). Kept local so the component is a
 // drop-in tab with no shared-type coupling beyond the JSON shape.
@@ -208,6 +209,20 @@ export function MonthReview() {
           <p className="font-mono text-[10px] tracking-widest text-muted-foreground">
             MONTH IN REVIEW · {data.txnCount} TXN{data.txnCount !== 1 ? "S" : ""}
           </p>
+          <div className="mt-1.5 flex justify-center">
+            <ShareCardButton
+              data={{
+                month: data.month,
+                spend: data.spend,
+                net: data.net,
+                savingsRate: data.savingsRate,
+                txnCount: data.txnCount,
+                spendDelta: data.spendDelta,
+                prevMonth: data.prevMonth,
+                topCategories: data.topCategories,
+              }}
+            />
+          </div>
         </div>
         <button
           onClick={() => nextMonth && load(nextMonth)}
