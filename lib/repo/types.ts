@@ -249,6 +249,8 @@ export interface BillCalendarRepo {
 
 export interface SubscriptionRepo {
   get(): Promise<{ subscriptions: Subscription[]; monthlyTotal: number }>;
+  mark(slug: string, merchant: string, monthlyCost: number): Promise<void>;
+  unmark(slug: string): Promise<void>;
 }
 
 export interface InsightRepo {
