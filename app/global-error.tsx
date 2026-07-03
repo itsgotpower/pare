@@ -6,6 +6,7 @@
 
 import { useEffect } from "react";
 import { reportClientError } from "@/lib/report-error";
+import { isChunkLoadError, recoverFromChunkError } from "@/lib/chunk-recovery";
 
 export default function GlobalError({
   error,
@@ -14,9 +15,17 @@ export default function GlobalError({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  const chunk = isChunkLoadError(error);
+
   useEffect(() => {
+    // Post-deploy chunk mismatch — recover onto the current build instead of
+    // reporting/dead-ending (loop-guarded). See lib/chunk-recovery.ts.
+    if (chunk) {
+      void recoverFromChunkError();
+      return;
+    }
     reportClientError(error);
-  }, [error]);
+  }, [error, chunk]);
 
   return (
     <html lang="en">
@@ -34,13 +43,15 @@ export default function GlobalError({
         }}
       >
         <h2 style={{ textTransform: "uppercase", letterSpacing: "0.05em" }}>
-          Something went wrong
+          {chunk ? "Updating…" : "Something went wrong"}
         </h2>
         <p style={{ maxWidth: "28rem", opacity: 0.7 }}>
-          An unexpected error occurred. The team has been notified.
+          {chunk
+            ? "A new version of Pare shipped. Reloading…"
+            : "An unexpected error occurred. The team has been notified."}
         </p>
         <button
-          onClick={reset}
+          onClick={chunk ? () => window.location.reload() : reset}
           style={{
             marginTop: "1rem",
             padding: "0.5rem 1rem",
@@ -52,7 +63,7 @@ export default function GlobalError({
             cursor: "pointer",
           }}
         >
-          Try again
+          {chunk ? "Reload" : "Try again"}
         </button>
       </body>
     </html>

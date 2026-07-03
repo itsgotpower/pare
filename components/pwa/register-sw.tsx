@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { isChunkLoadError, recoverFromChunkError } from "@/lib/chunk-recovery";
 
 // Registers the service worker (public/sw.js). Production only — a SW in dev
 // serves stale bundles and makes HMR misbehave.
@@ -8,10 +9,42 @@ export function RegisterSW() {
   useEffect(() => {
     if (process.env.NODE_ENV !== "production") return;
     if (!("serviceWorker" in navigator)) return;
-    navigator.serviceWorker.register("/sw.js").catch(() => {
+    // Tie the SW url to the build id so a new deploy is a byte-different script
+    // url — the browser then updates the SW, which (via versioned cache names)
+    // evicts the previous build's cached chunks. Without this the SW file is
+    // identical across deploys, never updates, and keeps serving a stale shell.
+    const build = process.env.NEXT_PUBLIC_BUILD_ID || process.env.NEXT_PUBLIC_APP_VERSION || "";
+    const url = build ? `/sw.js?v=${encodeURIComponent(build)}` : "/sw.js";
+    navigator.serviceWorker.register(url).catch(() => {
       // Registration failing (e.g. private browsing) just means no offline
       // support — the app itself is unaffected.
     });
+  }, []);
+  return null;
+}
+
+// Catches ChunkLoadErrors that escape React's error boundaries (rejected lazy
+// imports, webpack's global chunk-load failures) and recovers by clearing the
+// SW cache + reloading onto the current build. React-render chunk failures are
+// handled in app/error.tsx; this is the belt-and-suspenders for the rest.
+// Production only — in dev, HMR churns chunks and we don't want auto-reloads.
+export function ChunkGuard() {
+  useEffect(() => {
+    if (process.env.NODE_ENV !== "production") return;
+    const onError = (e: ErrorEvent) => {
+      if (isChunkLoadError(e.error) || isChunkLoadError(e.message)) {
+        void recoverFromChunkError();
+      }
+    };
+    const onRejection = (e: PromiseRejectionEvent) => {
+      if (isChunkLoadError(e.reason)) void recoverFromChunkError();
+    };
+    window.addEventListener("error", onError);
+    window.addEventListener("unhandledrejection", onRejection);
+    return () => {
+      window.removeEventListener("error", onError);
+      window.removeEventListener("unhandledrejection", onRejection);
+    };
   }, []);
   return null;
 }
