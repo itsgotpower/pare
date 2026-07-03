@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 interface UploadResult {
@@ -10,6 +10,16 @@ interface UploadResult {
   filename: string;
   error?: string;
 }
+
+// Chrome's install-prompt event (not in lib.dom — spec is still WICG).
+interface BeforeInstallPromptEvent extends Event {
+  prompt(): Promise<void>;
+  userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
+}
+
+// Cache the service worker stashes Web Share Target files into (see
+// handleShareTarget in public/sw.js).
+const SHARE_CACHE = "pare-share-intake";
 
 export default function UploadPage() {
   const [dragOver, setDragOver] = useState(false);
@@ -63,6 +73,43 @@ export default function UploadPage() {
     [uploadFile]
   );
 
+  // Web Share Target intake (Android): arriving as /upload?share-target=1
+  // means the SW stashed shared files in Cache Storage. Read them back, clear
+  // the stash, and run them through the normal upload flow.
+  useEffect(() => {
+    if (!new URLSearchParams(window.location.search).has("share-target")) return;
+    if (!("caches" in window)) return;
+    (async () => {
+      const cache = await caches.open(SHARE_CACHE);
+      const keys = await cache.keys();
+      for (const req of keys) {
+        const res = await cache.match(req);
+        if (!res) continue;
+        const blob = await res.blob();
+        const name = decodeURIComponent(
+          res.headers.get("X-File-Name") ?? "statement.pdf"
+        );
+        await cache.delete(req);
+        uploadFile(new File([blob], name, { type: blob.type }));
+      }
+      // Drop the query so a refresh doesn't re-run the (now empty) intake.
+      window.history.replaceState(null, "", "/upload");
+    })();
+  }, [uploadFile]);
+
+  // Add-to-Home-Screen: capture Chrome's install prompt and offer it only
+  // after a successful upload (per the build plan — not on landing).
+  const [installPrompt, setInstallPrompt] =
+    useState<BeforeInstallPromptEvent | null>(null);
+  useEffect(() => {
+    const onPrompt = (e: Event) => {
+      e.preventDefault();
+      setInstallPrompt(e as BeforeInstallPromptEvent);
+    };
+    window.addEventListener("beforeinstallprompt", onPrompt);
+    return () => window.removeEventListener("beforeinstallprompt", onPrompt);
+  }, []);
+
 
   return (
     <div className="p-4 md:p-6 max-w-3xl mx-auto">
@@ -107,6 +154,30 @@ export default function UploadPage() {
         <Card className="mt-6 border-destructive">
           <CardContent className="py-4">
             <p className="font-mono text-sm text-destructive">{error}</p>
+          </CardContent>
+        </Card>
+      )}
+
+      {results.length > 0 && installPrompt && (
+        <Card className="mt-6">
+          <CardContent className="py-4 flex items-center justify-between gap-4">
+            <div>
+              <p className="font-mono text-sm font-medium uppercase tracking-wide">
+                ADD PARE TO YOUR HOME SCREEN
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Full-screen app, works offline with your last-synced data
+              </p>
+            </div>
+            <button
+              className="shrink-0 inline-flex items-center px-4 py-2 border border-foreground font-mono text-xs tracking-widest uppercase cursor-pointer hover:bg-foreground hover:text-background transition-colors"
+              onClick={async () => {
+                await installPrompt.prompt();
+                setInstallPrompt(null);
+              }}
+            >
+              INSTALL
+            </button>
           </CardContent>
         </Card>
       )}

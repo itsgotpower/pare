@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, JetBrains_Mono } from "next/font/google";
 import { Sidebar } from "@/components/layout/navbar";
+import { RegisterSW, OfflineBanner } from "@/components/pwa/register-sw";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -17,6 +18,14 @@ export const metadata: Metadata = {
   title: "Pare | Talk to Claude about your money",
   description:
     "Turn bank and credit-card statements into spending trends and forecasts, then talk to Claude over MCP to build a budget. Files deleted after parsing; nothing stored.",
+  // Installed-PWA chrome on iOS (Android reads the same from the manifest).
+  // Status bar stays "default" (black text): "black-translucent" draws white
+  // text over the page, which is unreadable on the light theme.
+  appleWebApp: {
+    capable: true,
+    title: "pare",
+    statusBarStyle: "default",
+  },
 };
 
 // viewport-fit=cover so the bottom tab bar can pad into the home-indicator
@@ -25,6 +34,10 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
+    { media: "(prefers-color-scheme: dark)", color: "#0a0a0a" },
+  ],
 };
 
 export default function RootLayout({
@@ -42,6 +55,8 @@ export default function RootLayout({
       <body className="h-full flex flex-col md:flex-row">
         <Sidebar />
         <main className="flex-1 overflow-auto min-h-0">{children}</main>
+        <RegisterSW />
+        <OfflineBanner />
       </body>
     </html>
   );

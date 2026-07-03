@@ -1,3 +1,17 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
-  <text x="50" y="52" font-size="88" text-anchor="middle" dominant-baseline="central">🍐</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" fill="#0a0a0a"/>
+  <g transform="translate(256,256) scale(0.95) translate(-130,-182)">
+  <path fill="#f2ede4" d="M130,64
+    C117,64 107,76 103,94
+    C97,126 85,158 66,186
+    C42,220 26,250 26,288
+    C26,326 70,356 130,356
+    C190,356 234,326 234,288
+    C234,250 218,220 194,186
+    C175,158 163,126 157,94
+    C153,76 143,64 130,64 Z"/>
+  <path fill="#f2ede4" d="M136,60
+    C118,20 84,2 52,10
+    C58,44 92,66 132,64 Z"/>
+</g>
 </svg>
