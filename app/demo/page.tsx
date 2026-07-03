@@ -3,26 +3,31 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
+import dynamic from "next/dynamic";
 import { categoryColor, PALETTE } from "@/lib/colors";
-import {
-  formatCurrency,
-  formatMonthShort,
-  formatMonthFull,
-  formatK,
-  CHART_TOOLTIP_STYLE,
-  MONO_TICK,
-} from "@/lib/format";
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  Tooltip,
-  ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell,
-} from "recharts";
+import { formatCurrency, formatMonthShort } from "@/lib/format";
+
+// Charts load client-only (ssr:false): keeps recharts' SSR path for this route
+// out of the worker bundle — the Free-plan 3 MiB gzip limit is ~17 KiB away on
+// main, and /demo's SSR chunk pushed it over (failed Workers Builds, PR #71).
+const chartFallback = (h: number) => {
+  const Skeleton = () => (
+    <div style={{ height: h }} className="bg-accent/40 animate-pulse" aria-hidden />
+  );
+  return Skeleton;
+};
+const DemoMonthlyBar = dynamic(
+  () => import("@/components/demo/demo-charts").then((m) => m.DemoMonthlyBar),
+  { ssr: false, loading: chartFallback(220) }
+);
+const DemoCategoryDonut = dynamic(
+  () => import("@/components/demo/demo-charts").then((m) => m.DemoCategoryDonut),
+  { ssr: false, loading: chartFallback(180) }
+);
+const DemoIncomeSpendBar = dynamic(
+  () => import("@/components/demo/demo-charts").then((m) => m.DemoIncomeSpendBar),
+  { ssr: false, loading: chartFallback(200) }
+);
 
 // Public, signed-out product demo: the OVERVIEW bento rendered from a
 // checked-in SYNTHETIC payload (public/demo-data.json, regenerated with
@@ -143,24 +148,7 @@ export default function DemoPage() {
               <h2 className="font-mono text-xs tracking-widest uppercase text-muted-foreground mb-4">
                 MONTHLY SPEND
               </h2>
-              <ResponsiveContainer width="100%" height={220}>
-                <BarChart data={monthly}>
-                  <XAxis
-                    dataKey="month"
-                    tickFormatter={formatMonthShort}
-                    tick={MONO_TICK}
-                    axisLine={false}
-                    tickLine={false}
-                  />
-                  <YAxis tick={MONO_TICK} axisLine={false} tickLine={false} tickFormatter={formatK} />
-                  <Tooltip
-                    formatter={(value) => [formatCurrency(Number(value)), "Spend"]}
-                    labelFormatter={(v) => formatMonthFull(String(v))}
-                    contentStyle={CHART_TOOLTIP_STYLE}
-                  />
-                  <Bar dataKey="total" fill={PALETTE.slate} />
-                </BarChart>
-              </ResponsiveContainer>
+              <DemoMonthlyBar monthly={monthly} />
             </div>
 
             {/* Categories — 1 col, spans two rows */}
@@ -168,29 +156,7 @@ export default function DemoPage() {
               <h2 className="font-mono text-xs tracking-widest uppercase text-muted-foreground mb-4">
                 TOP CATEGORIES
               </h2>
-              <ResponsiveContainer width="100%" height={180}>
-                <PieChart>
-                  <Pie
-                    data={categories.slice(0, 8)}
-                    dataKey="total"
-                    nameKey="category"
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={40}
-                    outerRadius={75}
-                    strokeWidth={1}
-                    stroke="var(--card)"
-                  >
-                    {categories.slice(0, 8).map((c) => (
-                      <Cell key={c.category} fill={categoryColor(c.category)} />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    formatter={(value) => [formatCurrency(Number(value))]}
-                    contentStyle={CHART_TOOLTIP_STYLE}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
+              <DemoCategoryDonut categories={categories} />
               <div className="mt-2 space-y-0.5 flex-1">
                 {categories.slice(0, 6).map((c) => (
                   <div key={c.category} className="flex items-center justify-between text-xs px-1 -mx-1 py-0.5">
@@ -245,18 +211,7 @@ export default function DemoPage() {
               <h2 className="font-mono text-xs tracking-widest uppercase text-muted-foreground mb-4">
                 INCOME VS SPEND
               </h2>
-              <ResponsiveContainer width="100%" height={200}>
-                <BarChart data={netData}>
-                  <XAxis dataKey="label" tick={MONO_TICK} axisLine={false} tickLine={false} />
-                  <YAxis tick={MONO_TICK} axisLine={false} tickLine={false} tickFormatter={formatK} />
-                  <Tooltip
-                    formatter={(value, name) => [formatCurrency(Number(value)), name === "income" ? "Income" : "Spend"]}
-                    contentStyle={CHART_TOOLTIP_STYLE}
-                  />
-                  <Bar dataKey="income" fill={PALETTE.sage} />
-                  <Bar dataKey="spend" fill={PALETTE.terracotta} />
-                </BarChart>
-              </ResponsiveContainer>
+              <DemoIncomeSpendBar netData={netData} />
             </div>
 
             {/* Goals */}
