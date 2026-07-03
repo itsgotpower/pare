@@ -355,6 +355,47 @@ const generate = db.transaction(() => {
 
 generate();
 
+// ── Post-006/004 backfill ──
+// The INSERTs above predate migrations 004 (statement closing balances) and
+// 006 (account_kind); fresh rows land 'unknown' and every SPEND_WHERE chart
+// reads empty. Mirror what those migrations backfill for real data: derive
+// account_kind from source, and give chequing statements a closing balance +
+// date so the forecast/net-worth anchor exists. The balance is a plausible
+// synthetic drift, not a reconciled ledger — nothing in demo mode re-verifies.
+{
+  const kindFor = (source: string) =>
+    source.includes("chequing") ? "chequing" : source === "manual" ? "cash" : "card";
+  const sources = db
+    .prepare("SELECT DISTINCT source FROM transactions")
+    .all() as { source: string }[];
+  const updTxn = db.prepare("UPDATE transactions SET account_kind = ? WHERE source = ?");
+  const updStmt = db.prepare("UPDATE statements SET account_kind = ? WHERE source = ?");
+  for (const { source } of sources) {
+    updTxn.run(kindFor(source), source);
+    updStmt.run(kindFor(source), source);
+  }
+
+  const chqStatements = db
+    .prepare(
+      "SELECT id, period FROM statements WHERE account_kind = 'chequing' ORDER BY period"
+    )
+    .all() as { id: number; period: string }[];
+  const updClose = db.prepare(
+    "UPDATE statements SET closing_balance = ?, closing_date = ? WHERE id = ?"
+  );
+  let balance = 30000;
+  for (const s of chqStatements) {
+    balance += between(200, 900); // saving a little most months
+    const [y, m] = s.period.split("-").map(Number);
+    const last = daysInMonth(y, m);
+    updClose.run(
+      Math.round(balance * 100) / 100,
+      `${s.period}-${String(last).padStart(2, "0")}`,
+      s.id
+    );
+  }
+}
+
 const txnCount = (db.prepare("SELECT COUNT(*) as c FROM transactions").get() as { c: number }).c;
 const stmtCount = (db.prepare("SELECT COUNT(*) as c FROM statements").get() as { c: number }).c;
 console.log(`Seeded demo.db: ${txnCount} transactions across ${stmtCount} statements (${MONTHS.length} months)`);

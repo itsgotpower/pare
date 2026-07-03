@@ -83,6 +83,7 @@ export function Sidebar() {
   if (
     pathname === "/login" ||
     pathname === "/" ||
+    pathname === "/demo" ||
     pathname === "/about" ||
     pathname === "/mcp" ||
     pathname === "/privacy" ||

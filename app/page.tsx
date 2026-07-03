@@ -277,14 +277,22 @@ export default function MarketingHome() {
             </p>
           </form>
 
-          {!WAITLIST_ONLY && (
+          <div className="mt-3 flex items-center gap-5">
             <Link
-              href="/login"
-              className="mt-3 inline-flex items-center gap-1.5 font-mono text-[11px] tracking-widest uppercase text-muted-foreground hover:text-foreground transition-colors w-fit"
+              href="/demo"
+              className="inline-flex items-center gap-1.5 font-mono text-[11px] tracking-widest uppercase text-muted-foreground hover:text-foreground transition-colors w-fit"
             >
-              Already have access? Sign in <ArrowRight className="size-3.5" />
+              See it with sample data <ArrowRight className="size-3.5" />
             </Link>
-          )}
+            {!WAITLIST_ONLY && (
+              <Link
+                href="/login"
+                className="inline-flex items-center gap-1.5 font-mono text-[11px] tracking-widest uppercase text-muted-foreground hover:text-foreground transition-colors w-fit"
+              >
+                Already have access? Sign in <ArrowRight className="size-3.5" />
+              </Link>
+            )}
+          </div>
         </div>
 
         {/* Product preview — an interactive echo of the app's bento. Hover, focus

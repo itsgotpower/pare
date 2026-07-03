@@ -2,6 +2,7 @@
 
 import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ShieldCheck, Lock, KeyRound } from "lucide-react";
@@ -27,9 +28,17 @@ function AuthShell({ children }: { children: React.ReactNode }) {
           <ShieldCheck className="size-4 text-muted-foreground" />
         </div>
         <div className="px-6 py-6">{children}</div>
-        <div className="border-t border-border px-6 py-3">
+        <div className="border-t border-border px-6 py-3 space-y-1">
           <p className="text-center font-mono text-[10px] tracking-[0.2em] uppercase text-muted-foreground">
             Personal finance, pared down
+          </p>
+          <p className="text-center font-mono text-[10px] tracking-[0.2em] uppercase">
+            <Link
+              href="/demo"
+              className="text-muted-foreground underline underline-offset-4 hover:text-foreground"
+            >
+              Just looking? Browse the demo
+            </Link>
           </p>
         </div>
       </div>

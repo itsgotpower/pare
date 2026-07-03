@@ -18,6 +18,7 @@ import { verifySessionToken, SESSION_COOKIE } from "@/lib/auth/session-token";
 // view is a sales pitch + "sign in to import" CTA.
 const PUBLIC_PATHS = [
   "/login",
+  "/demo",
   "/api/auth",
   "/api/waitlist",
   "/about",
@@ -40,7 +41,7 @@ const HOSTED = process.env.PARE_DEPLOY_TARGET === "hosted";
 // and every other app/API route redirect to "/", so the un-provisioned data plane
 // (D1/R2/Queues) is never reached. Flip the var off + redeploy to restore the app.
 const WAITLIST_ONLY = process.env.PARE_WAITLIST_ONLY === "1";
-const WAITLIST_PUBLIC = ["/", "/api/waitlist", "/about", "/mcp", "/privacy", "/terms", "/security", "/switch", "/switch-from-monarch", "/switching", "/how-it-works", "/blog"];
+const WAITLIST_PUBLIC = ["/", "/demo", "/api/waitlist", "/about", "/mcp", "/privacy", "/terms", "/security", "/switch", "/switch-from-monarch", "/switching", "/how-it-works", "/blog"];
 
 // The signing secret, read from the environment — the only source the Edge
 // runtime can reach (no fs here). The Node API routes resolve the SAME value via
@@ -101,6 +102,6 @@ export async function middleware(request: NextRequest) {
 // must be able to precache /offline signed-out.
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|icon.svg|apple-icon.png|manifest.webmanifest|sw.js|icon-192.png|icon-512.png|icon-512-maskable.png|offline).*)",
+    "/((?!_next/static|_next/image|favicon.ico|icon.svg|apple-icon.png|manifest.webmanifest|sw.js|icon-192.png|icon-512.png|icon-512-maskable.png|offline|demo-data.json).*)",
   ],
 };

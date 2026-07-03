@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { BankGuides } from "@/components/upload/bank-guides";
 
 interface UploadResult {
   inserted: number;
@@ -152,9 +153,14 @@ export default function UploadPage() {
 
   return (
     <div className="p-4 md:p-6 max-w-3xl mx-auto">
-      <h1 className="font-mono text-2xl font-bold tracking-tight uppercase mb-6">
+      <h1 className="font-mono text-2xl font-bold tracking-tight uppercase mb-1">
         UPLOAD
       </h1>
+      <p className="text-xs text-muted-foreground mb-6">
+        The 30 seconds that keep your bank logins yours — drop a statement you
+        already have instead of handing your credentials to an aggregator. Files
+        are parsed and discarded; only the transactions stay.
+      </p>
 
       <Card
         className={`border-2 transition-colors cursor-pointer ${
@@ -276,6 +282,8 @@ export default function UploadPage() {
           ))}
         </div>
       )}
+
+      <BankGuides />
     </div>
   );
 }

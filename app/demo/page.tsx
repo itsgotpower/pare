@@ -1,0 +1,342 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import { ArrowRight } from "lucide-react";
+import { categoryColor, PALETTE } from "@/lib/colors";
+import {
+  formatCurrency,
+  formatMonthShort,
+  formatMonthFull,
+  formatK,
+  CHART_TOOLTIP_STYLE,
+  MONO_TICK,
+} from "@/lib/format";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
+} from "recharts";
+
+// Public, signed-out product demo: the OVERVIEW bento rendered from a
+// checked-in SYNTHETIC payload (public/demo-data.json, regenerated with
+// `npm run gen:demo`). No DB, no auth, works on both deploy targets — the
+// middleware lists /demo as public and the JSON is a static asset. Only
+// month-anchored figures are shown; today-relative surfaces (forecast,
+// insights, safe-to-spend) would rot in a frozen snapshot.
+
+const WAITLIST_ONLY = process.env.NEXT_PUBLIC_WAITLIST_ONLY === "1";
+
+interface MonthlyTotal { month: string; total: number }
+interface CategoryBreakdown { category: string; total: number; count: number }
+interface TopMerchant { description: string; total: number; count: number }
+interface GoalProgress {
+  category: string;
+  monthly_limit: number;
+  spent: number;
+  percentage: number;
+}
+interface IncomeVsSpend { month: string; income: number; fixed: number; variable: number }
+
+interface DemoData {
+  monthly_totals: MonthlyTotal[];
+  category_breakdown: CategoryBreakdown[];
+  top_merchants: TopMerchant[];
+  goals: GoalProgress[];
+  income_vs_spend: IncomeVsSpend[];
+}
+
+const goalColor = (pct: number) =>
+  pct >= 100 ? PALETTE.terracotta : pct >= 80 ? PALETTE.mustard : PALETTE.sage;
+
+export default function DemoPage() {
+  const [data, setData] = useState<DemoData | null>(null);
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    fetch("/demo-data.json")
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then(setData)
+      .catch(() => setError(true));
+  }, []);
+
+  const monthly = data ? [...data.monthly_totals].reverse() : [];
+  const categories = data?.category_breakdown ?? [];
+  const categoryTotal = categories.reduce((s, c) => s + c.total, 0);
+  const totalSpend = monthly.reduce((s, m) => s + m.total, 0);
+  const activeMonths = monthly.filter((m) => m.total > 0).length;
+  const ivs = data?.income_vs_spend ?? [];
+  const totalIncome = ivs.reduce((s, m) => s + m.income, 0);
+  const totalOut = ivs.reduce((s, m) => s + m.fixed + m.variable, 0);
+  const savingsRate = totalIncome > 0 ? (totalIncome - totalOut) / totalIncome : null;
+  const netData = ivs.map((m) => ({
+    month: m.month,
+    label: formatMonthShort(m.month),
+    income: m.income,
+    spend: m.fixed + m.variable,
+  }));
+
+  return (
+    <div className="min-h-full flex flex-col">
+      {/* Top bar — marketing chrome, not the app sidebar */}
+      <header className="flex items-center justify-between border-b border-border px-4 md:px-6 py-3">
+        <div className="flex items-center gap-3">
+          <Link href="/" className="font-mono text-sm font-bold tracking-widest">
+            PARE
+          </Link>
+          <span
+            className="font-mono text-[10px] tracking-widest px-1.5 py-0.5 border"
+            style={{ borderColor: PALETTE.mustard, color: PALETTE.mustard }}
+          >
+            SAMPLE DATA
+          </span>
+        </div>
+        <div className="flex items-center gap-4">
+          {!WAITLIST_ONLY && (
+            <Link
+              href="/login"
+              className="font-mono text-xs tracking-widest uppercase text-muted-foreground hover:text-foreground"
+            >
+              Sign in
+            </Link>
+          )}
+          <Link
+            href="/"
+            className="font-mono text-xs tracking-widest uppercase border border-input px-3 py-1.5 hover:bg-accent"
+          >
+            Join waitlist
+          </Link>
+        </div>
+      </header>
+
+      <main className="flex-1 p-4 md:p-6 max-w-6xl w-full mx-auto">
+        <h1 className="font-mono text-2xl font-bold tracking-tight uppercase mb-1">
+          THE DEMO
+        </h1>
+        <p className="text-xs text-muted-foreground mb-6 max-w-2xl">
+          Every number below is synthetic — a fake year of statements through the
+          real dashboard. This is what Pare looks like about 30 seconds after you
+          drop your first PDF. No account, no bank login, nothing tracked.
+        </p>
+
+        {error && (
+          <div className="border border-border py-16 text-center">
+            <p className="font-mono text-sm text-muted-foreground">
+              COULDN&apos;T LOAD SAMPLE DATA
+            </p>
+          </div>
+        )}
+        {!data && !error && (
+          <div className="h-64 border border-border bg-card animate-pulse" aria-hidden />
+        )}
+
+        {data && (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-[1px] bg-border border border-border">
+            {/* Monthly spend — 2 cols */}
+            <div className="col-span-1 md:col-span-2 bg-card p-4 md:p-6">
+              <h2 className="font-mono text-xs tracking-widest uppercase text-muted-foreground mb-4">
+                MONTHLY SPEND
+              </h2>
+              <ResponsiveContainer width="100%" height={220}>
+                <BarChart data={monthly}>
+                  <XAxis
+                    dataKey="month"
+                    tickFormatter={formatMonthShort}
+                    tick={MONO_TICK}
+                    axisLine={false}
+                    tickLine={false}
+                  />
+                  <YAxis tick={MONO_TICK} axisLine={false} tickLine={false} tickFormatter={formatK} />
+                  <Tooltip
+                    formatter={(value) => [formatCurrency(Number(value)), "Spend"]}
+                    labelFormatter={(v) => formatMonthFull(String(v))}
+                    contentStyle={CHART_TOOLTIP_STYLE}
+                  />
+                  <Bar dataKey="total" fill={PALETTE.slate} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+
+            {/* Categories — 1 col, spans two rows */}
+            <div className="row-span-2 bg-card p-4 md:p-6 flex flex-col">
+              <h2 className="font-mono text-xs tracking-widest uppercase text-muted-foreground mb-4">
+                TOP CATEGORIES
+              </h2>
+              <ResponsiveContainer width="100%" height={180}>
+                <PieChart>
+                  <Pie
+                    data={categories.slice(0, 8)}
+                    dataKey="total"
+                    nameKey="category"
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={40}
+                    outerRadius={75}
+                    strokeWidth={1}
+                    stroke="var(--card)"
+                  >
+                    {categories.slice(0, 8).map((c) => (
+                      <Cell key={c.category} fill={categoryColor(c.category)} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    formatter={(value) => [formatCurrency(Number(value))]}
+                    contentStyle={CHART_TOOLTIP_STYLE}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="mt-2 space-y-0.5 flex-1">
+                {categories.slice(0, 6).map((c) => (
+                  <div key={c.category} className="flex items-center justify-between text-xs px-1 -mx-1 py-0.5">
+                    <span className="flex items-center gap-2">
+                      <span
+                        className="w-2 h-2 inline-block"
+                        style={{ backgroundColor: categoryColor(c.category) }}
+                      />
+                      <span className="font-mono">{c.category}</span>
+                    </span>
+                    <span className="font-mono tabular-nums">
+                      {formatCurrency(c.total)}
+                      <span className="text-muted-foreground ml-1.5">
+                        {categoryTotal > 0 ? ((c.total / categoryTotal) * 100).toFixed(0) : 0}%
+                      </span>
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Stat cards */}
+            <div className="bg-card p-4 md:p-6">
+              <h2 className="font-mono text-xs tracking-widest uppercase text-muted-foreground mb-2">
+                TOTAL SPEND
+              </h2>
+              <p className="font-mono text-3xl font-bold">{formatCurrency(totalSpend)}</p>
+              <p className="text-xs text-muted-foreground mt-1">{activeMonths} months</p>
+            </div>
+            <div className="bg-card p-4 md:p-6">
+              <h2 className="font-mono text-xs tracking-widest uppercase text-muted-foreground mb-2">
+                SAVINGS RATE
+              </h2>
+              <p
+                className="font-mono text-3xl font-bold"
+                style={{
+                  color:
+                    savingsRate == null
+                      ? undefined
+                      : savingsRate >= 0
+                      ? PALETTE.sage
+                      : PALETTE.terracotta,
+                }}
+              >
+                {savingsRate == null ? "—" : `${(savingsRate * 100).toFixed(0)}%`}
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">of income kept, all-time</p>
+            </div>
+
+            {/* Income vs spend — 2 cols */}
+            <div className="col-span-1 md:col-span-2 bg-card p-4 md:p-6">
+              <h2 className="font-mono text-xs tracking-widest uppercase text-muted-foreground mb-4">
+                INCOME VS SPEND
+              </h2>
+              <ResponsiveContainer width="100%" height={200}>
+                <BarChart data={netData}>
+                  <XAxis dataKey="label" tick={MONO_TICK} axisLine={false} tickLine={false} />
+                  <YAxis tick={MONO_TICK} axisLine={false} tickLine={false} tickFormatter={formatK} />
+                  <Tooltip
+                    formatter={(value, name) => [formatCurrency(Number(value)), name === "income" ? "Income" : "Spend"]}
+                    contentStyle={CHART_TOOLTIP_STYLE}
+                  />
+                  <Bar dataKey="income" fill={PALETTE.sage} />
+                  <Bar dataKey="spend" fill={PALETTE.terracotta} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+
+            {/* Goals */}
+            <div className="bg-card p-4 md:p-6">
+              <h2 className="font-mono text-xs tracking-widest uppercase text-muted-foreground mb-4">
+                GOALS
+              </h2>
+              <div className="space-y-3">
+                {data.goals.slice(0, 6).map((g) => (
+                  <div key={g.category}>
+                    <div className="flex items-center justify-between text-xs mb-1">
+                      <span className="font-mono truncate">{g.category}</span>
+                      <span className="font-mono tabular-nums shrink-0">
+                        {formatCurrency(g.spent)}
+                        <span className="text-muted-foreground"> / {formatCurrency(g.monthly_limit)}</span>
+                      </span>
+                    </div>
+                    <div className="h-1.5 bg-accent">
+                      <div
+                        className="h-full"
+                        style={{
+                          width: `${Math.min(100, g.percentage)}%`,
+                          backgroundColor: goalColor(g.percentage),
+                        }}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Top merchants — full width */}
+            <div className="col-span-1 md:col-span-3 bg-card p-4 md:p-6">
+              <h2 className="font-mono text-xs tracking-widest uppercase text-muted-foreground mb-4">
+                TOP MERCHANTS
+              </h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-1.5">
+                {data.top_merchants.map((m) => (
+                  <div key={m.description} className="flex items-center justify-between text-xs">
+                    <span className="font-mono truncate">{m.description}</span>
+                    <span className="font-mono tabular-nums shrink-0 ml-3">
+                      <span className="text-muted-foreground mr-2">{m.count}×</span>
+                      {formatCurrency(m.total)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* CTA band */}
+        <div className="mt-6 border border-border p-4 md:p-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <p className="font-mono text-sm font-bold tracking-widest uppercase">
+              THIS TOOK ONE PDF DROP
+            </p>
+            <p className="text-xs text-muted-foreground mt-1 max-w-lg">
+              Upload a statement you already have — no bank login, files shredded
+              after parsing, and the self-host version never phones home at all.
+            </p>
+          </div>
+          <div className="flex items-center gap-3 shrink-0">
+            <Link
+              href="/"
+              className="inline-flex items-center gap-1.5 font-mono text-xs tracking-widest uppercase bg-foreground text-background px-4 py-2 hover:opacity-90"
+            >
+              Join the waitlist <ArrowRight className="size-3.5" />
+            </Link>
+            {!WAITLIST_ONLY && (
+              <Link
+                href="/login"
+                className="font-mono text-xs tracking-widest uppercase border border-input px-4 py-2 hover:bg-accent"
+              >
+                Sign in
+              </Link>
+            )}
+          </div>
+        </div>
+      </main>
+    </div>
+  );
+}
