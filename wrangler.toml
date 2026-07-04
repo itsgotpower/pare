@@ -105,11 +105,18 @@ migrations_dir = "d1/migrations"
 name = "USER_DATA"
 class_name = "UserDataObject"
 
-# Per-user data store (registered above) plus the parser Container — both are
-# SQLite-backed Durable Object classes, so both go in new_sqlite_classes.
+# DO class migrations. Tags already APPLIED on the live worker are immutable —
+# the waitlist deploys shipped v1 = [UserDataObject], so ParserContainer must
+# arrive as a NEW tag (re-declaring v1 with both classes is silently ignored for
+# the applied tag and the deploy fails with code 10061). Never edit an applied
+# tag; append the next one.
 [[migrations]]
 tag = "v1"
-new_sqlite_classes = ["UserDataObject", "ParserContainer"]
+new_sqlite_classes = ["UserDataObject"]
+
+[[migrations]]
+tag = "v2"
+new_sqlite_classes = ["ParserContainer"]
 
 # --- PDF parser container (hosted parsing path) ---
 #
