@@ -157,7 +157,7 @@ export default function ProfilePage() {
     const checkout = new URLSearchParams(window.location.search).get("checkout");
     if (!checkout) return;
     if (checkout === "success") {
-      setBillingNotice({ ok: true, msg: "Subscription updated — you're on Pro." });
+      setBillingNotice({ ok: true, msg: "Subscription updated — you're on Plus." });
       fetchBilling();
     } else if (checkout === "cancel") {
       setBillingNotice({ ok: false, msg: "Checkout canceled — no changes made." });
@@ -386,7 +386,7 @@ export default function ProfilePage() {
         </Card>
       </div>
 
-      {billing?.hosted && billing.configured && (
+      {billing?.hosted && (
         <Card className="rounded-none ring-0 border border-border py-0 gap-0 mb-3">
           <div className="flex items-center justify-between border-b border-border px-4 py-3">
             <span className={labelClass}>Plan</span>
@@ -417,16 +417,32 @@ export default function ProfilePage() {
                   ? ` · status: ${billing.status}`
                   : ""}
               </p>
+              <p className="text-xs text-muted-foreground">
+                {billing.plan.id !== "pro" && (
+                  <>Plus is $8/mo or $72/yr USD — 2 accounts, unlimited uploads. </>
+                )}
+                <Link
+                  href="/pricing"
+                  className="underline hover:text-foreground transition-colors"
+                >
+                  See pricing
+                </Link>
+              </p>
             </div>
             <div className="flex gap-2 shrink-0">
-              {billing.plan.id !== "pro" && (
+              {billing.configured && billing.plan.id !== "pro" && (
                 <Button
                   onClick={() => openBillingFlow("/api/billing/checkout")}
                   disabled={billingBusy}
                   className="rounded-none font-mono text-xs tracking-widest uppercase"
                 >
-                  Upgrade to Pro
+                  Upgrade to Plus
                 </Button>
+              )}
+              {!billing.configured && (
+                <span className="font-mono text-[10px] tracking-widest uppercase border border-border px-2 py-1 text-muted-foreground">
+                  Billing opens at launch
+                </span>
               )}
               {billing.manageable && (
                 <Button
