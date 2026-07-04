@@ -189,7 +189,11 @@ async function handleHostedUpload(request: NextRequest) {
 
     // Plan-limit enforcement (cloud commercial layer; no-ops unless PARE_CLOUD=1).
     // Fail OPEN on any billing-infra error — never lock a user out of uploading
-    // because the limiter/metering store hiccuped.
+    // because the limiter/metering store hiccuped. `planId` is stamped onto the
+    // queue message so the consumer can enforce the ACCOUNT cap post-parse (it
+    // can't resolve D1 inside queue()); it stays undefined on cloud-off or a
+    // failed-open check, which skips that gate.
+    let planId: string | undefined;
     try {
       const { enforceStatementUpload } = await import("@/cloud/billing/gate");
       const limit = await enforceStatementUpload(resolved.userId);
@@ -197,6 +201,7 @@ async function handleHostedUpload(request: NextRequest) {
         // 402 Payment Required — the client surfaces limit.reason + an upgrade CTA.
         return Response.json({ error: limit.reason }, { status: 402 });
       }
+      planId = limit.planId;
     } catch (err) {
       console.warn(
         "[billing] upload limit check failed open:",
@@ -237,7 +242,7 @@ async function handleHostedUpload(request: NextRequest) {
     ]);
 
     const { jobId } = await runHostedUpload(
-      { userId: resolved.userId, filename: file.name, bytes },
+      { userId: resolved.userId, filename: file.name, bytes, planId },
       { pdfStore, jobStore, queue }
     );
 

@@ -38,6 +38,12 @@ export interface HostedUploadInput {
   userId: string;
   filename: string;
   bytes: Uint8Array;
+  /**
+   * Caller's billing plan, resolved by the route at upload time. Rides the queue
+   * message so the consumer can enforce the account cap (see ParseJobMessage).
+   * Omit when the cloud billing layer is off (self-host, email-in).
+   */
+  planId?: string;
 }
 
 export interface HostedUploadResult {
@@ -53,7 +59,7 @@ export async function handleHostedUpload(
   input: HostedUploadInput,
   deps: HostedUploadDeps
 ): Promise<HostedUploadResult> {
-  const { userId, filename, bytes } = input;
+  const { userId, filename, bytes, planId } = input;
   const jobId = (deps.newJobId ?? (() => crypto.randomUUID()))();
 
   // 1. Persist the PDF bytes under the caller's per-user R2 prefix.
@@ -64,7 +70,7 @@ export async function handleHostedUpload(
 
   // 3. Enqueue the parse job; the consumer (P4) fetches the bytes from r2Key,
   //    parses, writes rows to the user's DO, and advances the job record.
-  const message: ParseJobMessage = { userId, r2Key, filename, jobId };
+  const message: ParseJobMessage = { userId, r2Key, filename, jobId, ...(planId ? { planId } : {}) };
   await enqueueParseJob(deps.queue, message);
 
   return { jobId };
