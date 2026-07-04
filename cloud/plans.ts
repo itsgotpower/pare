@@ -12,7 +12,7 @@ export type PlanId = "free" | "pro";
  * this union and (2) listing it in the unlocking plan's `features` below; then gate
  * it server-side via cloud/billing/gate.ts `requireFeature`.
  */
-export type Feature = "email_ingest" | "llm_autocoverage";
+export type Feature = "email_ingest" | "llm_autocoverage" | "mcp_connector";
 
 export interface Plan {
   id: PlanId;
@@ -28,14 +28,18 @@ export interface Plan {
 export const PLANS: Record<PlanId, Plan> = {
   free: {
     id: "free", label: "Free", statementsPerMonth: 10,
-    features: new Set<Feature>(),
+    // mcp_connector is deliberately on EVERY plan for Stage A (it's the invite
+    // differentiator); the /api/mcp gate exists so moving it to a paid tier
+    // later is a one-line change here. FR-72 pricing pass decides.
+    features: new Set<Feature>(["mcp_connector"]),
     stripePriceEnv: null,
   },
   pro: {
     id: "pro", label: "Pro", statementsPerMonth: null,
-    // PLACEHOLDER membership pending the FR-72 plan matrix. Both are cloud-only
-    // conveniences, so gating them removes nothing from existing free users.
-    features: new Set<Feature>(["email_ingest", "llm_autocoverage"]),
+    // PLACEHOLDER membership pending the FR-72 plan matrix. email_ingest +
+    // llm_autocoverage are cloud-only conveniences, so gating them removes
+    // nothing from existing free users.
+    features: new Set<Feature>(["email_ingest", "llm_autocoverage", "mcp_connector"]),
     stripePriceEnv: "STRIPE_PRICE_PRO",
   },
 };

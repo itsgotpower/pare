@@ -20,7 +20,15 @@ export async function GET(request: Request): Promise<Response> {
   // type loses the mcp() plugin's contributed endpoints and this helper's
   // constraint rejects it. The endpoint exists at runtime — mcp() is always in
   // the plugin array (lib/auth/hosted.ts).
-  return oAuthDiscoveryMetadata(
+  const upstream = await oAuthDiscoveryMetadata(
     auth as unknown as Parameters<typeof oAuthDiscoveryMetadata>[0]
   )(request);
+  // Rewrite the authorization endpoint to the forced-consent shim
+  // (app/api/mcp-authorize) — the plugin hard-codes ${baseURL}/mcp/authorize,
+  // which grants silently unless the client volunteers prompt=consent. This
+  // root document is the one clients actually resolve (RFC 8414: issuer-root
+  // well-known; issuer = baseURL), so rewriting here covers the flow.
+  const metadata = (await upstream.json()) as Record<string, unknown>;
+  metadata.authorization_endpoint = new URL("/api/mcp-authorize", request.url).toString();
+  return Response.json(metadata, { headers: { "cache-control": "no-store" } });
 }

@@ -201,3 +201,12 @@ name = "RL_WAITLIST"
 type = "ratelimit"
 namespace_id = "2002"
 simple = { limit = 10, period = 60 }
+
+# RL_MCP — remote MCP connector (/api/mcp): 120 requests / 60s / USER (keyed
+# `u:<userId>`, not per-IP — connector traffic egresses from Anthropic's IPs,
+# so IP-keying would pool every user into one bucket). Fail-open when absent.
+[[unsafe.bindings]]
+name = "RL_MCP"
+type = "ratelimit"
+namespace_id = "2004"
+simple = { limit = 120, period = 60 }
