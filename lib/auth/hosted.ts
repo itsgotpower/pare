@@ -1,5 +1,5 @@
 import { betterAuth, type BetterAuthOptions } from "better-auth";
-import { bearer, captcha } from "better-auth/plugins";
+import { bearer, captcha, mcp } from "better-auth/plugins";
 import { passkey } from "@better-auth/passkey";
 import { D1Dialect } from "kysely-d1";
 import { sendPasswordResetEmail, sendVerificationEmail } from "./email";
@@ -60,6 +60,16 @@ export function hostedAuthOptions(db: D1Like): BetterAuthOptions {
       captcha({ provider: "cloudflare-turnstile", secretKey: turnstileSecret })
     );
   }
+
+  // Remote MCP connector (claude.ai Settings → Connectors). The mcp() plugin
+  // turns this better-auth instance into the OAuth 2.1 provider the MCP spec
+  // requires: dynamic client registration, PKCE authorize/token endpoints under
+  // /api/auth/oauth2|mcp/*, and getMcpSession() for the /api/mcp route's
+  // withMcpAuth wrapper. Unauthenticated authorize flows redirect to /login
+  // (which already handles same-app ?from= redirects). Tables live in the D1
+  // auth DB (d1/migrations/0006_mcp_oauth.sql — hand-authored, keep in sync).
+  // Spec: internal/remote-mcp-spec.md.
+  plugins.push(mcp({ loginPage: "/login" }));
 
   // Passkeys / WebAuthn. rpID (the relying-party id) and origin MUST match the
   // deployed host or the browser refuses the ceremony, so derive both from
