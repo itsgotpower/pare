@@ -22,6 +22,15 @@ compatibility_flags = ["nodejs_compat", "global_fetch_strictly_public"]
 # Durable Objects and proxy.ts retires the single-user gate. Without this the
 # Worker defaults to self-host mode (file-backed better-sqlite3, which can't load
 # on Workers) — i.e. a broken deploy. Self-host/local leaves it unset.
+# DEV-ONLY (ignored by `wrangler deploy`): stop miniflare from trying to
+# simulate [[containers]]. OpenNext's deploy/populateCache commands call
+# wrangler's getPlatformProxy to read env bindings, and miniflare asserts
+# ("Build ID should be set…") on a containers stanza it can't build locally.
+# Production container builds are unaffected — they happen inside the real
+# `wrangler deploy` step, not the proxy.
+[dev]
+enable_containers = false
+
 [vars]
 PARE_DEPLOY_TARGET = "hosted"
 # Stage-A launch gate: ships with new-account registration CLOSED (better-auth
