@@ -1,0 +1,63 @@
+name: Deploy full app (manual)
+
+# Builds + deploys the FULL data-plane app (auth D1, R2, Queues, the parser
+# Container, per-user DOs) to Cloudflare. This exists to take the parser-image
+# build OFF a local machine: `wrangler deploy` builds lib/parser/Dockerfile and
+# pushes it to the Cloudflare Registry, and GitHub's ubuntu-latest runners ship
+# Docker preinstalled — so no local Docker daemon is required (clears blocker #2
+# in internal/deploy-unblock.md).
+#
+# MANUAL ONLY (workflow_dispatch). Unlike deploy.yml (waitlist, auto on push),
+# the full app must not auto-deploy — it needs Workers Paid + provisioned
+# resources first. Trigger this from the deploy/full-app branch via the Actions
+# tab once the prerequisites below are met.
+#
+# Prerequisites (see internal/deploy-unblock.md — most are one-time, Scott-only):
+#   1. Workers Paid plan enabled (Queues + Containers require it).
+#   2. Real resource ids committed to wrangler.toml (D1 database_id, KV id) —
+#      the placeholders are all-zeros and resolve to nothing at runtime.
+#   3. Auth/email secrets provisioned via `wrangler secret put` (BETTER_AUTH_SECRET,
+#      BETTER_AUTH_URL, AUTH_EMAIL_FROM, RESEND_API_KEY, PARE_AUTH_SECRET).
+#      `secret put` needs no Docker, so it can still be done from a laptop.
+#
+# Repo secrets required (Settings → Secrets and variables → Actions):
+#   CLOUDFLARE_API_TOKEN   — "Edit Cloudflare Workers" template, WITH r2 +
+#                            queues + containers scopes (the waitlist token
+#                            lacked r2/queues — blocker #3).
+#   CLOUDFLARE_ACCOUNT_ID  — your Cloudflare account id (also the registry
+#                            namespace the parser image is pushed under).
+
+on:
+  workflow_dispatch: {}
+
+# Never run two production deploys at once; let an in-flight one finish.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # Sanity-check the Docker daemon the runner provides before the deploy —
+      # wrangler shells out to it to build the parser image. Fails fast with a
+      # clear message instead of a cryptic build error if the runner changes.
+      - name: Verify Docker is available (for the parser image build)
+        run: docker info
+
+      - name: Build & deploy full app to Cloudflare
+        # No NEXT_PUBLIC_WAITLIST_ONLY here — this is the full-app UI + data plane.
+        run: npm run cf:deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
