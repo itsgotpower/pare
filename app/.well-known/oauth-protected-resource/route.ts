@@ -11,5 +11,9 @@ import { isHostedMode } from "@/lib/auth/resolve";
 export async function GET(request: Request): Promise<Response> {
   if (!isHostedMode()) return new Response(null, { status: 404 });
   const auth = createHostedAuth(await getD1());
-  return oAuthProtectedResourceMetadata(auth)(request);
+  // Same erased-type cast as the sibling oauth-authorization-server route —
+  // the mcp() plugin's endpoints exist at runtime but not on the erased type.
+  return oAuthProtectedResourceMetadata(
+    auth as unknown as Parameters<typeof oAuthProtectedResourceMetadata>[0]
+  )(request);
 }

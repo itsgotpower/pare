@@ -37,7 +37,10 @@ async function handler(request: Request): Promise<Response> {
 
   const auth = createHostedAuth(await getD1());
 
-  return withMcpAuth(auth, async (req, session) => {
+  // Cast: hostedAuthOptions() returns the erased BetterAuthOptions type, so the
+  // Auth type loses the mcp() plugin's getMcpSession endpoint that withMcpAuth
+  // constrains on. It exists at runtime — mcp() is always in the plugin array.
+  return withMcpAuth(auth as unknown as Parameters<typeof withMcpAuth>[0], async (req, session) => {
     const server = new McpServer({ name: "pare-finance", version: pkg.version });
 
     server.registerTool(

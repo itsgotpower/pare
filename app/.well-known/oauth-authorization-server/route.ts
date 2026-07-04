@@ -16,5 +16,11 @@ import { isHostedMode } from "@/lib/auth/resolve";
 export async function GET(request: Request): Promise<Response> {
   if (!isHostedMode()) return new Response(null, { status: 404 });
   const auth = createHostedAuth(await getD1());
-  return oAuthDiscoveryMetadata(auth)(request);
+  // hostedAuthOptions() returns the erased BetterAuthOptions type, so the Auth
+  // type loses the mcp() plugin's contributed endpoints and this helper's
+  // constraint rejects it. The endpoint exists at runtime — mcp() is always in
+  // the plugin array (lib/auth/hosted.ts).
+  return oAuthDiscoveryMetadata(
+    auth as unknown as Parameters<typeof oAuthDiscoveryMetadata>[0]
+  )(request);
 }
