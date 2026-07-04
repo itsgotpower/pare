@@ -128,6 +128,13 @@
     @apply font-sans;
     -webkit-tap-highlight-color: transparent;
   }
+  /* Brand text selection — sage (PALETTE.sage, lib/colors.ts) instead of the
+     OS default blue. Espresso text keeps contrast on the light-green wash in
+     both light and dark mode. */
+  ::selection {
+    background: #8a9b66;
+    color: #1d1a17;
+  }
 }
 
 /* Marketing hero bento — one-shot reveal on mount. The card sits above the fold

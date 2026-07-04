@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { PALETTE } from "@/lib/colors";
 import { ImportWizard } from "@/components/switch/import-wizard";
+import { MarketingFooter, MarketingHeader } from "@/components/marketing/site-chrome";
 
 // Public migration landing — THE primary switching LP (Scott's call, 2026-07-02:
 // /switch is canonical; /switching and /switch-from-monarch re-export it).
@@ -80,17 +81,7 @@ const STEPS = [
 export default function SwitchPage() {
   return (
     <div className="min-h-full flex flex-col bg-background">
-      <header className="shrink-0 flex items-center justify-between px-5 md:px-8 h-[calc(3.5rem+env(safe-area-inset-top))] pt-[env(safe-area-inset-top)] border-b border-border">
-        <Link href="/" className="font-mono text-sm font-bold tracking-tight">
-          PARE
-        </Link>
-        <Link
-          href="/"
-          className="font-mono text-[10px] md:text-xs tracking-widest uppercase text-muted-foreground hover:text-foreground transition-colors"
-        >
-          ← Back
-        </Link>
-      </header>
+      <MarketingHeader />
 
       <main className="flex-1 w-full max-w-3xl mx-auto px-5 md:px-8 py-10">
         <p className={labelClass}>Switching to Pare</p>
@@ -220,28 +211,7 @@ export default function SwitchPage() {
         </p>
       </main>
 
-      <footer className="shrink-0 border-t border-border px-5 md:px-8 py-4 flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Link
-            href="/privacy"
-            className="font-mono text-[11px] tracking-wide uppercase text-muted-foreground hover:text-foreground transition-colors"
-          >
-            Privacy
-          </Link>
-          <Link
-            href="/how-it-works"
-            className="font-mono text-[11px] tracking-wide uppercase text-muted-foreground hover:text-foreground transition-colors"
-          >
-            How it works
-          </Link>
-        </div>
-        <Link
-          href="/"
-          className="font-mono text-[11px] tracking-wide uppercase text-muted-foreground hover:text-foreground transition-colors"
-        >
-          pare
-        </Link>
-      </footer>
+      <MarketingFooter current="/switch" />
     </div>
   );
 }

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { Metadata } from "next";
+import { MarketingFooter, MarketingHeader } from "@/components/marketing/site-chrome";
 
 // Public privacy policy — the "proof, not promises" trust artifact from the
 // offer-engineering doc (§4.2). Reachable signed-out: hosted mode retires the
@@ -67,17 +68,7 @@ export default function PrivacyPage() {
   return (
     <div className="min-h-full flex flex-col bg-background">
       {/* Top bar — this page has no app sidebar. */}
-      <header className="shrink-0 flex items-center justify-between px-5 md:px-8 h-[calc(3.5rem+env(safe-area-inset-top))] pt-[env(safe-area-inset-top)] border-b border-border">
-        <Link href="/" className="font-mono text-sm font-bold tracking-tight">
-          PARE
-        </Link>
-        <Link
-          href="/"
-          className="font-mono text-[10px] md:text-xs tracking-widest uppercase text-muted-foreground hover:text-foreground transition-colors"
-        >
-          ← Back
-        </Link>
-      </header>
+      <MarketingHeader />
 
       <main className="flex-1 w-full max-w-2xl mx-auto px-5 md:px-8 py-10">
         <p className={labelClass}>Privacy policy</p>
@@ -396,34 +387,7 @@ value.replace(EMAIL_RE, "[email]"); // mask any email that slips into a message`
         </div>
       </main>
 
-      <footer className="shrink-0 border-t border-border px-5 md:px-8 py-4 flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Link
-            href="/terms"
-            className="font-mono text-[11px] tracking-wide uppercase text-muted-foreground hover:text-foreground transition-colors"
-          >
-            Terms
-          </Link>
-          <Link
-            href="/security"
-            className="font-mono text-[11px] tracking-wide uppercase text-muted-foreground hover:text-foreground transition-colors"
-          >
-            Security
-          </Link>
-          <Link
-            href="/how-it-works"
-            className="font-mono text-[11px] tracking-wide uppercase text-muted-foreground hover:text-foreground transition-colors"
-          >
-            How it works
-          </Link>
-        </div>
-        <Link
-          href="/"
-          className="font-mono text-[11px] tracking-wide uppercase text-muted-foreground hover:text-foreground transition-colors"
-        >
-          pare
-        </Link>
-      </footer>
+      <MarketingFooter current="/privacy" />
     </div>
   );
 }

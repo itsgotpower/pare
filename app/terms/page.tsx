@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { Metadata } from "next";
+import { MarketingFooter, MarketingHeader } from "@/components/marketing/site-chrome";
 
 // Public terms of service. Reachable signed-out, exactly like /privacy: hosted
 // mode retires the auth gate, and self-host adds "/terms" to the gate's
@@ -34,17 +35,7 @@ export default function TermsPage() {
   return (
     <div className="min-h-full flex flex-col bg-background">
       {/* Top bar — this page has no app sidebar. */}
-      <header className="shrink-0 flex items-center justify-between px-5 md:px-8 h-[calc(3.5rem+env(safe-area-inset-top))] pt-[env(safe-area-inset-top)] border-b border-border">
-        <Link href="/" className="font-mono text-sm font-bold tracking-tight">
-          PARE
-        </Link>
-        <Link
-          href="/"
-          className="font-mono text-[10px] md:text-xs tracking-widest uppercase text-muted-foreground hover:text-foreground transition-colors"
-        >
-          ← Back
-        </Link>
-      </header>
+      <MarketingHeader />
 
       <main className="flex-1 w-full max-w-2xl mx-auto px-5 md:px-8 py-10">
         <p className={labelClass}>Terms of service</p>
@@ -261,28 +252,7 @@ export default function TermsPage() {
         </div>
       </main>
 
-      <footer className="shrink-0 border-t border-border px-5 md:px-8 py-4 flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Link
-            href="/privacy"
-            className="font-mono text-[11px] tracking-wide uppercase text-muted-foreground hover:text-foreground transition-colors"
-          >
-            Privacy
-          </Link>
-          <Link
-            href="/security"
-            className="font-mono text-[11px] tracking-wide uppercase text-muted-foreground hover:text-foreground transition-colors"
-          >
-            Security
-          </Link>
-        </div>
-        <Link
-          href="/"
-          className="font-mono text-[11px] tracking-wide uppercase text-muted-foreground hover:text-foreground transition-colors"
-        >
-          pare
-        </Link>
-      </footer>
+      <MarketingFooter current="/terms" />
     </div>
   );
 }
