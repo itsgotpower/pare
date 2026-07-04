@@ -1,8 +1,13 @@
 /**
  * PROPRIETARY — pare.money commercial layer. See ./LICENSE. Not AGPL.
  *
- * Plan definitions for the hosted service. Numbers are PLACEHOLDERS — the real
- * free-tier cap dimension + paid price points are PRD §6 / FR-72 [TBD].
+ * Plan definitions for the hosted service. Caps/labels decided 2026-07-04
+ * (PRD §6): Free = 5 statements/month + 1 account; Plus ($8/mo or $72/yr USD)
+ * = unlimited statements + 2 accounts. The ACCOUNT caps are public copy only —
+ * not yet enforced here (follow-up; needs an accounts field + a gate on the
+ * upload path). These must match the public /pricing page (components/
+ * marketing/pricing-tiers.tsx) — update both together. Price points live in
+ * Stripe (STRIPE_PRICE_PRO), never here.
  */
 
 export type PlanId = "free" | "pro";
@@ -27,12 +32,14 @@ export interface Plan {
 
 export const PLANS: Record<PlanId, Plan> = {
   free: {
-    id: "free", label: "Free", statementsPerMonth: 10,
+    id: "free", label: "Free", statementsPerMonth: 5,
     features: new Set<Feature>(),
     stripePriceEnv: null,
   },
+  // Public name is "Plus"; the id stays "pro" (persisted in billing rows and
+  // matched by the Stripe webhook — renaming the id is a data migration).
   pro: {
-    id: "pro", label: "Pro", statementsPerMonth: null,
+    id: "pro", label: "Plus", statementsPerMonth: null,
     // PLACEHOLDER membership pending the FR-72 plan matrix. Both are cloud-only
     // conveniences, so gating them removes nothing from existing free users.
     features: new Set<Feature>(["email_ingest", "llm_autocoverage"]),
