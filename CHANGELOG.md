@@ -36,6 +36,16 @@ contracts, on-disk and crypto formats) may change between minor versions — see
 
 ### Fixed
 
+- **Chunk-recovery hardening** — the post-deploy chunk recovery no longer
+  deletes share-target files still waiting for `/upload` to pick them up
+  (the share-intake cache is preserved, matching the service worker's own
+  keep-list), and no longer treats an offline dynamic-import failure as a
+  deploy mismatch (which wiped the offline cache and bricked the offline app —
+  it now surfaces the error screen instead). When recovery is declined because
+  the chunk is missing on the *current* build, the error boundaries now show
+  the real error and report it to monitoring instead of a permanent
+  "Reloading…" screen, and boundary auto-recovery is production-only (dev HMR
+  churn no longer triggers cache-clearing reloads) ([#73]).
 - **Installed-PWA chunk-load error** — after a deploy, home-screen PWA users
   could hit a "failed to load chunk" error screen: the service worker was
   identical across deploys, so it never updated and kept serving a stale app
@@ -173,3 +183,4 @@ server exposing the local data to MCP clients. Ships open-source repo scaffoldin
 [#70]: https://github.com/itsgotpower/pare/pull/70
 [#71]: https://github.com/itsgotpower/pare/pull/71
 [#72]: https://github.com/itsgotpower/pare/pull/72
+[#73]: https://github.com/itsgotpower/pare/pull/73
