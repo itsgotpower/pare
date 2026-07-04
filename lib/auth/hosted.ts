@@ -113,6 +113,14 @@ export function hostedAuthOptions(db: D1Like): BetterAuthOptions {
     ...(trustedOrigins ? { trustedOrigins } : {}),
     emailAndPassword: {
       enabled: true,
+      // Stage-A launch gate: while PARE_SIGNUP_DISABLED is set (any non-empty
+      // value), better-auth's sign-up route rejects with
+      // EMAIL_PASSWORD_SIGN_UP_DISABLED — existing accounts sign in normally,
+      // new registrations are closed. The full-app deploy ships with this ON
+      // (wrangler.toml [vars]) until the waitlist invite machinery exists; flip
+      // the var (dashboard Settings → Variables, or wrangler.toml + redeploy)
+      // to open signup. Unset in dev/self-host, so local flows are unaffected.
+      disableSignUp: Boolean(process.env.PARE_SIGNUP_DISABLED),
       // Finance app: don't let an account act on data until it has proven it
       // controls the email address. With this on, better-auth rejects sign-in
       // for an unverified account (403) and re-sends the verification link, so
