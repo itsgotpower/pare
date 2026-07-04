@@ -45,7 +45,7 @@ contracts, on-disk and crypto formats) may change between minor versions — see
   the chunk is missing on the *current* build, the error boundaries now show
   the real error and report it to monitoring instead of a permanent
   "Reloading…" screen, and boundary auto-recovery is production-only (dev HMR
-  churn no longer triggers cache-clearing reloads).
+  churn no longer triggers cache-clearing reloads) ([#73]).
 - **Installed-PWA chunk-load error** — after a deploy, home-screen PWA users
   could hit a "failed to load chunk" error screen: the service worker was
   identical across deploys, so it never updated and kept serving a stale app
@@ -183,3 +183,4 @@ server exposing the local data to MCP clients. Ships open-source repo scaffoldin
 [#70]: https://github.com/itsgotpower/pare/pull/70
 [#71]: https://github.com/itsgotpower/pare/pull/71
 [#72]: https://github.com/itsgotpower/pare/pull/72
+[#73]: https://github.com/itsgotpower/pare/pull/73
