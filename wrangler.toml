@@ -76,7 +76,7 @@ service = "pare"
 [[d1_databases]]
 binding = "DB"
 database_name = "pare-auth"
-database_id = "00000000-0000-0000-0000-000000000000"
+database_id = "f9d6aa57-1e00-479c-bcd3-5139c12f931c"
 # better-auth schema for this DB only. Apply with:
 #   npx wrangler d1 migrations apply pare-auth --remote
 # Kept separate from lib/db/migrations (the per-user DO data schema) on purpose:
@@ -156,7 +156,7 @@ max_retries = 3
 #   npx wrangler kv namespace create PARSE_JOBS   # -> paste id below
 [[kv_namespaces]]
 binding = "PARSE_JOBS"
-id = "00000000000000000000000000000000"
+id = "8ea67ded5d0846c38bffbd9d7fba1564"
 
 # --- Uploaded PDF object storage (P3 — R2) ---
 #
