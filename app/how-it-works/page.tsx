@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { PALETTE } from "@/lib/colors";
+import { MarketingFooter, MarketingHeader } from "@/components/marketing/site-chrome";
 
 // Public "how the parsing works" page — the trust-and-clarity asset from the
 // offer-engineering doc (§4.3). Reachable signed-out (added to middleware
@@ -64,17 +65,7 @@ export default function HowItWorksPage() {
   return (
     <div className="min-h-full flex flex-col bg-background">
       {/* Top bar — this page has no app sidebar. */}
-      <header className="shrink-0 flex items-center justify-between px-5 md:px-8 h-[calc(3.5rem+env(safe-area-inset-top))] pt-[env(safe-area-inset-top)] border-b border-border">
-        <Link href="/" className="font-mono text-sm font-bold tracking-tight">
-          PARE
-        </Link>
-        <Link
-          href="/"
-          className="font-mono text-[10px] md:text-xs tracking-widest uppercase text-muted-foreground hover:text-foreground transition-colors"
-        >
-          ← Back
-        </Link>
-      </header>
+      <MarketingHeader />
 
       <main className="flex-1 w-full max-w-3xl mx-auto px-5 md:px-8 py-10">
         <p className={labelClass}>How it works</p>
@@ -177,28 +168,7 @@ export default function HowItWorksPage() {
         </div>
       </main>
 
-      <footer className="shrink-0 border-t border-border px-5 md:px-8 py-4 flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Link
-            href="/privacy"
-            className="font-mono text-[11px] tracking-wide uppercase text-muted-foreground hover:text-foreground transition-colors"
-          >
-            Privacy
-          </Link>
-          <Link
-            href="/security"
-            className="font-mono text-[11px] tracking-wide uppercase text-muted-foreground hover:text-foreground transition-colors"
-          >
-            Security
-          </Link>
-        </div>
-        <Link
-          href="/"
-          className="font-mono text-[11px] tracking-wide uppercase text-muted-foreground hover:text-foreground transition-colors"
-        >
-          pare
-        </Link>
-      </footer>
+      <MarketingFooter current="/how-it-works" />
     </div>
   );
 }
