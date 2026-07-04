@@ -7,7 +7,10 @@
 // Per message, the consumer:
 //   1. guards the R2 key belongs to the message's userId (drop + log if not);
 //   2. fetches the PDF bytes from R2 (PdfStore.get);
-//   3. parses via the injected ParserService (ContainerParser -> container in prod);
+//   3. parses via the injected ParserService (ContainerParser -> container in prod),
+//      then — when the message carries a planId — enforces the per-plan ACCOUNT
+//      cap against the parsed source (cloud/billing checkAccountLimit; a denial
+//      is a terminal `failed` with the upgrade message);
 //   4. writes statement + transactions + recategorize via insertParsedStatement —
 //      the ONE shared helper app/api/upload/route.ts also uses (counts come off the
 //      batch return, never off a buffered write mid-closure);
@@ -139,10 +142,42 @@ export async function handleParseMessage(
       return { inserted: 0, skipped: 0 };
     }
 
+    const repo = await getRepoForUser(userId);
+
+    // (3b) Per-plan ACCOUNT cap (cloud commercial layer). Only runs when the
+    // producer stamped a planId onto the message (i.e. the cloud billing layer
+    // was enabled at upload time) — self-host and cloud-off deploys never set it,
+    // so no proprietary path runs there. The check must live HERE, not the upload
+    // route: the statement's `source` is only known after parsing. A denial is a
+    // PERMANENT outcome (retrying can't shrink the user's account count): mark
+    // failed with the user-visible reason and drop the PDF. Fails OPEN on any
+    // billing-layer error, mirroring the route's posture — never lose a user's
+    // upload because the limiter hiccuped.
+    if (message.planId) {
+      let gate: { allowed: boolean; reason?: string } = { allowed: true };
+      try {
+        const { checkAccountLimit } = await import("../../cloud/billing/enforce");
+        gate = checkAccountLimit({
+          planId: message.planId,
+          existingSources: await repo.transactions.sources(),
+          newSource: rows[0].source,
+        });
+      } catch (err) {
+        console.warn(
+          "[billing] account limit check failed open:",
+          err instanceof Error ? err.message : err
+        );
+      }
+      if (!gate.allowed) {
+        await jobStore.markFailed(userId, jobId, gate.reason ?? "Account limit reached.");
+        await deletePdfBestEffort(pdfStore, r2Key, jobId);
+        return { inserted: 0, skipped: 0 };
+      }
+    }
+
     // (4) Insert + recategorize via the ONE shared helper app/api/upload/route.ts
     // also uses (do NOT diverge). Counts come off the batch return, never off a
     // buffered write mid-closure.
-    const repo = await getRepoForUser(userId);
     await repo.categories.seed();
     const { inserted, skipped } = await insertParsedStatement(repo, filename, rows, metas);
 

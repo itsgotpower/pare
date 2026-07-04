@@ -24,12 +24,20 @@
  *   jobId    — the JobStore record this message corresponds to; the consumer
  *              flips it queued -> parsing -> done|failed and P5's status endpoint
  *              reads it back.
+ *   planId   — the caller's billing plan, resolved AT UPLOAD TIME by the route
+ *              (cloud/billing/gate.ts) and carried here because the consumer
+ *              cannot reach D1/process.env inside a queue() invocation. Present
+ *              ⇒ the consumer enforces the per-plan ACCOUNT cap post-parse;
+ *              absent (cloud layer off, email-in, older in-flight messages) ⇒
+ *              no account gating. Kept a plain string so this AGPL module has
+ *              no compile-time dependency on the proprietary cloud/ layer.
  */
 export interface ParseJobMessage {
   userId: string;
   r2Key: string;
   filename: string;
   jobId: string;
+  planId?: string;
 }
 
 // --- Minimal structural slice of Cloudflare's Queue producer API ------------

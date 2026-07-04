@@ -14,16 +14,26 @@
 import { checkStatementLimit, cloudEnabled, hasFeature, type LimitResult } from "./enforce";
 import { resolvePlan } from "./store";
 import { getStatementUsage, incrementStatementUsage } from "../metering/usage";
-import type { Feature } from "../plans";
+import type { Feature, PlanId } from "../plans";
 
-/** Allow/deny a new statement upload for the caller against their plan. */
-export async function enforceStatementUpload(userId: string): Promise<LimitResult> {
+/**
+ * Allow/deny a new statement upload for the caller against their plan.
+ *
+ * On an allowed upload, `planId` is the caller's resolved plan — the route stamps
+ * it onto the parse-job message so the queue consumer can enforce the per-plan
+ * ACCOUNT cap post-parse (checkAccountLimit) without a D1 lookup, which isn't
+ * available inside a queue() invocation. Absent when the cloud layer is off, so
+ * self-host / non-cloud deploys never trigger the consumer-side gate.
+ */
+export async function enforceStatementUpload(
+  userId: string
+): Promise<LimitResult & { planId?: PlanId }> {
   if (!cloudEnabled()) return { allowed: true };
   const [planId, statementsThisMonth] = await Promise.all([
     resolvePlan(userId),
     getStatementUsage(userId),
   ]);
-  return checkStatementLimit({ planId, statementsThisMonth });
+  return { ...checkStatementLimit({ planId, statementsThisMonth }), planId };
 }
 
 /** Record an accepted statement upload against this month's usage. */

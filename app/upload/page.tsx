@@ -22,6 +22,32 @@ interface BeforeInstallPromptEvent extends Event {
 // handleShareTarget in public/sw.js).
 const SHARE_CACHE = "pare-share-intake";
 
+// Hosted parse-job record (GET /api/upload/status). "done" and "failed" are the
+// only terminal states; "queued"/"parsing"/"retrying" mean keep polling.
+interface ParseJobStatus {
+  status: "queued" | "parsing" | "retrying" | "done" | "failed";
+  inserted: number | null;
+  skipped: number | null;
+  error: string | null;
+}
+
+// Poll a hosted parse job until it reaches a terminal state. Returns null on
+// timeout (~3 min) — parsing normally finishes in seconds.
+async function pollJob(jobId: string): Promise<ParseJobStatus | null> {
+  for (let i = 0; i < 90; i++) {
+    await new Promise((r) => setTimeout(r, 2000));
+    try {
+      const res = await fetch(`/api/upload/status?jobId=${encodeURIComponent(jobId)}`);
+      if (!res.ok) continue;
+      const job: ParseJobStatus = await res.json();
+      if (job.status === "done" || job.status === "failed") return job;
+    } catch {
+      // transient network blip — keep polling
+    }
+  }
+  return null;
+}
+
 export default function UploadPage() {
   const [dragOver, setDragOver] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -41,6 +67,28 @@ export default function UploadPage() {
 
       if (!res.ok) {
         setError(data.error || "Upload failed");
+        return;
+      }
+
+      // Hosted mode: the upload is queued (202 { jobId }) and parsed in the
+      // background — poll the job to its terminal state so failures (unsupported
+      // PDF, plan account cap, …) actually surface here.
+      if (res.status === 202 && data.jobId) {
+        const job = await pollJob(data.jobId);
+        if (!job) {
+          setError("Still parsing — check back in a minute.");
+          return;
+        }
+        if (job.status === "failed") {
+          setError(job.error || "Parsing failed");
+          return;
+        }
+        const inserted = job.inserted ?? 0;
+        const skipped = job.skipped ?? 0;
+        setResults((prev) => [
+          { filename: file.name, inserted, skipped, total: inserted + skipped },
+          ...prev,
+        ]);
         return;
       }
 
