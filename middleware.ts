@@ -52,16 +52,46 @@ const AUTH_SECRET = process.env.PARE_AUTH_SECRET ?? null;
 export async function middleware(request: NextRequest) {
   // HOSTED mode: retire the single-user gate entirely. Auth is per-request and
   // multi-tenant — every API route resolves the caller via getScopedRepo()
-  // (cookie OR bearer) and returns 401 itself when unauthenticated, and pages
-  // gate via the account system. The self-hosted gate below is untouched.
+  // (cookie OR bearer) and returns 401 itself when unauthenticated. Pages get
+  // an OPTIMISTIC gate here: signed-out visitors (no better-auth session
+  // cookie) are redirected to /login instead of receiving the app shell.
+  // Cookie PRESENCE only — the Edge runtime can't validate a better-auth
+  // session (that needs D1); a forged cookie yields an empty shell whose data
+  // fetches all 401, so real enforcement stays in the API layer. Without this,
+  // app pages (notably /connect, a server component with real content)
+  // rendered for anyone. The self-hosted gate below is untouched.
   if (HOSTED) {
+    const { pathname } = request.nextUrl;
     if (WAITLIST_ONLY) {
-      const { pathname } = request.nextUrl;
       const allowed = WAITLIST_PUBLIC.some(
         (p) => pathname === p || pathname.startsWith(p + "/")
       );
       // Everything else (login, dashboard, the API) bounces to the landing.
       return allowed ? NextResponse.next() : NextResponse.redirect(new URL("/", request.url));
+    }
+    // API routes pass through: bearer clients (mobile) need 401 JSON from the
+    // route itself, never an HTML redirect.
+    if (pathname.startsWith("/api/")) {
+      return NextResponse.next();
+    }
+    // Production serves over https, so better-auth prefixes the cookie with
+    // __Secure-; the bare name covers local/preview http.
+    const hasSession =
+      request.cookies.has("__Secure-better-auth.session_token") ||
+      request.cookies.has("better-auth.session_token");
+    // "/" is the public marketing landing; signed-in visitors go to the app.
+    if (pathname === "/") {
+      return hasSession
+        ? NextResponse.redirect(new URL("/dashboard", request.url))
+        : NextResponse.next();
+    }
+    if (PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(p + "/"))) {
+      return NextResponse.next();
+    }
+    if (!hasSession) {
+      const loginUrl = new URL("/login", request.url);
+      loginUrl.searchParams.set("from", pathname);
+      return NextResponse.redirect(loginUrl);
     }
     return NextResponse.next();
   }
