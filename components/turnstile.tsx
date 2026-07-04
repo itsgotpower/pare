@@ -67,12 +67,30 @@ function loadTurnstileScript(): Promise<void> {
 export function Turnstile({
   onToken,
   className,
+  resetSignal,
 }: {
   onToken: (token: string) => void;
   className?: string;
+  /** Increment to reset the widget — tokens are single-use, so the parent must
+   *  reset after any submit that consumed one (even a failed sign-in). */
+  resetSignal?: number;
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const widgetIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!resetSignal) return;
+    onToken("");
+    if (widgetIdRef.current && window.turnstile) {
+      try {
+        window.turnstile.reset(widgetIdRef.current);
+      } catch {
+        /* widget already gone */
+      }
+    }
+    // onToken is read via the live closure, same as the render effect below.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resetSignal]);
 
   useEffect(() => {
     if (!SITE_KEY || !containerRef.current) return;
