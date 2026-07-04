@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ShieldCheck, Lock, KeyRound } from "lucide-react";
 import { authClient } from "@/lib/auth/client";
+import { Turnstile, turnstileConfigured } from "@/components/turnstile";
 
 // In-app redirect target from ?from=. Only follow same-app paths — never an
 // absolute URL from the query string. Default to /dashboard (the app entry);
@@ -290,6 +291,13 @@ function HostedForm({ from }: { from: string }) {
   const [pendingVerification, setPendingVerification] = useState<string | null>(
     null
   );
+  // Turnstile token for the email endpoints — better-auth's captcha plugin
+  // (lib/auth/hosted.ts) rejects tokenless sign-up/sign-in POSTs when enforced.
+  // Empty in dev/self-host, where the widget renders nothing and the header is
+  // omitted. Tokens are single-use: bump captchaReset after every submit that
+  // reached the server, or a retry re-sends the consumed token and fails.
+  const [captchaToken, setCaptchaToken] = useState("");
+  const [captchaReset, setCaptchaReset] = useState(0);
 
   // Already signed in (e.g. returning with a valid cookie)? Skip the form.
   useEffect(() => {
@@ -309,11 +317,23 @@ function HostedForm({ from }: { from: string }) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    // The managed widget usually solves itself within a second of mount; an
+    // empty token here just means it hasn't finished (or was consumed) — nudge
+    // instead of sending a POST the server will reject.
+    if (turnstileConfigured() && !captchaToken) {
+      setError("Still confirming you're human — give it a second and try again.");
+      return;
+    }
     setSubmitting(true);
+    // Header only when a token exists: better-auth's captcha plugin reads
+    // x-captcha-response; dev/self-host has no widget and no enforcement.
+    const fetchOptions = captchaToken
+      ? { headers: { "x-captcha-response": captchaToken } }
+      : undefined;
     try {
       const res = isSignUp
-        ? await authClient.signUp.email({ email, password, name })
-        : await authClient.signIn.email({ email, password });
+        ? await authClient.signUp.email({ email, password, name, fetchOptions })
+        : await authClient.signIn.email({ email, password, fetchOptions });
       if (res.error) {
         // Email+password requires a verified address (lib/auth/hosted.ts). A
         // sign-in against an unverified account is rejected and better-auth
@@ -339,6 +359,9 @@ function HostedForm({ from }: { from: string }) {
     } catch {
       setError("Request failed — check your connection and try again.");
     } finally {
+      // The token was (probably) consumed by the POST — get a fresh one either
+      // way so a retry never re-sends a spent token.
+      setCaptchaReset((n) => n + 1);
       setSubmitting(false);
     }
   };
@@ -480,6 +503,8 @@ function HostedForm({ from }: { from: string }) {
             minLength={isSignUp ? 8 : undefined}
           />
         </div>
+
+        <Turnstile onToken={setCaptchaToken} resetSignal={captchaReset} />
 
         {error && <p className="font-mono text-xs text-destructive">{error}</p>}
 

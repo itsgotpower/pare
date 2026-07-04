@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { PALETTE } from "@/lib/colors";
+import { MarketingFooter, MarketingHeader } from "@/components/marketing/site-chrome";
 
 // Public About page. Reachable signed-out, exactly like /privacy and /terms:
 // hosted mode retires the auth gate, and self-host adds "/about" to the gate's
@@ -67,17 +68,7 @@ export default function AboutPage() {
   return (
     <div className="min-h-full flex flex-col bg-background">
       {/* Top bar — this page has no app sidebar. */}
-      <header className="shrink-0 flex items-center justify-between px-5 md:px-8 h-[calc(3.5rem+env(safe-area-inset-top))] pt-[env(safe-area-inset-top)] border-b border-border">
-        <Link href="/" className="font-mono text-sm font-bold tracking-tight">
-          PARE
-        </Link>
-        <Link
-          href="/"
-          className="font-mono text-[10px] md:text-xs tracking-widest uppercase text-muted-foreground hover:text-foreground transition-colors"
-        >
-          ← Back
-        </Link>
-      </header>
+      <MarketingHeader />
 
       <main className="flex-1 w-full max-w-2xl mx-auto px-5 md:px-8 py-10">
         <p className={labelClass}>About</p>
@@ -210,20 +201,7 @@ export default function AboutPage() {
         </div>
       </main>
 
-      <footer className="shrink-0 border-t border-border px-5 md:px-8 py-4 flex items-center justify-between">
-        <Link
-          href="/mcp"
-          className="font-mono text-[11px] tracking-wide uppercase text-muted-foreground hover:text-foreground transition-colors"
-        >
-          MCP for Claude
-        </Link>
-        <Link
-          href="/"
-          className="font-mono text-[11px] tracking-wide uppercase text-muted-foreground hover:text-foreground transition-colors"
-        >
-          pare
-        </Link>
-      </footer>
+      <MarketingFooter current="/about" />
     </div>
   );
 }
