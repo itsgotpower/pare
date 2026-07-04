@@ -1,23 +1,21 @@
-name: Deploy waitlist → production
+name: Deploy waitlist → production (manual — SUPERSEDED by full app)
 
-# Auto-deploys the waitlist landing to Cloudflare (pare.money) on every push to
-# the deployed branch. Mirrors the local `npm run cf:deploy` path exactly.
+# ⚠️ MANUAL ONLY since 2026-07-04: pare.money now runs the FULL APP, deployed
+# from the `deploy/full-app` branch via deploy-full-app.yml. Merging to `main`
+# must NOT redeploy the waitlist-trimmed build over it, so the push trigger has
+# been removed. (Cloudflare's Workers Builds auto-deploy for the production
+# branch was disabled in the dashboard at the same time — PR builds/checks stay.)
+#
+# Dispatching this workflow is now a ROLLBACK: it deploys main's waitlist-trimmed
+# config (wrangler.toml PARE_WAITLIST_ONLY=1, no data plane) over whatever is
+# live. Use it only to intentionally retreat from the full app.
 #
 # Requires two repo secrets (Settings → Secrets and variables → Actions):
 #   CLOUDFLARE_API_TOKEN   — "Edit Cloudflare Workers" template + your account
 #   CLOUDFLARE_ACCOUNT_ID  — your Cloudflare account id
 # wrangler reads both from the environment automatically.
-#
-# DEPLOY BRANCH = `main`. `main` now carries the waitlist-trimmed config
-# (wrangler.toml PARE_WAITLIST_ONLY=1, no D1/R2/Queues/Containers; worker.ts omits
-# the ParserContainer export), so every push to `main` ships the public
-# marketing/waitlist landing. The former `launch/waitlist` branch has been deleted
-# and merged into `main`. When the full data plane returns, restore
-# wrangler.full.toml + worker.ts and split full-app deploys onto their own branch.
 
 on:
-  push:
-    branches: [main]
   workflow_dispatch: {}
 
 # Never run two production deploys at once; let an in-flight one finish.
