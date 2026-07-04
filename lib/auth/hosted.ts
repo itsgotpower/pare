@@ -31,6 +31,14 @@ import { sendPasswordResetEmail, sendVerificationEmail } from "./email";
 
 export type D1Like = ConstructorParameters<typeof D1Dialect>[0]["database"];
 
+
+// String env vars have no boolean semantics of their own: Boolean("0") is true.
+// Treat the conventional falsy spellings as OFF; anything else non-empty is ON.
+function envFlag(value: string | undefined): boolean {
+  if (!value) return false;
+  return !["0", "false", "off", "no"].includes(value.trim().toLowerCase());
+}
+
 export function hostedAuthOptions(db: D1Like): BetterAuthOptions {
   // Fail closed if the signing secret is missing. better-auth otherwise falls
   // back to a PUBLIC default secret ("better-auth-secret-1234…") whenever it
@@ -113,14 +121,16 @@ export function hostedAuthOptions(db: D1Like): BetterAuthOptions {
     ...(trustedOrigins ? { trustedOrigins } : {}),
     emailAndPassword: {
       enabled: true,
-      // Stage-A launch gate: while PARE_SIGNUP_DISABLED is set (any non-empty
-      // value), better-auth's sign-up route rejects with
-      // EMAIL_PASSWORD_SIGN_UP_DISABLED — existing accounts sign in normally,
-      // new registrations are closed. The full-app deploy ships with this ON
-      // (wrangler.toml [vars]) until the waitlist invite machinery exists; flip
-      // the var (dashboard Settings → Variables, or wrangler.toml + redeploy)
-      // to open signup. Unset in dev/self-host, so local flows are unaffected.
-      disableSignUp: Boolean(process.env.PARE_SIGNUP_DISABLED),
+      // Stage-A launch gate: while PARE_SIGNUP_DISABLED is truthy, better-auth's
+      // sign-up route rejects with EMAIL_PASSWORD_SIGN_UP_DISABLED — existing
+      // accounts sign in normally, new registrations are closed. The full-app
+      // deploy ships with this ON (wrangler.toml [vars]) until the waitlist
+      // invite machinery exists; flip the var (dashboard Settings → Variables,
+      // or wrangler.toml + redeploy) to open signup. Unset in dev/self-host, so
+      // local flows are unaffected. envFlag treats "0"/"false"/"off"/"no" as
+      // OFF — env vars are strings, and Boolean("0") === true already caused a
+      // silently-still-closed gate during first-account setup.
+      disableSignUp: envFlag(process.env.PARE_SIGNUP_DISABLED),
       // Finance app: don't let an account act on data until it has proven it
       // controls the email address. With this on, better-auth rejects sign-in
       // for an unverified account (403) and re-sends the verification link, so
