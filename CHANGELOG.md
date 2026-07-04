@@ -10,8 +10,14 @@ contracts, on-disk and crypto formats) may change between minor versions — see
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-07-04
+
 ### Added
 
+- **Web push notifications (self-host)** — opt in on `/upload` ("GET PARSE
+  ALERTS") to get a push when a statement finishes parsing, plus the
+  safe-to-spend forecast heads-up; subscriptions auto-prune when a device
+  unsubscribes. Paired with a full 375px responsive audit of the app ([#63]).
 - **Safe to spend** — a hero card at the top of the dashboard answers "am I
   clear through rent and on to the next payday?" with one calm number, derived
   from the cash-flow forecast (short / tight / clear tiers on its ±1σ band).
@@ -147,7 +153,8 @@ server exposing the local data to MCP clients. Ships open-source repo scaffoldin
 (README, LICENSE, CONTRIBUTING, issue/PR templates) and the first release tag
 ([#25]).
 
-[Unreleased]: https://github.com/itsgotpower/pare/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/itsgotpower/pare/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/itsgotpower/pare/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/itsgotpower/pare/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/itsgotpower/pare/releases/tag/v0.1.0
 
@@ -176,6 +183,7 @@ server exposing the local data to MCP clients. Ships open-source repo scaffoldin
 [#58]: https://github.com/itsgotpower/pare/pull/58
 [#59]: https://github.com/itsgotpower/pare/pull/59
 [#60]: https://github.com/itsgotpower/pare/pull/60
+[#63]: https://github.com/itsgotpower/pare/pull/63
 [#64]: https://github.com/itsgotpower/pare/pull/64
 [#66]: https://github.com/itsgotpower/pare/pull/66
 [#68]: https://github.com/itsgotpower/pare/pull/68
