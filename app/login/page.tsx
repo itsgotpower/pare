@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { ShieldCheck, Lock, KeyRound } from "lucide-react";
 import { authClient } from "@/lib/auth/client";
 import { Turnstile, turnstileConfigured } from "@/components/turnstile";
+import { Wordmark } from "@/components/layout/wordmark";
 
 // In-app redirect target from ?from=. Only follow same-app paths — never an
 // absolute URL from the query string. Default to /dashboard (the app entry);
@@ -16,16 +17,39 @@ function safeFrom(raw: string | null): string {
   return raw && raw.startsWith("/") && !raw.startsWith("//") ? raw : "/dashboard";
 }
 
+// Where to send the user after they sign in. A first-time user has nothing
+// imported yet, so the dashboard would just be an empty shell — send them to
+// /upload instead. An explicit ?from= deep link always wins over this.
+async function resolveLanding(from: string): Promise<string> {
+  if (from !== "/dashboard") return from;
+  try {
+    const res = await fetch("/api/summary?type=has_data");
+    if (res.ok) {
+      const d = await res.json();
+      if (d && d.hasData === false) return "/upload";
+    }
+  } catch {
+    /* fall through to the default landing */
+  }
+  return from;
+}
+
 // Shared brutalist shell so every auth mode looks identical: a PARE header rule
 // (with a security mark), the form body, and a centered tagline footer.
-function AuthShell({ children }: { children: React.ReactNode }) {
+function AuthShell({
+  children,
+  hideDemo = false,
+}: {
+  children: React.ReactNode;
+  // Hide the "browse the demo" CTA on transient post-submit screens (e.g. the
+  // verify-your-email step) where nudging the user away from finishing is wrong.
+  hideDemo?: boolean;
+}) {
   return (
     <div className="min-h-screen flex items-center justify-center bg-background px-4">
       <div className="w-full max-w-sm border border-border bg-card">
         <div className="border-b border-border px-6 py-4 flex items-center justify-between">
-          <span className="font-mono text-lg font-bold tracking-tight">
-            <span aria-hidden="true">🍐</span> PARE
-          </span>
+          <Wordmark className="font-mono text-lg font-bold tracking-tight" />
           <ShieldCheck className="size-4 text-muted-foreground" />
         </div>
         <div className="px-6 py-6">{children}</div>
@@ -33,14 +57,16 @@ function AuthShell({ children }: { children: React.ReactNode }) {
           <p className="text-center font-mono text-[10px] tracking-[0.2em] uppercase text-muted-foreground">
             Personal finance, pared down
           </p>
-          <p className="text-center font-mono text-[10px] tracking-[0.2em] uppercase">
-            <Link
-              href="/demo"
-              className="text-muted-foreground underline underline-offset-4 hover:text-foreground"
-            >
-              Just looking? Browse the demo
-            </Link>
-          </p>
+          {!hideDemo && (
+            <p className="text-center font-mono text-[10px] tracking-[0.2em] uppercase">
+              <Link
+                href="/demo"
+                className="text-muted-foreground underline underline-offset-4 hover:text-foreground"
+              >
+                Just looking? Browse the demo
+              </Link>
+            </p>
+          )}
         </div>
       </div>
     </div>
@@ -85,7 +111,7 @@ function LoginForm() {
         }
         const data = await res.json();
         if (data.authenticated) {
-          router.replace(from);
+          resolveLanding(from).then((t) => router.replace(t));
           return;
         }
         setConfigured(data.configured);
@@ -107,8 +133,12 @@ function LoginForm() {
     );
   }
 
+  // ?signup=1 (from the demo / marketing "Sign up" CTAs) opens the create-account
+  // form directly instead of the sign-in form.
+  const signup = searchParams.get("signup") === "1";
+
   return mode === "hosted" ? (
-    <HostedForm from={from} />
+    <HostedForm from={from} signup={signup} />
   ) : (
     <SelfHostForm from={from} configured={configured} />
   );
@@ -161,7 +191,7 @@ function SelfHostForm({
         setError(data.error || "Something went wrong");
         return;
       }
-      router.replace(from);
+      router.replace(await resolveLanding(from));
       router.refresh();
     } catch {
       setError("Request failed — is the server running?");
@@ -274,9 +304,9 @@ function isUnverifiedEmailError(err: {
   );
 }
 
-function HostedForm({ from }: { from: string }) {
+function HostedForm({ from, signup = false }: { from: string; signup?: boolean }) {
   const router = useRouter();
-  const [isSignUp, setIsSignUp] = useState(false);
+  const [isSignUp, setIsSignUp] = useState(signup);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -304,13 +334,13 @@ function HostedForm({ from }: { from: string }) {
     authClient
       .getSession()
       .then((s) => {
-        if (s.data?.session) router.replace(from);
+        if (s.data?.session) resolveLanding(from).then((t) => router.replace(t));
       })
       .catch(() => {});
   }, [router, from]);
 
-  const finish = () => {
-    router.replace(from);
+  const finish = async () => {
+    router.replace(await resolveLanding(from));
     router.refresh();
   };
 
@@ -396,7 +426,7 @@ function HostedForm({ from }: { from: string }) {
 
   if (pendingVerification) {
     return (
-      <AuthShell>
+      <AuthShell hideDemo>
         <div className="space-y-4">
           <div>
             <h1 className={headingCls}>Verify your email</h1>

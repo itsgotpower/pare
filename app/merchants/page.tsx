@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { formatCents as formatCurrency } from "@/lib/format";
 import Link from "next/link";
+import { useSearchHotkey } from "@/lib/use-search-hotkey";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   InputGroup,
@@ -38,6 +39,9 @@ export default function MerchantsPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
 
+  // "/" focuses the search box from anywhere; Escape clears it.
+  useSearchHotkey("merchant-search", () => setSearch(""));
+
   useEffect(() => {
     fetch("/api/merchants")
       .then((r) => r.json())
@@ -71,11 +75,17 @@ export default function MerchantsPage() {
             <InputGroupText>⌕</InputGroupText>
           </InputGroupAddon>
           <InputGroupInput
+            id="merchant-search"
             placeholder="Search merchants..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="font-mono text-sm"
           />
+          <InputGroupAddon align="inline-end">
+            <kbd className="hidden sm:inline font-mono text-[10px] text-muted-foreground border border-border px-1 py-0.5 leading-none">
+              /
+            </kbd>
+          </InputGroupAddon>
         </InputGroup>
       </div>
 

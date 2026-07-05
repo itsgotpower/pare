@@ -1,10 +1,12 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { categoryColor } from "@/lib/colors";
+import { useSearchHotkey } from "@/lib/use-search-hotkey";
 import {
   InputGroup,
   InputGroupAddon,
@@ -61,6 +63,9 @@ export default function TransactionsPage() {
   const [flow, setFlow] = useState<string>("spend");
   const [loading, setLoading] = useState(true);
   const [filterSheetOpen, setFilterSheetOpen] = useState(false);
+
+  // "/" focuses the search box from anywhere; Escape clears it.
+  useSearchHotkey("txn-search", () => setSearch(""));
 
   // Recategorize dialog
   const [selected, setSelected] = useState<Transaction | null>(null);
@@ -307,11 +312,17 @@ export default function TransactionsPage() {
             <InputGroupText>⌕</InputGroupText>
           </InputGroupAddon>
           <InputGroupInput
+            id="txn-search"
             placeholder="Search descriptions..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="font-mono text-sm"
           />
+          <InputGroupAddon align="inline-end">
+            <kbd className="hidden sm:inline font-mono text-[10px] text-muted-foreground border border-border px-1 py-0.5 leading-none">
+              /
+            </kbd>
+          </InputGroupAddon>
         </InputGroup>
         {/* Phones: category/source live in a bottom sheet */}
         <button
@@ -472,7 +483,10 @@ export default function TransactionsPage() {
             </p>
           ) : transactions.length === 0 ? (
             <p className="text-center py-8 text-muted-foreground text-sm">
-              No transactions found. Upload a statement first.
+              No transactions found.{" "}
+              <Link href="/upload" className="underline hover:text-foreground transition-colors">
+                Upload a statement first.
+              </Link>
             </p>
           ) : (
             <div className="divide-y divide-border">
@@ -532,7 +546,10 @@ export default function TransactionsPage() {
               ) : transactions.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
-                    No transactions found. Upload a statement first.
+                    No transactions found.{" "}
+                    <Link href="/upload" className="underline hover:text-foreground transition-colors">
+                      Upload a statement first.
+                    </Link>
                   </TableCell>
                 </TableRow>
               ) : (
