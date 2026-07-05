@@ -1,6 +1,5 @@
-import { toNextJsHandler } from "better-auth/next-js";
-import { createHostedAuth } from "@/lib/auth/hosted";
 import { getD1 } from "@/lib/auth/d1";
+import { isHostedMode } from "@/lib/auth/resolve";
 import { allowRequest, clientIp, tooManyRequests } from "@/lib/ratelimit";
 
 // HOSTED-mode better-auth endpoints: /api/auth/sign-up/email,
@@ -21,11 +20,21 @@ import { allowRequest, clientIp, tooManyRequests } from "@/lib/ratelimit";
 // token as an `x-captcha-response` header — so it isn't repeated here.
 
 async function handler(request: Request): Promise<Response> {
+  // Self-host never serves these sub-paths: 404 cleanly instead of throwing on
+  // the missing D1 binding. The guard also keeps better-auth behind the dynamic
+  // imports below, so the self-host runtime never loads it.
+  if (!isHostedMode()) {
+    return Response.json({ error: "Not found" }, { status: 404 });
+  }
   // Throttle anonymous auth POSTs (sign-in/up/reset brute force) per IP. GETs
   // (e.g. get-session) are cheap reads and not limited.
   if (request.method === "POST") {
     if (!(await allowRequest("RL_AUTH", clientIp(request)))) return tooManyRequests();
   }
+  const [{ createHostedAuth }, { toNextJsHandler }] = await Promise.all([
+    import("@/lib/auth/hosted"),
+    import("better-auth/next-js"),
+  ]);
   const auth = createHostedAuth(await getD1());
   const { GET, POST } = toNextJsHandler(auth);
   return request.method === "GET" ? GET(request) : POST(request);

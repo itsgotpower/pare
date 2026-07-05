@@ -144,11 +144,18 @@ vulnerability.
 - **Waitlist / product:** [pare.money](https://pare.money)
 - **Contributing:** [CONTRIBUTING.md](CONTRIBUTING.md)
 - **Security & privacy:** [SECURITY.md](SECURITY.md)
-- **License:** [AGPL-3.0](LICENSE)
+- **License:** [AGPL-3.0](LICENSE) core, [proprietary](cloud/LICENSE) `cloud/`
 
 ## License
 
-[GNU AGPL-3.0](LICENSE). Run it, modify it, self-host it. If you offer a modified
-version as a network service, you have to share your source with its users.
+**Open core.** Everything in this repository is licensed under the
+[GNU AGPL-3.0](LICENSE) **except the [`cloud/`](cloud/) directory** — the
+hosted-product layer (billing, hosted email ingest, metering), which is
+source-visible but proprietary under its own [commercial license](cloud/LICENSE).
+
+The AGPL core is the complete self-hosted product; nothing in `cloud/` is
+required to run it. Run it, modify it, self-host it — and if you offer a
+modified version as a network service, you have to share your source with its
+users.
 
 Copyright (C) 2026 pare.money.
