@@ -202,12 +202,13 @@ export default function UploadPage() {
   return (
     <div className="p-4 md:p-6 max-w-3xl mx-auto">
       <h1 className="font-mono text-2xl font-bold tracking-tight uppercase mb-1">
-        UPLOAD
+        UPLOAD STATEMENTS
       </h1>
       <p className="text-xs text-muted-foreground mb-6">
-        The 30 seconds that keep your bank logins yours — drop a statement you
-        already have instead of handing your credentials to an aggregator. Files
-        are parsed and discarded; only the transactions stay.
+        Drop the statements you already download from your bank — no shared
+        logins, no aggregator in the middle. Each file is parsed on this device
+        and discarded; only the transactions are kept. It&apos;s the 30 seconds
+        that keep your bank credentials yours.
       </p>
 
       <Card
@@ -223,7 +224,7 @@ export default function UploadPage() {
       >
         <CardContent className="flex flex-col items-center justify-center py-16 gap-4">
           <p className="font-mono text-sm tracking-widest uppercase text-muted-foreground">
-            {uploading ? "PROCESSING..." : "DROP STATEMENT OR OFX/QFX HERE"}
+            {uploading ? "PROCESSING..." : "DROP STATEMENTS OR OFX/QFX HERE"}
           </p>
           <p className="text-xs text-muted-foreground">
             PDF credit-card / bank statements, or .ofx / .qfx exports

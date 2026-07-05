@@ -241,10 +241,16 @@ export default function Dashboard() {
 
       {!hasData ? (
         <Card>
-          <CardContent className="py-16 text-center">
+          <CardContent className="py-16 flex flex-col items-center gap-4 text-center">
             <p className="font-mono text-sm text-muted-foreground">
-              NO DATA YET — GO TO UPLOAD TO IMPORT STATEMENTS
+              NO DATA YET — IMPORT A STATEMENT TO GET STARTED
             </p>
+            <Link
+              href="/upload"
+              className="inline-flex items-center px-4 py-2 border border-foreground font-mono text-xs tracking-widest uppercase hover:bg-foreground hover:text-background transition-colors"
+            >
+              Upload statements →
+            </Link>
           </CardContent>
         </Card>
       ) : (

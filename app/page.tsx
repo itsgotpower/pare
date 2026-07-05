@@ -4,16 +4,11 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowRight, Moon, Sun } from "lucide-react";
 import { PALETTE } from "@/lib/colors";
-import { Turnstile } from "@/components/turnstile";
 import { LocalClock } from "@/components/local-clock";
+import { Wordmark } from "@/components/layout/wordmark";
 
 const REPO_URL = "https://github.com/itsgotpower/pare";
 const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION ?? "";
-
-// WAITLIST LAUNCH: when set at build time, hide every "Sign in" affordance so the
-// landing is a pure waitlist page (the Edge middleware also redirects /login and
-// the app routes to "/"). Unset it + rebuild to restore the full app.
-const WAITLIST_ONLY = process.env.NEXT_PUBLIC_WAITLIST_ONLY === "1";
 
 // lucide-react dropped its brand icons, so inline the GitHub mark.
 function GithubMark({ className }: { className?: string }) {
@@ -87,11 +82,10 @@ const FEATURES = [
   { label: "iOS app coming soon", color: PALETTE.celadon },
 ];
 
-type Status = "idle" | "loading" | "done" | "error";
 
 // Count up to `target` once on mount (easeOutCubic), to sync with the bento's
-// bar reveal. Deps are stable, so it does NOT replay when the page re-renders on
-// every waitlist-input keystroke. Honours prefers-reduced-motion (jumps to the
+// bar reveal. Deps are stable, so it does NOT replay on unrelated re-renders
+// (e.g. the dark-mode toggle). Honours prefers-reduced-motion (jumps to the
 // final value). SSR renders 0 and the client's first paint also renders 0, so
 // there's no hydration mismatch — the rAF effect animates after hydration.
 function useCountUp(target: number, durationMs = 900) {
@@ -116,13 +110,6 @@ function useCountUp(target: number, durationMs = 900) {
 }
 
 export default function MarketingHome() {
-  const [email, setEmail] = useState("");
-  const [status, setStatus] = useState<Status>("idle");
-  const [message, setMessage] = useState("");
-  // Turnstile token (empty until solved). The widget renders only when a public
-  // site key is configured; with no key the server skips verification, so an
-  // empty token is fine in dev/self-host.
-  const [turnstileToken, setTurnstileToken] = useState("");
   const [dark, setDark] = useState(false);
   // Which preview month the bento is showing. Defaults to the latest; hovering /
   // focusing / tapping a bar scrubs, and leaving the chart snaps back to latest.
@@ -151,33 +138,6 @@ export default function MarketingHome() {
     localStorage.setItem("parse-dark", String(next));
   };
 
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (status === "loading") return;
-    setStatus("loading");
-    setMessage("");
-    try {
-      const res = await fetch("/api/waitlist", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, turnstileToken }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setStatus("error");
-        setMessage(data.error || "Something went wrong. Try again.");
-        return;
-      }
-      setStatus("done");
-      setMessage(
-        data.alreadyJoined ? "You're already on the list — sit tight." : "You're on the list. We'll be in touch."
-      );
-    } catch {
-      setStatus("error");
-      setMessage("Network error. Try again.");
-    }
-  };
-
   return (
     // The landing now SCROLLS: the hero is a full-height first screen (unchanged
     // at-a-glance), and the "what you don't have to do anymore" pain module sits
@@ -187,9 +147,7 @@ export default function MarketingHome() {
       {/* Top bar */}
       <header className="shrink-0 flex items-center justify-between px-5 md:px-8 h-[calc(3.5rem+env(safe-area-inset-top))] pt-[env(safe-area-inset-top)] border-b border-border">
         <div className="flex items-center gap-4 md:gap-5">
-          <span className="font-mono text-sm font-bold tracking-tight">
-            <span aria-hidden="true">🍐</span> PARE
-          </span>
+          <Wordmark className="font-mono text-sm font-bold tracking-tight" />
           <span className="block h-6 w-px bg-border" aria-hidden="true" />
           <LocalClock className="flex" />
         </div>
@@ -203,14 +161,12 @@ export default function MarketingHome() {
             <GithubMark className="size-4" />
             <span className="hidden sm:inline">GitHub</span>
           </a>
-          {!WAITLIST_ONLY && (
-            <Link
-              href="/login"
-              className="font-mono text-[10px] md:text-xs tracking-widest uppercase text-muted-foreground hover:text-foreground transition-colors"
-            >
-              Sign in
-            </Link>
-          )}
+          <Link
+            href="/login"
+            className="font-mono text-[10px] md:text-xs tracking-widest uppercase text-muted-foreground hover:text-foreground transition-colors"
+          >
+            Sign in
+          </Link>
           <button
             type="button"
             onClick={toggleDark}
@@ -244,61 +200,47 @@ export default function MarketingHome() {
             </span>
           </p>
 
-          {/* Waitlist form */}
-          <form onSubmit={submit} className="mt-6 max-w-md">
-            <div className="flex flex-row gap-[1px] bg-border border border-border">
-              <input
-                type="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                disabled={status === "done"}
-                placeholder="you@email.com"
-                aria-label="Email address"
-                className="flex-1 min-w-0 bg-card px-4 h-11 text-sm outline-none placeholder:text-muted-foreground disabled:opacity-60"
-              />
-              <button
-                type="submit"
-                disabled={status === "loading" || status === "done"}
-                className="shrink-0 bg-foreground text-background font-mono text-xs tracking-widest uppercase px-4 sm:px-5 h-11 hover:opacity-90 transition-opacity disabled:opacity-50 whitespace-nowrap"
-              >
-                {status === "loading" ? "…" : status === "done" ? "Joined ✓" : "Join waitlist"}
-              </button>
-            </div>
-            {/* Renders nothing unless NEXT_PUBLIC_TURNSTILE_SITE_KEY is set, so the
-                zero-scroll landing stays zero-scroll in dev / self-host. */}
-            <Turnstile onToken={setTurnstileToken} className="mt-2" />
-            <p
-              className={`text-xs mt-2 h-4 ${
-                status === "error" ? "text-[color:var(--destructive,#b3654a)]" : "text-muted-foreground"
-              }`}
+          {/* Primary CTA — start a free account. The sample-data link lives under
+              the preview bento on desktop; on phones (bento hidden) it rides here. */}
+          <div className="mt-6 flex flex-wrap items-center gap-3">
+            <Link
+              href="/login?signup=1"
+              className="inline-flex items-center gap-1.5 bg-foreground text-background font-mono text-xs tracking-widest uppercase px-5 h-11 hover:opacity-90 transition-opacity"
             >
-              {message || "Free to start when the hosted version opens."}
-            </p>
-          </form>
-
-          <div className="mt-3 flex items-center gap-5">
+              Get started — it&apos;s free <ArrowRight className="size-3.5" />
+            </Link>
             <Link
               href="/demo"
-              className="inline-flex items-center gap-1.5 font-mono text-[11px] tracking-widest uppercase text-muted-foreground hover:text-foreground transition-colors w-fit"
+              className="md:hidden inline-flex items-center gap-1.5 font-mono text-[11px] tracking-widest uppercase text-muted-foreground hover:text-foreground transition-colors w-fit"
             >
               See it with sample data <ArrowRight className="size-3.5" />
             </Link>
-            {!WAITLIST_ONLY && (
-              <Link
-                href="/login"
-                className="inline-flex items-center gap-1.5 font-mono text-[11px] tracking-widest uppercase text-muted-foreground hover:text-foreground transition-colors w-fit"
-              >
-                Already have access? Sign in <ArrowRight className="size-3.5" />
-              </Link>
-            )}
           </div>
+
+          <p className="mt-3 text-xs text-muted-foreground">
+            <a
+              href={REPO_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline underline-offset-2 hover:text-foreground transition-colors"
+            >
+              Open source
+            </a>
+            , and{" "}
+            <Link
+              href="/security"
+              className="underline underline-offset-2 hover:text-foreground transition-colors"
+            >
+              encrypted at rest
+            </Link>{" "}
+            — your data stays yours.
+          </p>
         </div>
 
         {/* Product preview — an interactive echo of the app's bento. Hover, focus
             or tap a bar to scrub through months; the figures react. Hidden on
             phones so the hero stays zero-scroll on small screens. */}
-        <div className="hidden md:flex items-center justify-center border-l border-border bg-secondary/40 p-10 min-h-0">
+        <div className="hidden md:flex flex-col items-center justify-center gap-4 border-l border-border bg-secondary/40 p-10 min-h-0">
           <div className="w-full max-w-sm grid grid-cols-2 grid-rows-2 gap-[1px] bg-border border border-border shadow-sm">
             {/* THIS MONTH + scrubable bars */}
             <div className="col-span-2 bg-card p-5 flex flex-col">
@@ -371,6 +313,12 @@ export default function MarketingHome() {
               ))}
             </div>
           </div>
+          <Link
+            href="/demo"
+            className="inline-flex items-center gap-1.5 font-mono text-[11px] tracking-widest uppercase text-muted-foreground hover:text-foreground transition-colors"
+          >
+            See it with sample data <ArrowRight className="size-3.5" />
+          </Link>
         </div>
       </main>
 

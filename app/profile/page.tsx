@@ -13,8 +13,9 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { PALETTE } from "@/lib/colors";
-import { LogOut, Pencil, Download, Database, FileJson, CreditCard } from "lucide-react";
+import { LogOut, Pencil, Download, Database, FileJson, CreditCard, ShieldCheck } from "lucide-react";
 import { IngestInbox } from "@/components/profile/ingest-inbox";
+import { FooterNav } from "@/components/layout/footer-nav";
 
 interface SourceHealth {
   source: string;
@@ -24,12 +25,15 @@ interface SourceHealth {
   last_txn_date: string | null;
   days_since_last: number | null;
   coverage: boolean[];
+  missing_months: string[];
 }
 
 interface Profile {
   display_name: string;
+  email: string | null; // null in self-host (no email identity)
+  email_verified: boolean | null;
   created_at: string;
-  password_changed_at: string;
+  password_changed_at: string | null; // null in hosted (better-auth manages it)
   health: {
     transactions: number;
     statements: number;
@@ -115,7 +119,7 @@ export default function ProfilePage() {
 
   const fetchProfile = useCallback(async () => {
     try {
-      const res = await fetch("/api/auth");
+      const res = await fetch("/api/profile");
       const data = await res.json();
       if (data.authenticated) {
         setProfile(data.profile);
@@ -306,11 +310,11 @@ export default function ProfilePage() {
 
       <div className="grid gap-3 md:grid-cols-3 mb-3">
         <Card className="rounded-none ring-0 border border-border md:col-span-2">
-          <CardContent className="flex items-center gap-4">
+          <CardContent className="flex items-start gap-4">
             <div className="size-12 shrink-0 border border-foreground flex items-center justify-center font-mono text-lg font-bold">
               {initials}
             </div>
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               {editingName ? (
                 <div className="flex items-center gap-2">
                   <Input
@@ -334,23 +338,61 @@ export default function ProfilePage() {
                   <p className="font-mono text-sm font-bold uppercase truncate">
                     {profile.display_name || "Unnamed"}
                   </p>
-                  <button
-                    onClick={() => setEditingName(true)}
-                    aria-label="Edit display name"
-                    className="text-muted-foreground hover:text-foreground transition-colors"
-                  >
-                    <Pencil className="size-3.5" />
-                  </button>
+                  {/* Name edit posts to the self-host auth route; hosted name
+                      changes aren't wired yet, so only offer it in self-host. */}
+                  {!hosted && (
+                    <button
+                      onClick={() => setEditingName(true)}
+                      aria-label="Edit display name"
+                      className="text-muted-foreground hover:text-foreground transition-colors shrink-0"
+                    >
+                      <Pencil className="size-3.5" />
+                    </button>
+                  )}
                 </div>
               )}
-              <p className="text-xs text-muted-foreground">
+              {/* email · verification · mode — one wrapping row so nothing gets
+                  squeezed to zero width on a narrow card. */}
+              <div className="flex flex-wrap items-center gap-2 mt-1">
+                {profile.email && (
+                  <p className="text-xs text-muted-foreground truncate max-w-full">
+                    {profile.email}
+                  </p>
+                )}
+                {profile.email && (
+                  <span
+                    className="shrink-0 font-mono text-[9px] tracking-widest uppercase border px-1 py-0.5"
+                    style={
+                      profile.email_verified
+                        ? { color: PALETTE.sage, borderColor: PALETTE.sage }
+                        : { color: PALETTE.mustard, borderColor: PALETTE.mustard }
+                    }
+                    title={
+                      profile.email_verified
+                        ? "Your email address is verified"
+                        : "Check your inbox for the verification link"
+                    }
+                  >
+                    {profile.email_verified ? "Verified" : "Unverified"}
+                  </span>
+                )}
+                <span
+                  className="shrink-0 font-mono text-[9px] tracking-widest uppercase border px-1 py-0.5"
+                  style={{ color: PALETTE.sage, borderColor: PALETTE.sage }}
+                  title={
+                    hosted
+                      ? "Hosted account — synced and stored on Pare's servers"
+                      : "Self-hosted — running on your own machine"
+                  }
+                >
+                  {hosted ? "Hosted account" : "Self-hosted"}
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
                 Member since {formatDate(profile.created_at)}
               </p>
             </div>
-            <div className="ml-auto flex items-center gap-3 shrink-0">
-              <span className="hidden sm:inline font-mono text-[10px] tracking-widest uppercase border border-border px-2 py-1 text-muted-foreground">
-                All data local
-              </span>
+            <div className="shrink-0 self-start">
               <Button
                 variant="outline"
                 onClick={handleSignOut}
@@ -366,22 +408,41 @@ export default function ProfilePage() {
         <Card className="rounded-none ring-0 border border-border">
           <CardContent>
             <p className={`${labelClass} mb-2`}>Security</p>
-            <p className="text-xs mb-0.5">
-              Password changed {formatDate(profile.password_changed_at)}
-            </p>
-            <p className="text-[11px] text-muted-foreground mb-3">
-              Changing it signs out every session.
-            </p>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setPwStatus(null);
-                setPwOpen(true);
-              }}
-              className="rounded-none font-mono text-xs tracking-widest uppercase"
-            >
-              Change password
-            </Button>
+            {hosted ? (
+              // Hosted passwords + passkeys are managed by better-auth at the
+              // sign-in screen (reset via email); there's no in-app change here.
+              <>
+                <p className="text-xs mb-0.5">
+                  Password &amp; passkeys managed at sign-in
+                </p>
+                <p className="text-[11px] text-muted-foreground">
+                  Reset your password from the{" "}
+                  <Link href="/login" className="underline hover:text-foreground">
+                    sign-in screen
+                  </Link>
+                  .
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="text-xs mb-0.5">
+                  Password changed {formatDate(profile.password_changed_at)}
+                </p>
+                <p className="text-[11px] text-muted-foreground mb-3">
+                  Changing it signs out every session.
+                </p>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setPwStatus(null);
+                    setPwOpen(true);
+                  }}
+                  className="rounded-none font-mono text-xs tracking-widest uppercase"
+                >
+                  Change password
+                </Button>
+              </>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -529,6 +590,15 @@ export default function ProfilePage() {
                     />
                   ))}
                 </span>
+                {s.missing_months.length > 0 && (
+                  <span
+                    title={`Missing statements: ${s.missing_months.map(formatMonth).join(", ")}`}
+                    className="font-mono text-[10px] tracking-widest uppercase border px-1.5 py-0.5"
+                    style={{ color: PALETTE.mustard, borderColor: PALETTE.mustard }}
+                  >
+                    {s.missing_months.length} {s.missing_months.length === 1 ? "gap" : "gaps"}
+                  </span>
+                )}
                 {stale ? (
                   <Link
                     href="/upload"
@@ -549,6 +619,23 @@ export default function ProfilePage() {
             );
           })}
         </div>
+      </Card>
+
+      <Card className="rounded-none ring-0 border border-border mb-3">
+        <CardContent className="py-4">
+          <div className="flex items-center gap-2 mb-2">
+            <ShieldCheck className="size-4 text-muted-foreground" />
+            <span className={labelClass}>Privacy</span>
+          </div>
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            {hosted
+              ? "Your data is encrypted at rest and isolated to your account — no third-party sharing, no ad tracking. Statements are parsed and then discarded; only the transactions are kept. You can export everything or delete your account at any time."
+              : "Everything runs on this machine — no account, no telemetry, no third-party sharing. Statements are parsed locally and discarded; only the transactions are stored, in a database you can export or wipe anytime."}{" "}
+            <Link href="/privacy" className="underline hover:text-foreground transition-colors">
+              Read the privacy policy →
+            </Link>
+          </p>
+        </CardContent>
       </Card>
 
       <div className="grid gap-3 md:grid-cols-3">
@@ -613,19 +700,26 @@ export default function ProfilePage() {
         </Card>
       </div>
 
-      {APP_VERSION && (
-        <p className="mt-6 font-mono text-[10px] tracking-widest uppercase text-muted-foreground/60">
-          Pare{" "}
-          <a
-            href={`${REPO_URL}/releases/tag/v${APP_VERSION}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="hover:text-foreground transition-colors"
-          >
-            v{APP_VERSION}
-          </a>
+      <footer className="mt-8 border-t border-border pt-4 flex flex-col gap-3">
+        <FooterNav />
+        <p className="font-mono text-[10px] tracking-widest uppercase text-muted-foreground/60">
+          Pare
+          {APP_VERSION && (
+            <>
+              {" "}
+              <a
+                href={`${REPO_URL}/releases/tag/v${APP_VERSION}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hover:text-foreground transition-colors"
+              >
+                v{APP_VERSION}
+              </a>
+            </>
+          )}{" "}
+          — private by design.
         </p>
-      )}
+      </footer>
 
       <Dialog open={pwOpen} onOpenChange={setPwOpen}>
         <DialogContent className="rounded-none">
