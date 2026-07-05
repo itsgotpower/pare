@@ -1,8 +1,14 @@
 /**
  * PROPRIETARY — pare.money commercial layer. See ./LICENSE. Not AGPL.
  *
- * Plan definitions for the hosted service. Numbers are PLACEHOLDERS — the real
- * free-tier cap dimension + paid price points are PRD §6 / FR-72 [TBD].
+ * Plan definitions for the hosted service. Caps/labels decided 2026-07-04
+ * (PRD §6): Free = 5 statements/month + 1 account; Plus ($8/mo or $72/yr USD)
+ * = unlimited statements + 2 accounts. Statement cap enforced at upload time
+ * (billing/gate.ts); account cap enforced post-parse in the queue consumer via
+ * checkAccountLimit (billing/enforce.ts — the source is only known after
+ * parsing). These must match the public /pricing page (components/marketing/
+ * pricing-tiers.tsx) — update both together. Price points live in Stripe
+ * (STRIPE_PRICE_PRO), never here.
  */
 
 export type PlanId = "free" | "pro";
@@ -19,6 +25,9 @@ export interface Plan {
   label: string;
   /** Hard cap on statements parsed per calendar month. null = unlimited. */
   statementsPerMonth: number | null;
+  /** Hard cap on distinct bank/card accounts (statement `source` values;
+   *  manual cash rows never count). null = unlimited. */
+  accounts: number | null;
   /** Boolean entitlements this plan unlocks. */
   features: ReadonlySet<Feature>;
   /** Stripe price id; null for the free plan. Set via env, never hardcode live ids. */
@@ -27,12 +36,14 @@ export interface Plan {
 
 export const PLANS: Record<PlanId, Plan> = {
   free: {
-    id: "free", label: "Free", statementsPerMonth: 10,
+    id: "free", label: "Free", statementsPerMonth: 5, accounts: 1,
     features: new Set<Feature>(),
     stripePriceEnv: null,
   },
+  // Public name is "Plus"; the id stays "pro" (persisted in billing rows and
+  // matched by the Stripe webhook — renaming the id is a data migration).
   pro: {
-    id: "pro", label: "Pro", statementsPerMonth: null,
+    id: "pro", label: "Plus", statementsPerMonth: null, accounts: 2,
     // PLACEHOLDER membership pending the FR-72 plan matrix. Both are cloud-only
     // conveniences, so gating them removes nothing from existing free users.
     features: new Set<Feature>(["email_ingest", "llm_autocoverage"]),

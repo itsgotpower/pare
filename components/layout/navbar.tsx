@@ -93,6 +93,7 @@ export function Sidebar() {
     pathname === "/switch-from-monarch" ||
     pathname === "/switching" ||
     pathname === "/how-it-works" ||
+    pathname === "/pricing" ||
     pathname === "/blog" ||
     pathname.startsWith("/blog/")
   )
