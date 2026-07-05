@@ -75,9 +75,13 @@ export default function ConnectPage() {
   return (
     <div className="p-6 max-w-4xl">
       <div className="mb-6">
-        <h1 className="font-mono text-2xl font-bold tracking-tight uppercase">CONNECT</h1>
+        <h1 className="font-mono text-2xl font-bold tracking-tight uppercase">
+          CONNECT TO CLAUDE
+        </h1>
         <p className="text-xs text-muted-foreground mt-1">
-          Query your finance data from Claude via the built-in MCP server
+          Ask Claude about your money in plain language — Pare&apos;s built-in MCP
+          server lets it read your transactions and set budgets, all on this
+          machine.
         </p>
       </div>
 
@@ -209,11 +213,13 @@ export default function ConnectPage() {
             PRIVACY
           </h3>
           <p className="text-xs text-muted-foreground leading-relaxed">
-            The MCP server runs locally and touches only{" "}
-            <span className="font-mono">{dbPath}</span>. Nothing is uploaded by Pare — but
-            note that whatever an AI client reads through these tools is sent to that
-            client&apos;s model provider as conversation context. Connect only clients you
-            trust with your financial data.
+            The server runs on this machine and reads and writes only your local
+            database (<span className="font-mono">{dbPath}</span>) — Pare itself
+            uploads nothing and makes no network calls. One thing to keep in mind:
+            anything Claude reads through these tools becomes part of your
+            conversation, so it&apos;s sent to the model provider as context like
+            any other message. Only connect a client you&apos;re comfortable
+            sharing your financial data with.
           </p>
         </CardContent>
       </Card>

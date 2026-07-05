@@ -16,6 +16,9 @@ type Status = "pdf" | "beta" | "ofx";
 interface Guide {
   bank: string;
   status: Status;
+  // Public sign-in URL for the institution's online banking (generic, no
+  // personal info) — the guides send you straight to the download page.
+  login?: string;
   steps: string[];
 }
 
@@ -23,6 +26,7 @@ const GUIDES: Guide[] = [
   {
     bank: "CIBC",
     status: "pdf",
+    login: "https://www.cibconline.cibc.com/",
     steps: [
       "Sign in to CIBC Online Banking and open the account.",
       "Statements (under Documents / eStatements) → pick a month → Download PDF.",
@@ -32,6 +36,7 @@ const GUIDES: Guide[] = [
   {
     bank: "American Express",
     status: "pdf",
+    login: "https://www.americanexpress.com/en-ca/account/login/",
     steps: [
       "Sign in at americanexpress.ca → Statements & Activity.",
       "Billing statements → View PDF → download.",
@@ -41,6 +46,7 @@ const GUIDES: Guide[] = [
   {
     bank: "RBC",
     status: "beta",
+    login: "https://www.rbcroyalbank.com/sign-in.html",
     steps: [
       "Online Banking → your account → Statements (or Documents) for the PDF.",
       "Safer first import: Download Transactions → format “Quicken (OFX)” → .qfx file.",
@@ -50,6 +56,7 @@ const GUIDES: Guide[] = [
   {
     bank: "TD",
     status: "beta",
+    login: "https://easyweb.td.com/",
     steps: [
       "EasyWeb → Accounts → Statements & Documents for the monthly PDF.",
       "Safer first import: on the account activity page choose Export → “Quicken” (.qfx).",
@@ -59,6 +66,7 @@ const GUIDES: Guide[] = [
   {
     bank: "Scotiabank",
     status: "beta",
+    login: "https://www.scotiaonline.scotiabank.com/online/authentication/authentication.bns",
     steps: [
       "Scotia OnLine → your account → Documents → eStatements for the PDF.",
       "Or export the account activity as OFX/QFX (Money/Quicken format).",
@@ -68,6 +76,7 @@ const GUIDES: Guide[] = [
   {
     bank: "BMO",
     status: "beta",
+    login: "https://www1.bmo.com/banking/digital/sign-in",
     steps: [
       "Online Banking → My Documents → eStatements for the monthly PDF.",
       "Or Download Transactions → “Quicken” (.qfx) from the account activity view.",
@@ -77,6 +86,7 @@ const GUIDES: Guide[] = [
   {
     bank: "Tangerine",
     status: "beta",
+    login: "https://www.tangerine.ca/login/",
     steps: [
       "Web login → Documents → Statements for the monthly PDF.",
       "Or Transactions → Download → OFX format.",
@@ -86,6 +96,7 @@ const GUIDES: Guide[] = [
   {
     bank: "Wealthsimple",
     status: "beta",
+    login: "https://my.wealthsimple.com/",
     steps: [
       "Web login → your account → Documents → Monthly statements (PDF).",
       "Cash and Save accounts both work; drop the PDF here.",
@@ -132,13 +143,25 @@ export function BankGuides() {
                   <span className="font-mono text-xs text-muted-foreground hidden group-open:inline">−</span>
                 </span>
               </summary>
-              <ol className="px-4 pb-4 pt-1 space-y-1.5 list-decimal list-inside">
-                {g.steps.map((s, i) => (
-                  <li key={i} className="text-xs text-muted-foreground">
-                    {s}
-                  </li>
-                ))}
-              </ol>
+              <div className="px-4 pb-4 pt-1">
+                <ol className="space-y-1.5 list-decimal list-inside">
+                  {g.steps.map((s, i) => (
+                    <li key={i} className="text-xs text-muted-foreground">
+                      {s}
+                    </li>
+                  ))}
+                </ol>
+                {g.login && (
+                  <a
+                    href={g.login}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-3 inline-flex items-center gap-1 font-mono text-[10px] tracking-widest uppercase text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    Go to {g.bank} login ↗
+                  </a>
+                )}
+              </div>
             </details>
           );
         })}
