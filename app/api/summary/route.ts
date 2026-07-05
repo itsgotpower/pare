@@ -10,6 +10,14 @@ export async function GET(request: NextRequest) {
   const type = params.get("type") || "all";
   const month = params.get("month") || undefined;
 
+  // Lightweight "is anything imported?" probe for the sidebar's Upload badge and
+  // the post-login landing decision. Reuses the monthlyTotals query so it stays
+  // consistent with the dashboard's own empty-state test (hasData).
+  if (type === "has_data") {
+    const months = await repo.summary.monthlyTotals();
+    return Response.json({ hasData: months.length > 0 });
+  }
+
   if (type === "monthly_totals") {
     return Response.json(await repo.summary.monthlyTotals());
   }
