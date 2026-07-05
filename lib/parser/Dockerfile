@@ -17,8 +17,12 @@ RUN apt-get update \
 
 WORKDIR /app
 
-# Only the parser package is needed (no pip deps — stdlib + poppler only).
-COPY lib/parser/parse_statements.py lib/parser/categories.py lib/parser/server.py ./
+# Copy the WHOLE parser package (no pip deps — stdlib + poppler only). Use a glob,
+# NEVER an explicit list: parse_statements.py imports sibling modules (registry,
+# orchestrator, verify, categories) and enumerating them here silently drifts —
+# an omitted module only surfaces as a runtime ModuleNotFoundError inside the
+# container. lib/parser/ holds ONLY these parser sources (tests live in tests/).
+COPY lib/parser/*.py ./
 
 ENV PORT=8080
 EXPOSE 8080
