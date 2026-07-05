@@ -1,8 +1,10 @@
-# Cloudflare Workers config — WAITLIST LAUNCH (branch: launch/waitlist).
+# Cloudflare Workers config — TRIMMED build (formerly the waitlist launch config).
 #
-# This is the TRIMMED config that ships ONLY the public marketing/waitlist landing
-# (PARE_WAITLIST_ONLY=1). It deliberately drops the full data plane so the deploy
-# needs nothing beyond the Free plan + the current wrangler token:
+# PARE_WAITLIST_ONLY has been removed: the waitlist gate is retired and production
+# ships the FULL app from the deploy/full-app branch (wrangler.full.toml merged in).
+# Do NOT deploy THIS config to production — it drops the entire data plane, so it
+# would serve the full UI with no D1/R2/queues behind it. It deliberately drops the
+# data plane so a throwaway/preview deploy needs nothing beyond the Free plan:
 #   - NO [[d1_databases]]   — login is gated off, so better-auth/D1 is never reached.
 #   - NO [[r2_buckets]]     — no PDF uploads (and the token lacks the r2 scope).
 #   - NO [[queues.*]]       — no async parse pipeline (needs Workers Paid + queues scope).
@@ -13,8 +15,8 @@
 #
 # The FULL config (all bindings + ids to paste — D1, R2, queues, containers, KV)
 # is kept alongside as wrangler.full.toml, for when the full app redeploys.
-# To restore the full app: switch off PARE_WAITLIST_ONLY, restore worker.ts's
-# queue handler + ParserContainer export, and merge wrangler.full.toml back in.
+# To restore the full app here: restore worker.ts's queue handler +
+# ParserContainer export, and merge wrangler.full.toml back in.
 
 name = "pare"
 main = "worker.ts"
@@ -23,8 +25,9 @@ compatibility_flags = ["nodejs_compat", "global_fetch_strictly_public"]
 
 [vars]
 PARE_DEPLOY_TARGET = "hosted"
-# Gates the hosted app down to "/", /api/waitlist, /privacy (see middleware.ts).
-PARE_WAITLIST_ONLY = "1"
+# PARE_WAITLIST_ONLY intentionally removed. middleware.ts still honours the flag if
+# it's ever set again (via a config redeploy), but no config in the repo sets it —
+# so a deploy can't silently re-add it to the live Worker.
 
 # --- Custom domain (pare.money) ----------------------------------------------
 # Launching on the workers.dev subdomain first (no DNS dependency). To attach the
