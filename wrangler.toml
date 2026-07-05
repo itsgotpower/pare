@@ -33,11 +33,11 @@ enable_containers = false
 
 [vars]
 PARE_DEPLOY_TARGET = "hosted"
-# Stage-A launch gate: ships with new-account registration CLOSED (better-auth
-# emailAndPassword.disableSignUp — lib/auth/hosted.ts). Existing accounts sign in
-# normally. Remove/empty this var (dashboard Settings → Variables for a quick
-# flip, or here + redeploy) once the waitlist invite machinery is live.
-PARE_SIGNUP_DISABLED = "1"
+# Public signup gate (better-auth emailAndPassword.disableSignUp —
+# lib/auth/hosted.ts). "0"/empty = registration OPEN; "1" = CLOSED. Now OPEN so
+# the "Get started for free" CTAs work end to end. Set to "1" + redeploy to
+# re-close (a dashboard edit is overwritten by this [vars] on the next deploy).
+PARE_SIGNUP_DISABLED = "0"
 
 # --- Custom domain (pare.money) ------------------------------------------------
 #
