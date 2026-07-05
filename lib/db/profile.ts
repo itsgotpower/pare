@@ -9,6 +9,11 @@ export interface SourceHealth {
   last_txn_date: string | null;
   days_since_last: number | null; // days since last_txn_date (0 if in the future)
   coverage: boolean[]; // oldest→newest, one entry per month in coverage_window
+  // Months (YYYY-MM) with NO data for this source, from its first month through
+  // the last COMPLETE calendar month — i.e. gaps in statement coverage relative
+  // to today. Excludes the current month (its statement usually isn't issued
+  // yet, so flagging it would be perpetual noise). Empty for manual/cash rows.
+  missing_months: string[];
 }
 
 export interface DataHealth {
@@ -53,6 +58,23 @@ function lastNMonths(endMonth: string, n: number): string[] {
     );
   }
   return months;
+}
+
+// Inclusive list of YYYY-MM months from `start` to `end`. Empty if start > end.
+function monthsBetween(start: string, end: string): string[] {
+  const [sy, sm] = start.split("-").map(Number);
+  const [ey, em] = end.split("-").map(Number);
+  const out: string[] = [];
+  let y = sy;
+  let m = sm;
+  while (y < ey || (y === ey && m <= em)) {
+    out.push(`${y}-${String(m).padStart(2, "0")}`);
+    if (++m > 12) {
+      m = 1;
+      y++;
+    }
+  }
+  return out;
 }
 
 export function getDataHealth(): DataHealth {
@@ -120,16 +142,28 @@ export function getDataHealth(): DataHealth {
     ).map((r) => [r.source, r])
   );
 
+  // Two views of each source's months: `monthsBySource` is windowed (drives the
+  // 12-dot coverage strip); `allMonthsBySource` is the full history (drives
+  // missing-month gap detection, which spans the source's whole lifetime).
   const monthsBySource = new Map<string, Set<string>>();
+  const allMonthsBySource = new Map<string, Set<string>>();
   for (const row of db
     .prepare(
       "SELECT DISTINCT source, substr(txn_date, 1, 7) AS month FROM transactions"
     )
     .all() as { source: string; month: string }[]) {
+    if (!allMonthsBySource.has(row.source)) allMonthsBySource.set(row.source, new Set());
+    allMonthsBySource.get(row.source)!.add(row.month);
     if (!windowSet.has(row.month)) continue;
     if (!monthsBySource.has(row.source)) monthsBySource.set(row.source, new Set());
     monthsBySource.get(row.source)!.add(row.month);
   }
+
+  // The last COMPLETE calendar month — the newest month a statement should
+  // realistically exist for. Gaps are measured up to here, not the current month.
+  const now = new Date();
+  const prevM = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1));
+  const lastCompleteMonth = `${prevM.getUTCFullYear()}-${String(prevM.getUTCMonth() + 1).padStart(2, "0")}`;
 
   const today = new Date().toISOString().slice(0, 10);
   const sources: SourceHealth[] = perSource
@@ -143,6 +177,17 @@ export function getDataHealth(): DataHealth {
           (Date.parse(today) - Date.parse(row.last_txn_date)) / 86_400_000
         )
       );
+      // Gap detection: every month from this source's first month through the
+      // last complete month that has no data. Manual/cash rows aren't a monthly
+      // statement feed, so they're never "missing" anything.
+      const allMonths = allMonthsBySource.get(row.source) ?? new Set<string>();
+      const firstMonth = [...allMonths].sort()[0];
+      const missing =
+        row.source === "manual" || !firstMonth
+          ? []
+          : monthsBetween(firstMonth, lastCompleteMonth).filter(
+              (m) => !allMonths.has(m)
+            );
       return {
         source: row.source,
         label: sourceLabel(row.source),
@@ -151,6 +196,7 @@ export function getDataHealth(): DataHealth {
         last_txn_date: row.last_txn_date,
         days_since_last: daysSince,
         coverage: window.map((m) => covered.has(m)),
+        missing_months: missing,
       };
     });
 
