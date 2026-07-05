@@ -70,6 +70,14 @@ export class CrossUserKeyError extends Error {
 // recovered, so retrying forever is pointless). `attempts` starts at 1.
 const R2_MISS_MAX_ATTEMPTS = 5;
 
+// Cloudflare Queue max_retries for parse-jobs (wrangler.toml [[queues.consumers]]).
+// A message is delivered up to max_retries + 1 times, then dropped — and there is
+// NO dead-letter queue. So on the FINAL delivery a rethrow silently drops the
+// message and leaves the job stuck in non-terminal `retrying` forever (the client
+// polls until it times out with no error). Instead, on the last attempt we record
+// a TERMINAL `failed` the client can surface. KEEP IN SYNC with wrangler.toml.
+const MAX_DELIVERY_ATTEMPTS = 4; // max_retries (3) + the initial delivery
+
 /**
  * Process ONE parse-job message end to end. Resolves normally on a SUCCESS or a
  * PERMANENT outcome (the caller acks). THROWS on a TRANSIENT failure (the caller
@@ -196,6 +204,14 @@ export async function handleParseMessage(
     // terminal, so a transient blip never prematurely looks permanent.
     // CrossUserKeyError is handled upstream; everything else lands here.
     const detail = err instanceof Error ? err.message : String(err);
+    // FINAL delivery: the Queue won't retry again (max_retries exhausted, no DLQ),
+    // so record a TERMINAL `failed` — otherwise the job is stuck non-terminal and
+    // the client polls forever with no error. Drop the PDF (retention default) + ack.
+    if (attempts >= MAX_DELIVERY_ATTEMPTS) {
+      await jobStore.markFailed(userId, jobId, detail);
+      await deletePdfBestEffort(pdfStore, r2Key, jobId);
+      return { inserted: 0, skipped: 0 };
+    }
     await jobStore.markRetrying(userId, jobId, detail);
     throw err;
   }
