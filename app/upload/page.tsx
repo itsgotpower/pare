@@ -4,6 +4,7 @@ import { useState, useCallback, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BankGuides } from "@/components/upload/bank-guides";
 import { PALETTE } from "@/lib/colors";
+import { Trash2 } from "lucide-react";
 
 // Live status shown while a statement moves through the pipeline. Self-host
 // parses inline (uploading → done); hosted queues it, so we poll and reflect the
@@ -363,22 +364,36 @@ export default function UploadPage() {
           </h2>
           {results.map((r, i) => (
             <Card key={i}>
-              <CardContent className="py-4 flex items-center justify-between">
-                <div>
-                  <p className="font-mono text-sm font-medium">{r.filename}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {r.total} transactions parsed
-                  </p>
-                </div>
-                <div className="text-right">
-                  <p className="font-mono text-sm">
-                    <span className="text-foreground">{r.inserted}</span> inserted
-                  </p>
-                  {r.skipped > 0 && (
+              <CardContent className="py-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-mono text-sm font-medium">{r.filename}</p>
                     <p className="text-xs text-muted-foreground">
-                      {r.skipped} duplicates skipped
+                      {r.total} transactions parsed
                     </p>
-                  )}
+                  </div>
+                  <div className="text-right">
+                    <p className="font-mono text-sm">
+                      <span className="text-foreground">{r.inserted}</span> inserted
+                    </p>
+                    {r.skipped > 0 && (
+                      <p className="text-xs text-muted-foreground">
+                        {r.skipped} duplicates skipped
+                      </p>
+                    )}
+                  </div>
+                </div>
+                {/* Confirms the privacy promise: the original file is gone once
+                    the transactions are extracted (temp file rm'd in self-host;
+                    R2 object deleted post-parse in hosted, retention default-off). */}
+                <div
+                  className="mt-3 pt-3 border-t border-border/60 flex items-center gap-1.5"
+                  style={{ color: PALETTE.sage }}
+                >
+                  <Trash2 className="size-3.5 shrink-0" />
+                  <span className="font-mono text-[10px] tracking-widest uppercase">
+                    Original file destroyed after parsing
+                  </span>
                 </div>
               </CardContent>
             </Card>
