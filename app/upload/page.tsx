@@ -3,6 +3,19 @@
 import { useState, useCallback, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BankGuides } from "@/components/upload/bank-guides";
+import { PALETTE } from "@/lib/colors";
+import { Trash2 } from "lucide-react";
+
+// Live status shown while a statement moves through the pipeline. Self-host
+// parses inline (uploading → done); hosted queues it, so we poll and reflect the
+// job status. `pct` drives the progress bar; `retrying` tints it mustard.
+type ParsePhase = "uploading" | "queued" | "parsing" | "retrying";
+const PHASE_META: Record<ParsePhase, { label: string; pct: number; color?: string }> = {
+  uploading: { label: "UPLOADING…", pct: 20 },
+  queued: { label: "QUEUED FOR PARSING…", pct: 45 },
+  parsing: { label: "PARSING YOUR STATEMENT…", pct: 75 },
+  retrying: { label: "HIT A SNAG — RETRYING…", pct: 75, color: PALETTE.mustard },
+};
 
 interface UploadResult {
   inserted: number;
@@ -31,15 +44,20 @@ interface ParseJobStatus {
   error: string | null;
 }
 
-// Poll a hosted parse job until it reaches a terminal state. Returns null on
-// timeout (~3 min) — parsing normally finishes in seconds.
-async function pollJob(jobId: string): Promise<ParseJobStatus | null> {
+// Poll a hosted parse job until it reaches a terminal state, reporting every
+// non-terminal status via onStatus so the UI can reflect queued → parsing →
+// retrying live. Returns the terminal job, or null on timeout (~3 min).
+async function pollJob(
+  jobId: string,
+  onStatus: (job: ParseJobStatus) => void
+): Promise<ParseJobStatus | null> {
   for (let i = 0; i < 90; i++) {
     await new Promise((r) => setTimeout(r, 2000));
     try {
       const res = await fetch(`/api/upload/status?jobId=${encodeURIComponent(jobId)}`);
       if (!res.ok) continue;
       const job: ParseJobStatus = await res.json();
+      onStatus(job);
       if (job.status === "done" || job.status === "failed") return job;
     } catch {
       // transient network blip — keep polling
@@ -50,13 +68,13 @@ async function pollJob(jobId: string): Promise<ParseJobStatus | null> {
 
 export default function UploadPage() {
   const [dragOver, setDragOver] = useState(false);
-  const [uploading, setUploading] = useState(false);
+  const [progress, setProgress] = useState<{ phase: ParsePhase; detail?: string } | null>(null);
   const [results, setResults] = useState<UploadResult[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   const uploadFile = useCallback(async (file: File) => {
-    setUploading(true);
     setError(null);
+    setProgress({ phase: "uploading" });
 
     const formData = new FormData();
     formData.append("file", file);
@@ -74,9 +92,17 @@ export default function UploadPage() {
       // background — poll the job to its terminal state so failures (unsupported
       // PDF, plan account cap, …) actually surface here.
       if (res.status === 202 && data.jobId) {
-        const job = await pollJob(data.jobId);
+        setProgress({ phase: "queued" });
+        const job = await pollJob(data.jobId, (j) => {
+          if (j.status === "parsing") setProgress({ phase: "parsing" });
+          else if (j.status === "retrying")
+            setProgress({ phase: "retrying", detail: j.error ?? undefined });
+          else if (j.status === "queued") setProgress({ phase: "queued" });
+        });
         if (!job) {
-          setError("Still parsing — check back in a minute.");
+          setError(
+            "Parsing is taking longer than expected. Check back in a minute, or re-upload the statement."
+          );
           return;
         }
         if (job.status === "failed") {
@@ -94,9 +120,9 @@ export default function UploadPage() {
 
       setResults((prev) => [data, ...prev]);
     } catch {
-      setError("Upload failed — check the server console");
+      setError("Upload failed — check your connection and try again.");
     } finally {
-      setUploading(false);
+      setProgress(null);
     }
   }, []);
 
@@ -223,24 +249,53 @@ export default function UploadPage() {
         onDrop={handleDrop}
       >
         <CardContent className="flex flex-col items-center justify-center py-16 gap-4">
-          <p className="font-mono text-sm tracking-widest uppercase text-muted-foreground">
-            {uploading ? "PROCESSING..." : "DROP STATEMENTS OR OFX/QFX HERE"}
-          </p>
-          <p className="text-xs text-muted-foreground">
-            PDF credit-card / bank statements, or .ofx / .qfx exports
-          </p>
-          <label className="mt-2">
-            <span className="inline-flex items-center px-4 py-2 border border-foreground font-mono text-xs tracking-widest uppercase cursor-pointer hover:bg-foreground hover:text-background transition-colors">
-              BROWSE FILES
-            </span>
-            <input
-              type="file"
-              accept=".pdf,.ofx,.qfx"
-              multiple
-              onChange={handleFileSelect}
-              className="hidden"
-            />
-          </label>
+          {progress ? (
+            <div className="w-full max-w-sm flex flex-col items-center gap-3">
+              <p className="font-mono text-sm tracking-widest uppercase text-muted-foreground">
+                {PHASE_META[progress.phase].label}
+              </p>
+              {/* Determinate bar that advances through the pipeline phases. */}
+              <div className="w-full h-1.5 bg-accent overflow-hidden" role="progressbar">
+                <div
+                  className={`h-full transition-[width] duration-500 ease-out ${
+                    PHASE_META[progress.phase].color ? "" : "bg-foreground"
+                  }`}
+                  style={{
+                    width: `${PHASE_META[progress.phase].pct}%`,
+                    ...(PHASE_META[progress.phase].color
+                      ? { backgroundColor: PHASE_META[progress.phase].color }
+                      : {}),
+                  }}
+                />
+              </div>
+              {progress.detail && (
+                <p className="text-[11px] text-muted-foreground text-center max-w-xs break-words">
+                  {progress.detail}
+                </p>
+              )}
+            </div>
+          ) : (
+            <>
+              <p className="font-mono text-sm tracking-widest uppercase text-muted-foreground">
+                DROP STATEMENTS OR OFX/QFX HERE
+              </p>
+              <p className="text-xs text-muted-foreground">
+                PDF credit-card / bank statements, or .ofx / .qfx exports
+              </p>
+              <label className="mt-2">
+                <span className="inline-flex items-center px-4 py-2 border border-foreground font-mono text-xs tracking-widest uppercase cursor-pointer hover:bg-foreground hover:text-background transition-colors">
+                  BROWSE FILES
+                </span>
+                <input
+                  type="file"
+                  accept=".pdf,.ofx,.qfx"
+                  multiple
+                  onChange={handleFileSelect}
+                  className="hidden"
+                />
+              </label>
+            </>
+          )}
         </CardContent>
       </Card>
 
@@ -309,22 +364,36 @@ export default function UploadPage() {
           </h2>
           {results.map((r, i) => (
             <Card key={i}>
-              <CardContent className="py-4 flex items-center justify-between">
-                <div>
-                  <p className="font-mono text-sm font-medium">{r.filename}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {r.total} transactions parsed
-                  </p>
-                </div>
-                <div className="text-right">
-                  <p className="font-mono text-sm">
-                    <span className="text-foreground">{r.inserted}</span> inserted
-                  </p>
-                  {r.skipped > 0 && (
+              <CardContent className="py-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-mono text-sm font-medium">{r.filename}</p>
                     <p className="text-xs text-muted-foreground">
-                      {r.skipped} duplicates skipped
+                      {r.total} transactions parsed
                     </p>
-                  )}
+                  </div>
+                  <div className="text-right">
+                    <p className="font-mono text-sm">
+                      <span className="text-foreground">{r.inserted}</span> inserted
+                    </p>
+                    {r.skipped > 0 && (
+                      <p className="text-xs text-muted-foreground">
+                        {r.skipped} duplicates skipped
+                      </p>
+                    )}
+                  </div>
+                </div>
+                {/* Confirms the privacy promise: the original file is gone once
+                    the transactions are extracted (temp file rm'd in self-host;
+                    R2 object deleted post-parse in hosted, retention default-off). */}
+                <div
+                  className="mt-3 pt-3 border-t border-border/60 flex items-center gap-1.5"
+                  style={{ color: PALETTE.sage }}
+                >
+                  <Trash2 className="size-3.5 shrink-0" />
+                  <span className="font-mono text-[10px] tracking-widest uppercase">
+                    Original file destroyed after parsing
+                  </span>
                 </div>
               </CardContent>
             </Card>
