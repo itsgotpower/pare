@@ -25,6 +25,14 @@ jobs:
 
       - run: npm ci
 
+      # lib/db/migrations.ts is the generated bundle BOTH backends (Node SQLite
+      # and the Durable Object) consume. If a .sql migration changed without
+      # regenerating it, the two schemas silently drift — fail the build instead.
+      - name: Migration bundle in sync
+        run: |
+          npm run gen:migrations
+          git diff --exit-code -- lib/db/migrations.ts
+
       - name: Type-check (workers)
         run: npm run typecheck:workers
 
