@@ -37,8 +37,7 @@ PARE_DEPLOY_TARGET = "hosted"
 # emailAndPassword.disableSignUp — lib/auth/hosted.ts). Existing accounts sign in
 # normally. Remove/empty this var (dashboard Settings → Variables for a quick
 # flip, or here + redeploy) once the waitlist invite machinery is live.
-# TEMPORARILY EMPTY (= open) for first-account creation — restore "1" right after.
-PARE_SIGNUP_DISABLED = ""
+PARE_SIGNUP_DISABLED = "1"
 
 # --- Custom domain (pare.money) ------------------------------------------------
 #
