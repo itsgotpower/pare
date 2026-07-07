@@ -29,8 +29,10 @@ interface SourceHealth {
 
 interface Profile {
   display_name: string;
+  email: string | null; // null in self-host (no email identity)
+  email_verified: boolean | null;
   created_at: string;
-  password_changed_at: string;
+  password_changed_at: string | null; // null in hosted (better-auth manages it)
   health: {
     transactions: number;
     statements: number;
@@ -135,7 +137,9 @@ export default function ProfilePage() {
 
   const fetchProfile = useCallback(async () => {
     try {
-      const res = await fetch("/api/auth");
+      // Mode-agnostic profile endpoint — the self-host-only GET /api/auth is
+      // hostedDisabled() in hosted mode, which used to redirect-loop this page.
+      const res = await fetch("/api/profile");
       const data = await res.json();
       if (data.authenticated) {
         setProfile(data.profile);
