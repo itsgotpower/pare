@@ -17,12 +17,23 @@ import {
   changePassword,
 } from "@/lib/auth/user";
 
-const COOKIE_OPTS = {
-  httpOnly: true,
-  sameSite: "lax" as const,
-  path: "/",
-  maxAge: SESSION_TTL_MS / 1000,
-};
+// Session cookie options. `secure` is set whenever the request arrives over
+// https (directly or via a TLS-terminating reverse proxy, per x-forwarded-proto)
+// so the 30-day session credential is never sent in cleartext once the app is
+// served over TLS — while a plain-http localhost/LAN self-host still works
+// (browsers refuse a Secure cookie over http, so we can't set it unconditionally).
+function cookieOpts(request: NextRequest) {
+  const secure =
+    request.nextUrl.protocol === "https:" ||
+    request.headers.get("x-forwarded-proto") === "https";
+  return {
+    httpOnly: true,
+    sameSite: "lax" as const,
+    path: "/",
+    maxAge: SESSION_TTL_MS / 1000,
+    secure,
+  };
+}
 
 async function isAuthenticated(): Promise<boolean> {
   const store = await cookies();
@@ -92,7 +103,7 @@ export async function POST(request: NextRequest) {
         );
       }
       createUser(String(body.display_name || "").trim(), password);
-      store.set(SESSION_COOKIE, await createSessionToken(), COOKIE_OPTS);
+      store.set(SESSION_COOKIE, await createSessionToken(), cookieOpts(request));
       return Response.json({ success: true });
     }
 
@@ -105,7 +116,7 @@ export async function POST(request: NextRequest) {
         await new Promise((r) => setTimeout(r, 500));
         return Response.json({ error: "Incorrect password" }, { status: 401 });
       }
-      store.set(SESSION_COOKIE, await createSessionToken(), COOKIE_OPTS);
+      store.set(SESSION_COOKIE, await createSessionToken(), cookieOpts(request));
       return Response.json({ success: true });
     }
 
@@ -140,10 +151,14 @@ export async function POST(request: NextRequest) {
           { status: 400 }
         );
       }
-      changePassword(next);
-      // Rotation killed every session, including this one — re-issue.
-      store.set(SESSION_COOKIE, await createSessionToken(), COOKIE_OPTS);
-      return Response.json({ success: true });
+      // In file-secret mode this rotated the signing secret, killing every
+      // session (including this one); under an env secret it's a no-op and other
+      // sessions stay valid until PARE_AUTH_SECRET is rotated + the server
+      // restarts. Re-issue our own cookie either way, and tell the client which
+      // case applied so it can warn the user when other sessions survive.
+      const sessionsInvalidated = changePassword(next);
+      store.set(SESSION_COOKIE, await createSessionToken(), cookieOpts(request));
+      return Response.json({ success: true, sessionsInvalidated });
     }
 
     default:

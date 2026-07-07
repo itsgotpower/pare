@@ -75,3 +75,12 @@ name = "RL_AUTH"
 type = "ratelimit"
 namespace_id = "2003"
 simple = { limit = 20, period = 60 }
+
+# RL_BEACON — unauthenticated client-error beacon (/api/monitoring): 30 req/60s/IP.
+# Its OWN namespace so a beacon flood from one IP can't drain the RL_AUTH budget
+# and 429 that user's sign-in. Fails OPEN when absent (dev/self-host).
+[[unsafe.bindings]]
+name = "RL_BEACON"
+type = "ratelimit"
+namespace_id = "2004"
+simple = { limit = 30, period = 60 }

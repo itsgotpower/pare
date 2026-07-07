@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { captureError } from "@/lib/sentry";
+import { allowRequest, clientIp } from "@/lib/ratelimit";
 
 // Client-error beacon sink. The React error boundaries POST a trimmed payload
 // (message/stack/digest/url) here; we redact, forward to Sentry best-effort, and
@@ -15,6 +16,17 @@ function clean(value: unknown, max = 4000): string | undefined {
 }
 
 export async function POST(request: NextRequest) {
+  // Unauthenticated beacon (any /api/* passes the hosted middleware; this route
+  // does its own gating). Throttle per client IP so an anonymous caller can't
+  // burn the Sentry event quota or inflate Cloudflare log volume. Uses its OWN
+  // rate-limit namespace (RL_BEACON, NOT RL_AUTH) so an error-storm from one IP
+  // can't drain the auth budget and 429 that user's sign-in. Fail-open when the
+  // binding is absent (dev/self-host). Over-limit posts are silently dropped with
+  // the same 204 the handler always returns, so the beacon never surfaces.
+  if (!(await allowRequest("RL_BEACON", clientIp(request)))) {
+    return new Response(null, { status: 204 });
+  }
+
   let payload: { message?: string; stack?: string; digest?: string; url?: string } = {};
   try {
     payload = await request.json();

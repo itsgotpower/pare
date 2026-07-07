@@ -76,6 +76,67 @@ test("decodeSetupToken rejects non-https decodes", () => {
   assert.throws(() => decodeSetupToken(token), /https/);
 });
 
+test("decodeSetupToken rejects internal/private claim hosts (SSRF guard)", () => {
+  for (const host of [
+    "https://127.0.0.1/claim/x",
+    "https://169.254.169.254/latest/meta-data", // cloud metadata
+    "https://10.0.0.5/claim/x",
+    "https://192.168.1.1/claim/x",
+    "https://172.16.4.4/claim/x",
+    "https://localhost/claim/x",
+    "https://localhost./claim/x", // trailing FQDN dot → same host as localhost
+    "https://10.0.0.1./claim/x", // trailing dot on a private IPv4
+    "https://bridge.local/claim/x",
+    "https://internal/claim/x", // single-label host
+    "https://[::1]/claim/x",
+    "https://[::127.0.0.1]/claim/x", // IPv4-compatible IPv6 loopback
+    "https://[::ffff:127.0.0.1]/claim/x", // IPv4-mapped IPv6 loopback
+    "https://[fe80::1]/claim/x", // link-local
+    "https://[fc00::1]/claim/x", // unique-local
+    "https://2130706433/claim/x", // decimal form of 127.0.0.1
+  ]) {
+    const token = Buffer.from(host).toString("base64");
+    assert.throws(() => decodeSetupToken(token), /permitted|private|internal/i, host);
+  }
+});
+
+test("decodeSetupToken accepts legitimate public hosts (incl. IPv6 + FQDN dot)", () => {
+  for (const host of [
+    "https://bridge.example.com/claim/x",
+    "https://bridge.example.com./claim/x", // trailing dot on a public FQDN
+    "https://[2606:4700:4700::1111]/claim/x", // public global-unicast IPv6
+  ]) {
+    const token = Buffer.from(host).toString("base64");
+    assert.doesNotThrow(() => decodeSetupToken(token), host);
+  }
+});
+
+test("splitAccessUrl rejects an internal host in the returned access URL (SSRF guard)", () => {
+  assert.throws(
+    () => splitAccessUrl("https://user:pass@169.254.169.254/simplefin"),
+    /permitted|private|internal/i
+  );
+  // A normal public bridge host still works.
+  assert.doesNotThrow(() => splitAccessUrl(ACCESS_URL));
+});
+
+test("claimAccessUrl and fetchSimplefinAccounts refuse to follow redirects", async () => {
+  const token = Buffer.from("https://bridge.example.com/claim/x").toString("base64");
+  let claimInit: RequestInit | undefined;
+  await claimAccessUrl(token, (async (_u: RequestInfo | URL, init?: RequestInit) => {
+    claimInit = init;
+    return new Response(ACCESS_URL, { status: 200 });
+  }) as typeof fetch);
+  assert.equal(claimInit?.redirect, "error");
+
+  let getInit: RequestInit | undefined;
+  await fetchSimplefinAccounts(ACCESS_URL, {}, (async (_u: RequestInfo | URL, init?: RequestInit) => {
+    getInit = init;
+    return new Response(JSON.stringify({ accounts: [], errors: [] }), { status: 200 });
+  }) as typeof fetch);
+  assert.equal(getInit?.redirect, "error");
+});
+
 test("splitAccessUrl extracts Basic Auth and strips credentials", () => {
   const { base, authHeader } = splitAccessUrl(ACCESS_URL);
   assert.equal(base, "https://bridge.example.com/simplefin");

@@ -3,6 +3,7 @@ import fs from "fs";
 import path from "path";
 import { getDb, DB_PATH } from "@/lib/db";
 import { isHostedMode } from "@/lib/auth/resolve";
+import { csvField } from "@/lib/csv";
 
 // Exports + destructive data ops — SELF-HOST ONLY. This route reads the file DB
 // directly (getDb/fs/better-sqlite3), which does not exist on the hosted target,
@@ -32,11 +33,6 @@ function exportTransactions(): ExportTxn[] {
        ORDER BY txn_date, source, id`
     )
     .all() as ExportTxn[];
-}
-
-function csvField(value: string | number): string {
-  const s = String(value);
-  return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
 function attachment(filename: string, contentType: string): HeadersInit {

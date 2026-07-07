@@ -29,6 +29,30 @@ const nextConfig: NextConfig = {
     NEXT_PUBLIC_APP_VERSION: pkg.version,
     NEXT_PUBLIC_BUILD_ID: BUILD_ID,
   },
+  // Baseline security headers on every response. A financial-PII app must not be
+  // framable (clickjacking the /profile DANGER ZONE wipe / SimpleFIN disconnect),
+  // and gets HSTS + nosniff + a conservative referrer policy for free. We set
+  // ONLY `frame-ancestors` in the CSP (not script-src) so Next's inline bootstrap
+  // isn't broken — a full script-src policy needs per-request nonces and is a
+  // separate, larger change. HSTS is inert over http (self-host localhost) and
+  // only engages once the app is served over TLS, so it's safe to send globally.
+  async headers() {
+    return [
+      {
+        source: "/:path*",
+        headers: [
+          { key: "X-Frame-Options", value: "DENY" },
+          { key: "Content-Security-Policy", value: "frame-ancestors 'none'" },
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          {
+            key: "Strict-Transport-Security",
+            value: "max-age=63072000; includeSubDomains; preload",
+          },
+        ],
+      },
+    ];
+  },
 };
 
 export default nextConfig;

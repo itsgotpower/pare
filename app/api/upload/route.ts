@@ -111,7 +111,12 @@ async function handleSelfHostUpload(request: NextRequest) {
       return Response.json({ error: "File is not a valid PDF." }, { status: 400 });
     }
     const tmpDir = mkdtempSync(path.join(os.tmpdir(), "parse-upload-"));
-    const tmpPath = path.join(tmpDir, file.name);
+    // Fixed on-disk name — NEVER join the client-supplied file.name onto a path
+    // (a "../../.." filename would escape tmpDir and write attacker bytes to an
+    // arbitrary location). parsePdf copies into its own temp dir and doesn't
+    // care about this name; the real file.name is preserved as the statement
+    // record below (parameterized insert — data, not a path).
+    const tmpPath = path.join(tmpDir, "upload.pdf");
 
     try {
       writeFileSync(tmpPath, Buffer.from(bytes));
