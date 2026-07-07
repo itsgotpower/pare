@@ -11,6 +11,9 @@ name: E2E
 
 on:
   workflow_dispatch: {}
+  # TEMPORARY smoke-test trigger - removed before merge.
+  push:
+    branches: [claude/playwright-e2e-suite]
 
 concurrency:
   group: e2e-${{ github.ref }}
