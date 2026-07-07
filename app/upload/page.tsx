@@ -118,6 +118,9 @@ export default function UploadPage() {
       for (const file of files) {
         uploadFile(file);
       }
+      // Clear the input so picking the SAME file again re-fires change —
+      // without this, re-uploading a statement (the dedup flow) does nothing.
+      e.target.value = "";
     },
     [uploadFile]
   );

@@ -17,6 +17,12 @@
 /.next/
 /out/
 
+# playwright e2e (scratch server cwd + db, auth state, reports)
+/e2e/.tmp/
+/e2e/.results/
+/e2e/.report/
+/blob-report/
+
 # cloudflare / opennext build output
 /.open-next/
 .wrangler/

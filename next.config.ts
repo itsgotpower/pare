@@ -1,5 +1,14 @@
 import type { NextConfig } from "next";
-import pkg from "./package.json";
+import fs from "fs";
+import path from "path";
+
+// Read package.json by absolute path, not `import "./package.json"`: the E2E
+// harness launches the server from a scratch cwd (`next dev <repo>` — see
+// playwright.config.ts), and Next's config transpile resolves relative imports
+// against the LAUNCH cwd, not this file's directory.
+const pkg = JSON.parse(
+  fs.readFileSync(path.join(__dirname, "package.json"), "utf-8")
+) as { version: string };
 
 // A unique id per production build. Prefer the CI commit SHA (Cloudflare
 // Workers/Pages or GitHub Actions); fall back to version + build timestamp so
@@ -32,6 +41,8 @@ export default nextConfig;
 // only needed for `next dev`, so skip it during the production build.
 // See https://opennext.js.org/cloudflare/get-started
 import { initOpenNextCloudflareForDev } from "@opennextjs/cloudflare";
-if (process.env.NODE_ENV === "development") {
+// Also skipped for E2E servers: they exercise the self-host Node path only, and
+// a second wrangler dev proxy would race the developer's own `npm run dev`.
+if (process.env.NODE_ENV === "development" && !process.env.PARE_E2E) {
   void initOpenNextCloudflareForDev();
 }

@@ -49,6 +49,7 @@ ALL financial data is PII. Never commit real transactions, PDFs, or the SQLite d
 - `npm run dev` — start dev server (localhost:3000)
 - `npx next build` — type-check + build (run before declaring done)
 - `npm test` — parser regression suite (stdlib unittest, synthetic fixtures in `tests/`, no PDFs/real data). Run after touching `lib/parser/*.py` or `categories.py`. Tests monkeypatch `parse_statements.text` and assert reconciliation/flows/vocab/date-inference/categorizer behaviour.
+- `npm run test:e2e` — Playwright E2E suite (`e2e/`, self-host mode only). Boots its OWN fully isolated server on :3111 (scratch DB **and scratch cwd** — user-rules.json/seed-rules.json/auth-secret resolve from `process.cwd()`, so a repo-root server would touch personal data). Next 16 allows one dev server per project: stop `npm run dev` first, or use `E2E_PROD=1` (production build + `next start`, no dev lock). Conventions + gotchas: `.claude/skills/playwright-e2e/SKILL.md`. Fixtures are synthetic OFX only (`e2e/fixtures/`), never PDFs/real data.
 - `npm run mcp` — start the finance MCP server (stdio). Reuses `lib/db`; reads/writes `data/pare.db`. 18 read+write tools. Set `PARE_DB_PATH` to the absolute DB path when launched by an MCP client (cwd is unknown). Smoke test: `npx tsx mcp/test-client.ts`. See `mcp/README.md` for tools + Claude Code config. db.ts honors `PARE_DB_PATH` (falls back to `<cwd>/data/pare.db`).
 - `python3 lib/parser/parse_statements.py <dir> <out.csv>` — run PDF parser standalone (or `<dir> --json` for JSON)
 
