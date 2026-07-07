@@ -1,7 +1,22 @@
 # Contributing to Pare
 
-Thanks for taking a look. Pare is a small project with a direct workflow — no
-ceremony, no CLA.
+Thanks for taking a look.
+
+## Contribution status: issues yes, code PRs not yet
+
+Pare is currently **solo-developed**. Bug reports, feature requests, and
+discussions are very welcome — please open an issue. **External code pull
+requests are not being accepted right now**; an unsolicited PR will be closed
+with a pointer to this section rather than reviewed.
+
+Why: keeping authorship in one place while the project is young keeps the
+licensing picture simple (see the [license boundary](README.md#license) —
+AGPL-3.0 core, proprietary `cloud/`). If code contributions open up later,
+the contribution terms (DCO sign-off vs. CLA) will be settled and documented
+here *before* the first outside PR merges.
+
+The rest of this document describes the workflow changes go through today, so
+you can follow along — and so it's ready if contributions open up.
 
 ## Setup
 
@@ -49,18 +64,6 @@ place — `package.json` `version` — and the web app and MCP server both deriv
 from it. Notable changes go in [CHANGELOG.md](CHANGELOG.md). For how the version
 number is chosen (the pre-1.0 rules differ) and the step-by-step release flow,
 see [docs/RELEASING.md](docs/RELEASING.md).
-
-## Sign-off (DCO), not a CLA
-
-There is **no CLA**. Instead, certify the [Developer Certificate of
-Origin](https://developercertificate.org) by signing off your commits:
-
-```bash
-git commit -s -m "fix: ..."
-```
-
-This adds a `Signed-off-by:` line, which says you have the right to submit the
-work under the project's [AGPL-3.0](LICENSE) license.
 
 ## Code of conduct
 

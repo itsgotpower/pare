@@ -101,11 +101,18 @@ function LoginForm() {
   // "self-hosted" — no NEXT_PUBLIC build-time flag to keep in sync.
   const [mode, setMode] = useState<"loading" | "self" | "hosted">("loading");
   const [configured, setConfigured] = useState<boolean | null>(null);
+  const [googleEnabled, setGoogleEnabled] = useState(false);
 
   useEffect(() => {
     fetch("/api/auth")
       .then(async (res) => {
         if (res.status === 404) {
+          // The hosted 404 body doubles as a capability flag (see
+          // app/api/auth/route.ts): social.google is true only when the
+          // Worker has the Google OAuth secrets, so an unconfigured deploy
+          // never shows a dead button.
+          const caps = await res.json().catch(() => null);
+          setGoogleEnabled(Boolean(caps?.social?.google));
           setMode("hosted");
           return;
         }
@@ -138,7 +145,7 @@ function LoginForm() {
   const signup = searchParams.get("signup") === "1";
 
   return mode === "hosted" ? (
-    <HostedForm from={from} signup={signup} />
+    <HostedForm from={from} signup={signup} googleEnabled={googleEnabled} />
   ) : (
     <SelfHostForm from={from} configured={configured} />
   );
@@ -292,6 +299,16 @@ function SelfHostForm({
 // passkey can be created without the (not-yet-built) hosted account-settings page.
 // ---------------------------------------------------------------------------
 
+// Monochrome Google "G" mark, inline like the landing page's GithubMark
+// (lucide-react dropped its brand icons).
+function GoogleMark({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden className={className}>
+      <path d="M12.48 10.92v3.28h7.84c-.24 1.84-.853 3.187-1.787 4.133-1.147 1.147-2.933 2.4-6.053 2.4-4.827 0-8.6-3.893-8.6-8.72s3.773-8.72 8.6-8.72c2.6 0 4.507 1.027 5.907 2.347l2.307-2.307C18.747 1.44 16.133 0 12.48 0 5.867 0 .307 5.387.307 12s5.56 12 12.173 12c3.573 0 6.267-1.173 8.373-3.36 2.16-2.16 2.84-5.213 2.84-7.667 0-.76-.053-1.467-.173-2.053H12.48z" />
+    </svg>
+  );
+}
+
 // better-auth rejects a sign-in for an unverified account with a 403 whose code
 // is EMAIL_NOT_VERIFIED. Match on the code (with a message fallback) so we can
 // show the check-your-email screen instead of a generic error.
@@ -304,15 +321,31 @@ function isUnverifiedEmailError(err: {
   );
 }
 
-function HostedForm({ from, signup = false }: { from: string; signup?: boolean }) {
+function HostedForm({
+  from,
+  signup = false,
+  googleEnabled,
+}: {
+  from: string;
+  signup?: boolean;
+  googleEnabled: boolean;
+}) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [isSignUp, setIsSignUp] = useState(signup);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  // A failed/cancelled OAuth round-trip lands back here with ?error=… (the
+  // errorCallbackURL below) — surface it instead of a silent bounce.
+  const [error, setError] = useState<string | null>(
+    searchParams.get("error")
+      ? "Google sign-in didn't complete — try again, or use your email and password."
+      : null
+  );
   const [submitting, setSubmitting] = useState(false);
   const [busyPasskey, setBusyPasskey] = useState(false);
+  const [busyGoogle, setBusyGoogle] = useState(false);
   // After a credential sign-in, offer to register a passkey before continuing.
   const [offerPasskey, setOfferPasskey] = useState(false);
   // After sign-up (or a blocked unverified sign-in) there is no session yet —
@@ -393,6 +426,32 @@ function HostedForm({ from, signup = false }: { from: string; signup?: boolean }
       // way so a retry never re-sends a spent token.
       setCaptchaReset((n) => n + 1);
       setSubmitting(false);
+    }
+  };
+
+  const signInWithGoogle = async () => {
+    setError(null);
+    setBusyGoogle(true);
+    try {
+      // Kicks off a full-page redirect to Google; better-auth runs the OAuth
+      // dance server-side and lands back on `from` (already sanitized by
+      // safeFrom). Signup vs sign-in needs no branching — a Google-verified
+      // email matching an existing account links to it (trustedProviders in
+      // lib/auth/hosted.ts), otherwise an account is created.
+      const res = await authClient.signIn.social({
+        provider: "google",
+        callbackURL: from,
+        newUserCallbackURL: from,
+        errorCallbackURL: "/login?error=google",
+      });
+      if (res?.error) {
+        setError(res.error.message || "Google sign-in failed — try again.");
+        setBusyGoogle(false);
+      }
+      // On success the browser navigates away; leave the button disabled.
+    } catch {
+      setError("Request failed — check your connection and try again.");
+      setBusyGoogle(false);
     }
   };
 
@@ -554,6 +613,19 @@ function HostedForm({ from, signup = false }: { from: string; signup?: boolean }
           </span>
           <div className="h-px flex-1 bg-border" />
         </div>
+
+        {googleEnabled && (
+          <Button
+            type="button"
+            variant="outline"
+            onClick={signInWithGoogle}
+            disabled={busyGoogle}
+            className={btnCls}
+          >
+            <GoogleMark className="size-3.5" />
+            {busyGoogle ? "Working…" : "Continue with Google"}
+          </Button>
+        )}
 
         <Button
           type="button"

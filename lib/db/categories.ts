@@ -1,5 +1,13 @@
 import { getDb } from "../db";
-import { loadUserRules, loadSeedRules, saveUserRule, removeUserRule } from "./user-rules";
+import {
+  loadUserRules,
+  loadSeedRules,
+  saveUserRule,
+  saveUserRules,
+  removeUserRule,
+  type UserRule,
+} from "./user-rules";
+import { isDepositKind, DEPOSIT_KINDS_SQL } from "./account-kinds";
 
 export interface CategoryRule {
   id: number;
@@ -93,6 +101,80 @@ export function addRule(category: string, keyword: string): void {
   }
   // Persist outside the DB so it survives a wipe + re-ingest.
   saveUserRule(category, keyword);
+}
+
+export interface ImportRulesResult {
+  added: number;
+  updated: number;
+  skipped: number;
+}
+
+/**
+ * Bulk-import keyword→category rules (from another Pare instance's JSON export —
+ * the self-host `data/seed-rules.json` taxonomy never ships in tracked source, so
+ * a fresh hosted account only has the generic STARTER_RULES until the user brings
+ * their own rules over). Upserts by keyword (last entry wins on a collision,
+ * matching seedCategoryRules), persists to user-rules.json in one write so the
+ * set survives a wipe, and leaves recategorization to the caller.
+ *
+ * Does NOT recategorize — the API runs recategorizeAll() afterwards so a large
+ * import categorizes every existing row in a single pass.
+ */
+export function importRules(incoming: UserRule[]): ImportRulesResult {
+  const db = getDb();
+
+  // Normalize + dedupe within the payload (later wins), dropping blanks.
+  // `skipped` counts only INVALID entries (blank category/keyword); collapsing a
+  // duplicate keyword within the payload is a silent merge, not a skip.
+  const byKeyword = new Map<string, UserRule>();
+  let skipped = 0;
+  for (const r of incoming) {
+    const category = (r?.category ?? "").trim();
+    const keyword = (r?.keyword ?? "").trim();
+    if (!category || !keyword) {
+      skipped++;
+      continue;
+    }
+    byKeyword.set(keyword.toUpperCase(), { category, keyword });
+  }
+  const cleaned = [...byKeyword.values()];
+  if (!cleaned.length) return { added: 0, updated: 0, skipped };
+
+  const existing = new Set(
+    (db.prepare("SELECT keyword FROM category_rules").all() as { keyword: string }[]).map(
+      (r) => r.keyword.toUpperCase()
+    )
+  );
+  const maxOrder =
+    (db.prepare("SELECT MAX(sort_order) as max FROM category_rules").get() as {
+      max: number | null;
+    }).max ?? 0;
+
+  // Upsert by keyword: new keyword inserts, existing keyword remaps its category.
+  const upsert = db.prepare(
+    "INSERT INTO category_rules (category, keyword, sort_order) VALUES (?, ?, ?) " +
+      "ON CONFLICT(keyword) DO UPDATE SET category = excluded.category"
+  );
+
+  let added = 0;
+  let updated = 0;
+  let order = maxOrder;
+  const tx = db.transaction(() => {
+    for (const r of cleaned) {
+      if (existing.has(r.keyword.toUpperCase())) updated++;
+      else {
+        added++;
+        order++;
+      }
+      upsert.run(r.category, r.keyword, order);
+    }
+  });
+  tx();
+
+  // Persist to the gitignored user-rules file (one write) so a wipe restores them.
+  saveUserRules(cleaned);
+
+  return { added, updated, skipped };
 }
 
 export function deleteRule(id: number): void {
@@ -226,15 +308,15 @@ const SEED_CATEGORY_NAMES = new Set(STARTER_RULES.map(([category]) => category))
 
 /**
  * Apply one keyword→category mapping to every matching transaction (used when a
- * rule is added with apply_existing). Mirrors recategorizeAll's chequing gating:
- * income/payment/fee_interest rows are never reclassified, and seeded card
- * categories may not tag transfers (location false matches). Returns the number
- * of rows changed.
+ * rule is added with apply_existing). Mirrors recategorizeAll's deposit gating:
+ * on deposit accounts (chequing/savings/investment) income/payment/fee_interest
+ * rows are never reclassified, and seeded card categories may not tag transfers
+ * (location false matches). Returns the number of rows changed.
  */
 export function recategorizeMatching(keyword: string, category: string): number {
   const db = getDb();
   const transferGate = SEED_CATEGORY_NAMES.has(category)
-    ? "AND NOT (account_kind = 'chequing' AND flow = 'transfer')"
+    ? `AND NOT (account_kind IN ${DEPOSIT_KINDS_SQL} AND flow = 'transfer')`
     : "";
   const result = db
     .prepare(
@@ -242,7 +324,7 @@ export function recategorizeMatching(keyword: string, category: string): number 
        WHERE UPPER(description) LIKE '%' || UPPER(?) || '%'
          AND id NOT IN (SELECT transaction_id FROM category_overrides)
          AND import_id IS NULL
-         AND NOT (account_kind = 'chequing' AND flow IN ('income', 'payment', 'fee_interest'))
+         AND NOT (account_kind IN ${DEPOSIT_KINDS_SQL} AND flow IN ('income', 'payment', 'fee_interest'))
          ${transferGate}`
     )
     .run(category, keyword);
@@ -255,14 +337,16 @@ export function recategorizeMatching(keyword: string, category: string): number 
  * Imported rows (import_id IS NOT NULL) are skipped entirely — the user's
  * migrated categories are authoritative and must survive a later PDF upload.
  *
- * Non-chequing rows (account_kind != 'chequing', i.e. cards): full
- * re-categorization, falling back to 'Other / uncategorized'.
+ * Card / cash rows: full re-categorization, falling back to
+ * 'Other / uncategorized'.
  *
- * Chequing rows: rules are applied ONLY to transfer/spend rows and ONLY when a
- * rule matches (no 'Other' fallback) — so an in-app rule on a private e-transfer
- * handle can tag rent as 'Rent / housing' while leaving everything else as
- * 'Banking'. income/payment/fee_interest rows are never touched, so payroll and
- * card-payment classification can't be clobbered.
+ * Deposit rows (chequing/savings/investment): rules are applied ONLY to
+ * transfer/spend rows and ONLY when a rule matches (no 'Other' fallback) — so an
+ * in-app rule on a private e-transfer handle can tag rent as 'Rent / housing'
+ * while leaving everything else as 'Banking'. income/payment/fee_interest rows
+ * are never touched, so payroll and card-payment classification can't be
+ * clobbered. (Keyed off isDepositKind so a savings/investment source — new via
+ * SimpleFIN/OFX — gets the same contract instead of the card catch-all.)
  *
  * Returns the number of transactions whose category changed.
  */
@@ -299,10 +383,10 @@ export function recategorizeAll(): number {
       if (row.import_id != null) continue;
 
       let next: string | null;
-      if (row.account_kind === "chequing") {
+      if (isDepositKind(row.account_kind)) {
         const matched = categorizeByRules(row.description, rules);
         if (row.flow === "spend") {
-          // Debit-card purchases: any rule applies; fall back to 'Banking'.
+          // Debit purchases: any rule applies; fall back to 'Banking'.
           next = matched === "Other / uncategorized" ? "Banking" : matched;
         } else if (row.flow === "transfer") {
           // Transfers: only user-defined categories (e.g. Rent) may tag them;

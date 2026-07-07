@@ -132,13 +132,16 @@ export function getDataHealth(): DataHealth {
     )
     .all() as { source: string; last_txn_date: string; month_count: number }[];
 
+  // `period` is the raw statement string as printed on the PDF ("May 1 to
+  // May 31, 2026") — not sortable and not YYYY-MM. `closing_date` (ISO, from
+  // migration 004) is; MAX() skips NULLs so pre-004 rows just fall back to "—".
   const stmtBySource = new Map(
     (
       db
         .prepare(
-          "SELECT source, COUNT(*) AS n, MAX(period) AS last_period FROM statements GROUP BY source"
+          "SELECT source, COUNT(*) AS n, MAX(closing_date) AS last_close FROM statements GROUP BY source"
         )
-        .all() as { source: string; n: number; last_period: string | null }[]
+        .all() as { source: string; n: number; last_close: string | null }[]
     ).map((r) => [r.source, r])
   );
 
@@ -192,7 +195,7 @@ export function getDataHealth(): DataHealth {
         source: row.source,
         label: sourceLabel(row.source),
         statement_count: stmt?.n ?? 0,
-        last_period: stmt?.last_period ?? null,
+        last_period: stmt?.last_close?.slice(0, 7) ?? null,
         last_txn_date: row.last_txn_date,
         days_since_last: daysSince,
         coverage: window.map((m) => covered.has(m)),

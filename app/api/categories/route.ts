@@ -24,6 +24,35 @@ export async function POST(request: NextRequest) {
     return Response.json({ success: true, changed });
   }
 
+  if (body.action === "import_rules") {
+    // Accept either a bare rules array or a full /api/data JSON export (which
+    // nests the rules under `category_rules`).
+    const raw = Array.isArray(body.rules)
+      ? body.rules
+      : Array.isArray(body.category_rules)
+        ? body.category_rules
+        : null;
+    if (!raw) {
+      return Response.json(
+        { error: "rules (or category_rules) array required" },
+        { status: 400 }
+      );
+    }
+    const rules = raw
+      .filter((r: unknown): r is { category: string; keyword: string } => {
+        const o = r as { category?: unknown; keyword?: unknown };
+        return typeof o?.category === "string" && typeof o?.keyword === "string";
+      })
+      .map((r: { category: string; keyword: string }) => ({
+        category: r.category,
+        keyword: r.keyword,
+      }));
+
+    const result = await repo.categories.importRules(rules);
+    const changed = await repo.categories.recategorizeAll();
+    return Response.json({ success: true, ...result, recategorized: changed });
+  }
+
   if (!body.category || !body.keyword) {
     return Response.json({ error: "category and keyword required" }, { status: 400 });
   }

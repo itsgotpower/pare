@@ -23,30 +23,37 @@ compatibility_flags = ["nodejs_compat", "global_fetch_strictly_public"]
 [vars]
 PARE_DEPLOY_TARGET = "hosted"
 
-# --- Custom domain (Phase 4) -------------------------------------------------
+# --- Custom domain -------------------------------------------------------------
 #
-# DEFERRED for the closed beta: the Worker serves on its
-# `pare.<your-subdomain>.workers.dev` URL (the Workers dev subdomain stays enabled
-# because no `[[routes]]` capture the apex). When ready to move to the real domain
-# (pare.money), UNCOMMENT the block below and deploy. A Worker custom domain created
-# this way provisions the DNS record + edge cert AUTOMATICALLY — no separate
-# dashboard DNS step — BUT the zone (pare.money) must already be active on this
-# Cloudflare account first. See DEPLOY.md → "Custom domain (Phase 4)".
+# LIVE: the apex `pare.money` is attached to this Worker as a Cloudflare custom
+# domain, added via the DASHBOARD (Workers & Pages -> pare -> Domains), not this
+# config — so there is deliberately no `[[routes]]` block here. Dashboard-added
+# custom domains survive `wrangler deploy`; adding a `[[routes]]` block would
+# make this file the routing source of truth, which is a real behavior change
+# (a bad pattern would then break prod routing on deploy) — do it deliberately
+# or not at all. The `pare.<account-subdomain>.workers.dev` URL stays enabled
+# alongside the apex.
 #
-# After enabling, ALSO update the BETTER_AUTH_URL secret to the new origin
-# (`wrangler secret put BETTER_AUTH_URL` -> https://app.pare.money) or sign-in
-# cookies/links get issued for the wrong origin.
-#
-# [[routes]]
-# pattern = "app.pare.money"
-# custom_domain = true
+# If the origin ever changes (or another is added), THREE things move together:
+#   1. `wrangler secret put BETTER_AUTH_URL` -> the new origin (better-auth
+#      issues cookies/links and derives the passkey rpID from it);
+#   2. the Google OAuth client's authorized redirect URIs gain
+#      `<new origin>/api/auth/callback/google` (Google matches the callback
+#      character-for-character — miss this and Google sign-in dies with
+#      redirect_uri_mismatch while everything else keeps working);
+#   3. redeploy.
 
 # Secrets (NOT set here — provision with `wrangler secret put <NAME>`):
 #   BETTER_AUTH_SECRET   — required; session/token signing (hosted.ts fails closed
 #                          without it). Generate: `openssl rand -base64 32`.
-#   BETTER_AUTH_URL      — the deployed origin, e.g. https://pare.<sub>.workers.dev
+#   BETTER_AUTH_URL      — the deployed origin: https://pare.money (the live
+#                          custom domain — see the block above before changing).
 #   RESEND_API_KEY       — password-reset email (optional in dev).
 #   AUTH_EMAIL_FROM      — From: address for reset email.
+#   GOOGLE_CLIENT_ID     — Google OAuth web client ("Continue with Google",
+#   GOOGLE_CLIENT_SECRET   lib/auth/hosted.ts). BOTH must be set or the provider
+#                          (and the /login button) stays off; redirect URI is
+#                          <BETTER_AUTH_URL>/api/auth/callback/google.
 #   TURNSTILE_SECRET_KEY — Cloudflare Turnstile server secret (Phase 4). When SET,
 #                          the waitlist + auth endpoints require a valid Turnstile
 #                          token; when UNSET they skip the check (fail-open, so dev
@@ -148,6 +155,13 @@ queue = "parse-jobs"
 max_batch_size = 10
 max_batch_timeout = 5
 max_retries = 3
+
+# Daily SimpleFIN sync (worker.ts `scheduled` → cloud/simplefin/scheduled.ts).
+# One quiet-hours run; the sync core's own 20h-success/1h-attempt watermarks
+# make the exact time uncritical, and users who already synced today via the
+# dashboard trigger are skipped for free.
+[triggers]
+crons = ["23 9 * * *"]
 
 # Parse-job status records (KV) — the P5 status endpoint reads these. Keyed
 # `job/<userId>/<jobId>` so a caller can only ever read their own jobs; records

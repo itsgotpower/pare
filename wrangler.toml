@@ -33,8 +33,9 @@ enable_containers = false
 
 [vars]
 PARE_DEPLOY_TARGET = "hosted"
-# Public signup gate (better-auth emailAndPassword.disableSignUp —
-# lib/auth/hosted.ts). "0"/empty = registration OPEN; "1" = CLOSED. Now OPEN so
+# Public signup gate (better-auth emailAndPassword.disableSignUp AND the Google
+# provider's disableSignUp — lib/auth/hosted.ts closes BOTH sign-up doors from
+# this one flag). "0"/empty = registration OPEN; "1" = CLOSED. Now OPEN so
 # the "Get started for free" CTAs work end to end. Set to "1" + redeploy to
 # re-close (a dashboard edit is overwritten by this [vars] on the next deploy).
 PARE_SIGNUP_DISABLED = "0"
@@ -57,9 +58,15 @@ PARE_SIGNUP_DISABLED = "0"
 # Secrets (NOT set here — provision with `wrangler secret put <NAME>`):
 #   BETTER_AUTH_SECRET   — required; session/token signing (hosted.ts fails closed
 #                          without it). Generate: `openssl rand -base64 32`.
-#   BETTER_AUTH_URL      — the deployed origin, e.g. https://pare.<sub>.workers.dev
+#   BETTER_AUTH_URL      — the deployed origin: https://pare.money (the live
+#                          custom domain — see the block above before changing;
+#                          the Google OAuth redirect URI moves with it).
 #   RESEND_API_KEY       — password-reset email (optional in dev).
 #   AUTH_EMAIL_FROM      — From: address for reset email.
+#   GOOGLE_CLIENT_ID     — Google OAuth web client ("Continue with Google",
+#   GOOGLE_CLIENT_SECRET   lib/auth/hosted.ts). BOTH must be set or the provider
+#                          (and the /login button) stays off; redirect URI is
+#                          <BETTER_AUTH_URL>/api/auth/callback/google.
 #   TURNSTILE_SECRET_KEY — Cloudflare Turnstile server secret (Phase 4). When SET,
 #                          the waitlist + auth endpoints require a valid Turnstile
 #                          token; when UNSET they skip the check (fail-open, so dev
@@ -168,6 +175,13 @@ queue = "parse-jobs"
 max_batch_size = 10
 max_batch_timeout = 5
 max_retries = 3
+
+# Daily SimpleFIN sync (worker.ts `scheduled` → cloud/simplefin/scheduled.ts).
+# One quiet-hours run; the sync core's own 20h-success/1h-attempt watermarks
+# make the exact time uncritical, and users who already synced today via the
+# dashboard trigger are skipped for free.
+[triggers]
+crons = ["23 9 * * *"]
 
 # Parse-job status records (KV) — the P5 status endpoint reads these. Keyed
 # `job/<userId>/<jobId>` so a caller can only ever read their own jobs; records

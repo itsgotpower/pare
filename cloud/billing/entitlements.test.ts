@@ -28,6 +28,7 @@ test("cloud ON: the free plan unlocks no premium features", () => {
   withCloud(true, () => {
     assert.equal(hasFeature("free", "email_ingest"), false);
     assert.equal(hasFeature("free", "llm_autocoverage"), false);
+    assert.equal(hasFeature("free", "simplefin"), false);
   });
 });
 
@@ -35,6 +36,7 @@ test("cloud ON: the pro plan unlocks the premium features", () => {
   withCloud(true, () => {
     assert.equal(hasFeature("pro", "email_ingest"), true);
     assert.equal(hasFeature("pro", "llm_autocoverage"), true);
+    assert.equal(hasFeature("pro", "simplefin"), true);
   });
 });
 

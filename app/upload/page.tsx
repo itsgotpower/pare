@@ -3,6 +3,7 @@
 import { useState, useCallback, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BankGuides } from "@/components/upload/bank-guides";
+import { SimplefinCard } from "@/components/upload/simplefin-card";
 import { PALETTE } from "@/lib/colors";
 import { Trash2 } from "lucide-react";
 
@@ -144,6 +145,9 @@ export default function UploadPage() {
       for (const file of files) {
         uploadFile(file);
       }
+      // Clear the input so picking the SAME file again re-fires change —
+      // without this, re-uploading a statement (the dedup flow) does nothing.
+      e.target.value = "";
     },
     [uploadFile]
   );
@@ -306,6 +310,9 @@ export default function UploadPage() {
           </CardContent>
         </Card>
       )}
+
+      {/* Opt-in SimpleFIN sync — renders nothing on hosted or when disabled. */}
+      <SimplefinCard />
 
       {results.length > 0 && installPrompt && (
         <Card className="mt-6">

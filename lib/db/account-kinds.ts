@@ -13,6 +13,24 @@ export type AccountKind =
   | "investment"
   | "unknown";
 
+// Deposit accounts — chequing/savings/investment share one categorization
+// contract (see recategorizeAll / recategorizeMatching): rules apply only to
+// spend/transfer rows, income/payment/fee rows are never reclassified, and
+// unmatched spend stays 'Banking' (never 'Other / uncategorized', which is the
+// card-spend catch-all). Card + cash are the "purchase" universe instead. Keyed
+// off this set so a NEW deposit source (a SimpleFIN savings account, an OFX
+// MONEYMRKT block) gets the deposit contract automatically — the checks used to
+// hardcode `account_kind = 'chequing'`, so savings/investment rows fell through
+// to the card branch and their unmatched spend landed 'Other / uncategorized'.
+export const DEPOSIT_KINDS: readonly AccountKind[] = ["chequing", "savings", "investment"];
+
+export function isDepositKind(kind: string): boolean {
+  return (DEPOSIT_KINDS as readonly string[]).includes(kind);
+}
+
+// SQL list literal for the same set, e.g. `account_kind IN ${DEPOSIT_KINDS_SQL}`.
+export const DEPOSIT_KINDS_SQL = `('${DEPOSIT_KINDS.join("', '")}')`;
+
 // Universe A — "discretionary spend": the charts that count direct purchases
 // (summary / baseline / heatmap / goals / insights / subscriptions / merchants).
 // Card purchases plus manually recorded cash spending — cash is spent the same

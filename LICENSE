@@ -1,5 +1,9 @@
 Copyright (C) 2026 pare.money
 
+SCOPE: This AGPL-3.0 license covers every file in this repository EXCEPT the
+cloud/ directory, which is proprietary and licensed separately — see
+cloud/LICENSE. Nothing in cloud/ is required to run or self-host the product.
+
                     GNU AFFERO GENERAL PUBLIC LICENSE
                        Version 3, 19 November 2007
 

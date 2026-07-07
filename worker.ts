@@ -66,6 +66,17 @@ const handler = {
   async email(message: EmailMessageLike, env: EmailWorkerEnv, ctx: EmailCtxLike) {
     return handleEmailMessage(message, env, ctx);
   },
+
+  // Daily SimpleFIN sync (wrangler `[triggers] crons`). Same env-parameter
+  // discipline as the queue consumer: everything resolves off `env` (D1 via
+  // env.DB, the per-user DO namespace via env.USER_DATA) — getCloudflareContext
+  // is not reliably available inside a scheduled() invocation. Without a cron
+  // trigger configured this handler simply never runs, so deploys whose
+  // wrangler config has no [triggers] (e.g. the trimmed one) are unaffected.
+  async scheduled(_event: unknown, env: unknown) {
+    const { scheduledSimplefinSync } = await import("./cloud/simplefin/scheduled");
+    await scheduledSimplefinSync(env as never);
+  },
 };
 
 // PHASE 4 — error tracking. withSentry wraps BOTH the fetch and queue handlers,

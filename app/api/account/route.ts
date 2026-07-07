@@ -1,6 +1,5 @@
 import { NextRequest } from "next/server";
 import { isHostedMode, resolveUser } from "@/lib/auth/resolve";
-import { createHostedAuth } from "@/lib/auth/hosted";
 import { getD1 } from "@/lib/auth/d1";
 import { deleteAccount } from "@/lib/account/delete";
 import { allowRequest, clientIp, tooManyRequests } from "@/lib/ratelimit";
@@ -48,6 +47,9 @@ export async function DELETE(request: NextRequest) {
   }
 
   // Resolve the caller (cookie or bearer) via the request-scoped better-auth.
+  // Imported dynamically so the self-host runtime (guarded out above) never
+  // loads better-auth/kysely-d1.
+  const { createHostedAuth } = await import("@/lib/auth/hosted");
   const auth = createHostedAuth(await getD1());
   const resolved = await resolveUser(request, auth);
   if (!resolved) {

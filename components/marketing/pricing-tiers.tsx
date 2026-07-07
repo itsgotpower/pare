@@ -23,7 +23,7 @@ const TIERS = [
     },
     blurb:
       "The full product, capped. Enough to move your history in, keep one card current every month, and decide with your own data.",
-    limits: ["1 account", "5 statement uploads / month", "Every feature, no trial clock"],
+    limits: ["1 account", "5 statement uploads / month", "Every insight, no trial clock"],
     flag: null,
   },
   {
@@ -35,8 +35,13 @@ const TIERS = [
       CAD: "per month — or ≈C$99/year (2 months free)",
     },
     blurb:
-      "Room for the full picture — card plus chequing, unlimited statements. Same features as Free; you pay for capacity, not access.",
-    limits: ["2 accounts", "Unlimited statement uploads", "Everything in Free"],
+      "Room for the full picture — card plus chequing, unlimited statements, and hands-off daily sync via SimpleFIN if you want it.",
+    limits: [
+      "2 accounts",
+      "Unlimited statement uploads",
+      "Automatic bank sync (SimpleFIN)",
+      "Everything in Free",
+    ],
     flag: null,
   },
   {

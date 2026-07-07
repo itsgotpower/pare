@@ -68,7 +68,7 @@ describe("DoSqlBackend over real ctx.storage.sql (workerd)", () => {
       runMigrationsOnDoSql(db);
       const after = db.prepare("SELECT COUNT(*) c FROM _migrations").get<{ c: number }>()!;
       expect(after.c).toBe(before.c);
-      expect(before.c).toBe(6);
+      expect(before.c).toBe(8);
     });
   });
 

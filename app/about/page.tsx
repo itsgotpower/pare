@@ -45,7 +45,7 @@ const PRINCIPLES = [
   {
     color: PALETTE.slate,
     title: "Local-first",
-    body: "Your statements are parsed and stored on the machine that runs Pare — into a single SQLite file you control. There's no bank connection and no third-party aggregator standing between you and your own numbers.",
+    body: "Your statements are parsed and stored on the machine that runs Pare — into a single SQLite file you control. By default nothing connects to your bank at all; the one exception, SimpleFIN sync, is opt-in, read-only, and a bridge you pay and control — never a login you hand to Pare.",
   },
   {
     color: PALETTE.celadon,
@@ -100,6 +100,21 @@ export default function AboutPage() {
               month — in exchange for keeping your financial life on a machine you
               control. Pare is built for people who&apos;d rather own their data
               than rent visibility into it.
+            </p>
+            <p>
+              And if you do want automatic sync, it stays on your terms: self-hosted
+              Pare has an opt-in{" "}
+              <a
+                href="https://www.simplefin.org/"
+                className="underline"
+                target="_blank"
+                rel="noreferrer"
+              >
+                SimpleFIN
+              </a>{" "}
+              connection — a read-only bridge you pay directly and can revoke any
+              time. Your bank login lives at the bridge, never in Pare, and the
+              default is always off.
             </p>
           </Section>
 
