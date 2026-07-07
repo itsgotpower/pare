@@ -2,6 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { DashboardSkeleton } from "@/components/ui/skeleton";
+import { SimplefinAutoSync } from "@/components/upload/simplefin-auto-sync";
 
 // The dashboard renders CLIENT-ONLY (ssr:false): it's auth-gated (no SEO), it
 // already shows DashboardSkeleton until /api/summary responds, and skipping SSR
@@ -14,5 +15,10 @@ const Dashboard = dynamic(() => import("./dashboard-client"), {
 });
 
 export default function DashboardPage() {
-  return <Dashboard />;
+  return (
+    <>
+      <SimplefinAutoSync />
+      <Dashboard />
+    </>
+  );
 }
