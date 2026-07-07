@@ -20,6 +20,10 @@ import { sendPasswordResetEmail, sendVerificationEmail } from "./email";
 //   - bearer tokens for the Expo mobile app (bearer() plugin: sign-in returns a
 //     `set-auth-token` header the client stores and replays as
 //     `Authorization: Bearer <token>`; getSession resolves it transparently).
+//   - "Continue with Google" (socialProviders.google, gated on the
+//     GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET secrets — INERT until provisioned).
+//     Web only for now; the Expo app would need the native ID-token flow.
+//     Google is an ADDITIONAL door alongside email+password, never the only one.
 //
 // On Cloudflare Workers the D1 binding only exists inside the request scope, so
 // the auth instance MUST be built per-request from that binding — there is no
@@ -84,6 +88,29 @@ export function hostedAuthOptions(db: D1Like): BetterAuthOptions {
     })
   );
 
+  // "Continue with Google". Gated on BOTH secrets (wrangler secret put
+  // GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET) so it's inert until provisioned —
+  // dev/test and a not-yet-configured deploy simply have no google provider,
+  // and the login page hides the button (see the capability flag in
+  // app/api/auth/route.ts hostedDisabled()). The Google Cloud OAuth client's
+  // authorized redirect URI must be <BETTER_AUTH_URL>/api/auth/callback/google.
+  const googleClientId = process.env.GOOGLE_CLIENT_ID;
+  const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET;
+  const socialProviders: BetterAuthOptions["socialProviders"] =
+    googleClientId && googleClientSecret
+      ? {
+          google: {
+            clientId: googleClientId,
+            clientSecret: googleClientSecret,
+            // Same launch gate as email/password: a social provider is its own
+            // sign-up door, so PARE_SIGNUP_DISABLED must close BOTH or Google
+            // becomes a back door around a closed signup. Existing accounts
+            // keep signing in either way.
+            disableSignUp: envFlag(process.env.PARE_SIGNUP_DISABLED),
+          },
+        }
+      : undefined;
+
   return {
     // Kysely over the D1 dialect. better-auth detects this as a "sqlite"
     // dialect for query generation; the auth-D1 migration (d1/migrations/
@@ -130,6 +157,19 @@ export function hostedAuthOptions(db: D1Like): BetterAuthOptions {
       autoSignInAfterVerification: true,
       sendVerificationEmail: async ({ user, url }) => {
         await sendVerificationEmail(user.email, url);
+      },
+    },
+    socialProviders,
+    // A Google sign-in whose (Google-verified) email matches an existing
+    // email+password account must land in THAT account, not mint a duplicate —
+    // a duplicate would get a fresh empty Durable Object ("where did my data
+    // go?"). Safe to trust here because google asserts email_verified and our
+    // email accounts are verification-required, so there's no
+    // unverified-address takeover path.
+    account: {
+      accountLinking: {
+        enabled: true,
+        trustedProviders: ["google"],
       },
     },
     // Sessions are the underlying primitive — the bearer token IS the session
