@@ -16,6 +16,7 @@ import { PALETTE } from "@/lib/colors";
 import { LogOut, Pencil, Download, Database, FileJson, CreditCard, ShieldCheck } from "lucide-react";
 import { IngestInbox } from "@/components/profile/ingest-inbox";
 import { FooterNav } from "@/components/layout/footer-nav";
+import { authClient } from "@/lib/auth/client";
 
 interface SourceHealth {
   source: string;
@@ -289,7 +290,17 @@ export default function ProfilePage() {
   };
 
   const handleSignOut = async () => {
-    await post({ action: "logout" });
+    // Two deploy modes, two session systems — and each one's sign-out endpoint
+    // 404s harmlessly in the other mode, so fire both instead of branching on
+    // the async-loaded `hosted` flag (a click before that fetch resolves would
+    // pick the wrong branch). Hosted MUST go through authClient.signOut(): the
+    // self-host gate's POST /api/auth is hostedDisabled() there, so posting
+    // {action:"logout"} alone was a silent no-op — the surviving better-auth
+    // session made /login bounce straight back into the app.
+    await Promise.allSettled([
+      authClient.signOut(),
+      post({ action: "logout" }),
+    ]);
     router.replace("/login");
     router.refresh();
   };
