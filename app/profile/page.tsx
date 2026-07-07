@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -621,13 +621,19 @@ export default function ProfilePage() {
         </div>
       </Card>
 
-      <Card className="rounded-none ring-0 border border-border mb-3">
-        <CardContent className="py-4">
-          <div className="flex items-center gap-2 mb-2">
-            <ShieldCheck className="size-4 text-muted-foreground" />
-            <span className={labelClass}>Privacy</span>
-          </div>
-          <p className="text-xs text-muted-foreground leading-relaxed">
+      {/* Native <details> accordions (same pattern as upload's bank guides —
+          no JS state), collapsed by default to keep the page compact. */}
+      <Card className="rounded-none ring-0 border border-border py-0 gap-0 mb-3">
+        <details className="group">
+          <summary className="flex items-center justify-between gap-3 px-4 py-3 cursor-pointer list-none hover:bg-accent/50 transition-colors [&::-webkit-details-marker]:hidden">
+            <span className="flex items-center gap-2">
+              <ShieldCheck className="size-4 text-muted-foreground" />
+              <span className={labelClass}>Privacy</span>
+            </span>
+            <span className="font-mono text-xs text-muted-foreground group-open:hidden">+</span>
+            <span className="font-mono text-xs text-muted-foreground hidden group-open:inline">−</span>
+          </summary>
+          <p className="px-4 pb-4 pt-1 text-xs text-muted-foreground leading-relaxed">
             {hosted
               ? "Your data is encrypted at rest and isolated to your account — no third-party sharing, no ad tracking. Statements are parsed and then discarded; only the transactions are kept. You can export everything or delete your account at any time."
               : "Everything runs on this machine — no account, no telemetry, no third-party sharing. Statements are parsed locally and discarded; only the transactions are stored, in a database you can export or wipe anytime."}{" "}
@@ -635,68 +641,76 @@ export default function ProfilePage() {
               Read the privacy policy →
             </Link>
           </p>
-        </CardContent>
+        </details>
       </Card>
 
-      <div className="grid gap-3 md:grid-cols-3">
-        <Card className="rounded-none ring-0 border border-border md:col-span-2">
-          <CardHeader>
-            <CardTitle className={labelClass}>Your data, your files</CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-wrap gap-2">
-            <a href="/api/data?format=csv" download>
-              <Button variant="outline" className="rounded-none font-mono text-xs tracking-widest uppercase">
-                <Download data-icon="inline-start" />
-                Export CSV
-              </Button>
-            </a>
-            <a href="/api/data?format=json" download>
-              <Button variant="outline" className="rounded-none font-mono text-xs tracking-widest uppercase">
-                <FileJson data-icon="inline-start" />
-                Export JSON
-              </Button>
-            </a>
-            <a href="/api/data?format=backup" download>
-              <Button variant="outline" className="rounded-none font-mono text-xs tracking-widest uppercase">
-                <Database data-icon="inline-start" />
-                Backup DB
-              </Button>
-            </a>
-          </CardContent>
+      <div className="grid gap-3 md:grid-cols-3 items-start">
+        <Card className="rounded-none ring-0 border border-border py-0 gap-0 md:col-span-2">
+          <details className="group">
+            <summary className="flex items-center justify-between gap-3 px-4 py-3 cursor-pointer list-none hover:bg-accent/50 transition-colors [&::-webkit-details-marker]:hidden">
+              <span className={labelClass}>Your data, your files</span>
+              <span className="font-mono text-xs text-muted-foreground group-open:hidden">+</span>
+              <span className="font-mono text-xs text-muted-foreground hidden group-open:inline">−</span>
+            </summary>
+            <div className="flex flex-wrap gap-2 px-4 pb-4 pt-1">
+              <a href="/api/data?format=csv" download>
+                <Button variant="outline" className="rounded-none font-mono text-xs tracking-widest uppercase">
+                  <Download data-icon="inline-start" />
+                  Export CSV
+                </Button>
+              </a>
+              <a href="/api/data?format=json" download>
+                <Button variant="outline" className="rounded-none font-mono text-xs tracking-widest uppercase">
+                  <FileJson data-icon="inline-start" />
+                  Export JSON
+                </Button>
+              </a>
+              <a href="/api/data?format=backup" download>
+                <Button variant="outline" className="rounded-none font-mono text-xs tracking-widest uppercase">
+                  <Database data-icon="inline-start" />
+                  Backup DB
+                </Button>
+              </a>
+            </div>
+          </details>
         </Card>
 
-        <Card className="rounded-none ring-0 border border-destructive/50">
-          <CardHeader>
-            <CardTitle className="font-mono text-[10px] tracking-widest uppercase text-destructive">
-              Danger zone
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-col items-start gap-2">
-            <Button
-              variant="destructive"
-              onClick={() => {
-                setWipeError(null);
-                setWipeConfirm("");
-                setWipeOpen(true);
-              }}
-              className="rounded-none font-mono text-xs tracking-widest uppercase"
-            >
-              Wipe all data…
-            </Button>
-            {hosted && (
+        <Card className="rounded-none ring-0 border border-destructive/50 py-0 gap-0">
+          <details className="group">
+            <summary className="flex items-center justify-between gap-3 px-4 py-3 cursor-pointer list-none hover:bg-destructive/5 transition-colors [&::-webkit-details-marker]:hidden">
+              <span className="font-mono text-[10px] tracking-widest uppercase text-destructive">
+                Danger zone
+              </span>
+              <span className="font-mono text-xs text-destructive group-open:hidden">+</span>
+              <span className="font-mono text-xs text-destructive hidden group-open:inline">−</span>
+            </summary>
+            <div className="flex flex-col items-start gap-2 px-4 pb-4 pt-1">
               <Button
                 variant="destructive"
                 onClick={() => {
-                  setDeleteError(null);
-                  setDeleteConfirm("");
-                  setDeleteOpen(true);
+                  setWipeError(null);
+                  setWipeConfirm("");
+                  setWipeOpen(true);
                 }}
                 className="rounded-none font-mono text-xs tracking-widest uppercase"
               >
-                Delete account…
+                Wipe all data…
               </Button>
-            )}
-          </CardContent>
+              {hosted && (
+                <Button
+                  variant="destructive"
+                  onClick={() => {
+                    setDeleteError(null);
+                    setDeleteConfirm("");
+                    setDeleteOpen(true);
+                  }}
+                  className="rounded-none font-mono text-xs tracking-widest uppercase"
+                >
+                  Delete account…
+                </Button>
+              )}
+            </div>
+          </details>
         </Card>
       </div>
 
