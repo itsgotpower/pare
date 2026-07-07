@@ -94,8 +94,10 @@ export default function PrivacyPage() {
                 transactions with anyone else&apos;s.
               </li>
               <li>
-                We never ask for bank logins or use account aggregators. You upload
-                statement PDFs yourself.
+                We never ask for bank logins. By default nothing connects to your
+                bank — you upload statement PDFs yourself. The only exception is
+                opt-in: self-hosted Pare can sync through SimpleFIN, a read-only
+                bridge you pay and control directly.
               </li>
               <li>Uploaded PDFs are deleted right after they&apos;re parsed.</li>
               <li>We don&apos;t sell your data or run ad tracking.</li>
@@ -156,14 +158,30 @@ await deletePdfBestEffort(pdfStore, r2Key, jobId); // -> pdfStore.delete(r2Key)
             </p>
           </Section>
 
-          <Section title="No bank login, no aggregator, nothing sold">
+          <Section title="No bank login, no aggregator by default, nothing sold">
             <p>
-              Pare has no link to your financial institution. There&apos;s no
-              &ldquo;connect your bank&rdquo; step, no stored bank credentials, and no
-              third-party aggregator (Plaid and the like) sitting between you and your
-              accounts. You export a statement PDF and hand it over — that&apos;s the
-              entire ingest path, which means there&apos;s no standing connection for
-              anyone to abuse or resell.
+              The hosted service has no link to your financial institution.
+              There&apos;s no &ldquo;connect your bank&rdquo; step, no stored bank
+              credentials, and no third-party aggregator (Plaid and the like) sitting
+              between you and your accounts. You export a statement PDF and hand it
+              over — that&apos;s the entire ingest path, which means there&apos;s no
+              standing connection for anyone to abuse or resell.
+            </p>
+            <p>
+              The one exception is explicitly yours to choose: self-hosted Pare can
+              optionally sync through{" "}
+              <a
+                href="https://www.simplefin.org/"
+                className="underline"
+                target="_blank"
+                rel="noreferrer"
+              >
+                SimpleFIN Bridge
+              </a>{" "}
+              — a read-only service you sign up for and pay directly, and can revoke
+              at any time. Even then, your bank credentials live at the bridge, never
+              in Pare; Pare only holds an access token that can read transactions,
+              nothing more. It is off until you turn it on.
             </p>
             <p>
               We do <span className="font-medium">not</span> sell your data, share it

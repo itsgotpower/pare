@@ -76,7 +76,9 @@ export default function HowItWorksPage() {
           No &ldquo;connect your bank&rdquo; step, no aggregator sitting between you
           and your accounts. You hand Pare a statement you already have, and it does
           the reading, the math, and the categorizing. Here&apos;s the whole
-          pipeline, start to finish.
+          pipeline, start to finish. (Self-hosting and want automatic sync anyway?
+          There&apos;s an opt-in SimpleFIN connection — off by default, read-only,
+          and paid for and revocable by you.)
         </p>
 
         {/* Three-step flow */}
