@@ -139,6 +139,8 @@ export default function ProfilePage() {
 
   const fetchProfile = useCallback(async () => {
     try {
+      // Mode-agnostic profile endpoint — the self-host-only GET /api/auth is
+      // hostedDisabled() in hosted mode, which used to redirect-loop this page.
       const res = await fetch("/api/profile");
       const data = await res.json();
       if (data.authenticated) {
