@@ -5,6 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { categoryColor } from "@/lib/colors";
+import { deriveKeyword } from "@/lib/db/derive-keyword";
 import {
   InputGroup,
   InputGroupAddon,
@@ -118,8 +119,15 @@ export default function TransactionsPage() {
     setSelected(tx);
     setPickCategory(tx.effective_category);
     setCustomCategory("");
-    setKeyword(tx.description.trim());
-    setMode("one");
+    // Smart-default the keyword to the normalized merchant name ("URBAN FARE"
+    // out of "URBAN FARE #7614 VANCOUVER") so one click makes a rule that tags
+    // every future charge — not an over-specific one bound to this store/city.
+    const derived = deriveKeyword(tx.description);
+    setKeyword(derived ?? tx.description.trim());
+    // Default to ADD RULE (tag once → auto-tag future) when we have a safe
+    // keyword and rules actually apply to this row (spend). Chequing transfers /
+    // income — where a rule wouldn't stick — keep the single-row override.
+    setMode(derived && tx.flow === "spend" ? "rule" : "one");
     setDialogOpen(true);
   };
 
@@ -729,9 +737,10 @@ export default function TransactionsPage() {
                       className="mt-1 font-mono"
                     />
                     <p className="text-xs text-muted-foreground mt-1">
-                      Case-insensitive substring match. Applies to all matching
-                      transactions (manual overrides excluded) and to future
-                      uploads. Trim it to the stable part of the merchant name.
+                      Auto-filled from the merchant name (store number and
+                      province trimmed). Case-insensitive substring match —
+                      applies to all matching transactions (manual overrides
+                      excluded) and to future uploads. Edit to broaden or narrow.
                     </p>
                   </div>
                   {selected.source === "cibc_chequing" &&
