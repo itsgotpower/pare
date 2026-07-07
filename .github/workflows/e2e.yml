@@ -1,0 +1,96 @@
+name: E2E
+
+# Playwright suite against the self-host Node build. MANUAL trigger only
+# (Actions tab → E2E → Run workflow) — deliberately not PR-triggered; ci.yml
+# covers typecheck + the Cloudflare bundle on PRs.
+#
+# Sharding: each shard machine gets its OWN server + scratch SQLite DB, which is
+# how a workers:1 suite (single shared DB per server) still parallelizes in CI.
+# 2 shards is right-sized for the current suite; bump the matrix as it grows.
+# Shards emit blob reports that merge into one HTML report artifact.
+
+on:
+  workflow_dispatch: {}
+
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      # The E2E server (`next start`, see playwright.config.ts webServer)
+      # serves this production build.
+      - name: Build
+        run: npm run gen:blog && npx next build
+
+      - name: Run Playwright tests
+        run: npx playwright test --shard=${{ matrix.shard }}/2
+
+      - name: Upload blob report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: blob-report-${{ matrix.shard }}
+          path: blob-report
+          retention-days: 7
+
+      # Traces + screenshots for failed tests (playwright.config.ts writes them
+      # to e2e/.results on first retry / failure).
+      - name: Upload test results on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ matrix.shard }}
+          path: e2e/.results
+          retention-days: 7
+
+  merge-report:
+    if: ${{ !cancelled() }}
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Download blob reports
+        uses: actions/download-artifact@v4
+        with:
+          path: all-blob-reports
+          pattern: blob-report-*
+          merge-multiple: true
+
+      - name: Merge into HTML report
+        run: npx playwright merge-reports --reporter html ./all-blob-reports
+
+      - name: Upload HTML report
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report
+          retention-days: 14
