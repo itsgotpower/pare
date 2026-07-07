@@ -53,6 +53,9 @@ interface Billing {
 }
 
 const STALE_AFTER_DAYS = 40;
+// Mustard nudge before the terracotta flag — statements are monthly, so a
+// source quietly approaching a missed cycle gets a heads-up first.
+const WARN_AFTER_DAYS = 28;
 
 const formatDate = (iso: string | null) =>
   iso
@@ -71,11 +74,27 @@ const formatMonth = (period: string | null) =>
       })
     : "—";
 
+const formatShortDate = (iso: string | null) =>
+  iso
+    ? new Date(iso.slice(0, 10) + "T00:00:00").toLocaleDateString("en-CA", {
+        month: "short",
+        day: "numeric",
+      })
+    : "—";
+
+const monthAbbr = (ym: string) =>
+  new Date(ym + "-01T00:00:00")
+    .toLocaleDateString("en-CA", { month: "short" })
+    .toUpperCase();
+
 const formatBytes = (bytes: number) => {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 };
+
+const categorizedColor = (pct: number) =>
+  pct >= 90 ? PALETTE.sage : pct >= 70 ? PALETTE.mustard : PALETTE.terracotta;
 
 const labelClass = "font-mono text-[10px] tracking-widest uppercase text-muted-foreground";
 
@@ -295,7 +314,11 @@ export default function ProfilePage() {
     ["Transactions", health.transactions.toLocaleString()],
     ["Statements", String(health.statements)],
     ["Coverage", `${health.coverage_months} MO`],
-    ["Database", formatBytes(health.db_bytes)],
+    // Hosted has no SQLite file to stat, so db_bytes comes back 0 — "0 B"
+    // under DATA HEALTH reads as lost data. Show freshness there instead.
+    health.db_bytes > 0
+      ? ["Database", formatBytes(health.db_bytes)]
+      : ["Last data", formatShortDate(health.last_date)],
   ];
 
   return (
@@ -482,7 +505,10 @@ export default function ProfilePage() {
             href="/categories"
             className="font-mono text-[10px] tracking-widest uppercase text-muted-foreground hover:text-foreground transition-colors"
           >
-            {health.categorized_pct}% categorized · {health.rule_count} rules →
+            <span style={{ color: categorizedColor(health.categorized_pct) }}>
+              {health.categorized_pct}% categorized
+            </span>{" "}
+            · {health.rule_count} rules →
           </Link>
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-4 border-b border-border">
@@ -505,6 +531,12 @@ export default function ProfilePage() {
               !isManual &&
               s.days_since_last !== null &&
               s.days_since_last > STALE_AFTER_DAYS;
+            const aging =
+              !isManual &&
+              !stale &&
+              s.days_since_last !== null &&
+              s.days_since_last > WARN_AFTER_DAYS;
+            const coveredCount = s.coverage.filter(Boolean).length;
             return (
               <div
                 key={s.source}
@@ -518,22 +550,42 @@ export default function ProfilePage() {
                 <span className="text-xs text-muted-foreground flex-1 min-w-40">
                   {isManual
                     ? `Quick-added in app · txns to ${formatDate(s.last_txn_date)}`
-                    : `Last statement ${formatMonth(s.last_period)} · ${s.statement_count} statements · txns to ${formatDate(s.last_txn_date)}`}
+                    : `Txns to ${formatDate(s.last_txn_date)} · last statement ${formatMonth(s.last_period)} · ${s.statement_count} statements`}
                 </span>
-                <span className="flex gap-0.5" aria-hidden>
-                  {s.coverage.map((covered, j) => (
-                    <span
-                      key={j}
-                      title={health.coverage_window[j]}
-                      className={`size-2 ${covered ? "bg-foreground/60" : "bg-border"}`}
-                    />
-                  ))}
+                <span
+                  className="flex items-center gap-1"
+                  role="img"
+                  aria-label={`${coveredCount} of the last ${s.coverage.length} months covered`}
+                >
+                  <span className="font-mono text-[9px] tracking-wider text-muted-foreground">
+                    {monthAbbr(health.coverage_window[0])}
+                  </span>
+                  <span className="flex gap-0.5">
+                    {s.coverage.map((covered, j) => (
+                      <span
+                        key={j}
+                        title={health.coverage_window[j]}
+                        className={`size-2 ${
+                          covered
+                            ? "bg-foreground/70"
+                            : "border border-border bg-transparent"
+                        }`}
+                      />
+                    ))}
+                  </span>
+                  <span className="font-mono text-[9px] tracking-wider text-muted-foreground">
+                    {monthAbbr(health.coverage_window[health.coverage_window.length - 1])}
+                  </span>
                 </span>
-                {stale ? (
+                {stale || aging ? (
                   <Link
                     href="/upload"
                     className="font-mono text-[10px] tracking-widest uppercase border px-1.5 py-0.5"
-                    style={{ color: PALETTE.terracotta, borderColor: PALETTE.terracotta }}
+                    style={
+                      stale
+                        ? { color: PALETTE.terracotta, borderColor: PALETTE.terracotta }
+                        : { color: PALETTE.mustard, borderColor: PALETTE.mustard }
+                    }
                   >
                     {s.days_since_last}d — upload
                   </Link>
@@ -543,6 +595,8 @@ export default function ProfilePage() {
                     style={{ color: PALETTE.sage, borderColor: PALETTE.sage }}
                   >
                     Current
+                    {s.days_since_last !== null &&
+                      ` · ${s.days_since_last === 0 ? "today" : `${s.days_since_last}d`}`}
                   </span>
                 )}
               </div>
