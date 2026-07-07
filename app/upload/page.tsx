@@ -3,6 +3,7 @@
 import { useState, useCallback, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BankGuides } from "@/components/upload/bank-guides";
+import { SimplefinCard } from "@/components/upload/simplefin-card";
 
 interface UploadResult {
   inserted: number;
@@ -253,6 +254,9 @@ export default function UploadPage() {
           </CardContent>
         </Card>
       )}
+
+      {/* Opt-in SimpleFIN sync — renders nothing on hosted or when disabled. */}
+      <SimplefinCard />
 
       {results.length > 0 && installPrompt && (
         <Card className="mt-6">
