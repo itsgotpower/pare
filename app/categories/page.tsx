@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -117,6 +117,43 @@ export default function CategoriesPage() {
     fetchRules();
   };
 
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [importing, setImporting] = useState(false);
+  const [importMsg, setImportMsg] = useState<string | null>(null);
+
+  const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // allow re-selecting the same file
+    if (!file) return;
+    setImportMsg(null);
+    setImporting(true);
+    try {
+      const parsed = JSON.parse(await file.text());
+      // Accept a full /api/data JSON export or a bare rules array.
+      const body = Array.isArray(parsed)
+        ? { action: "import_rules", rules: parsed }
+        : { action: "import_rules", category_rules: parsed.category_rules };
+      const res = await fetch("/api/categories", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setImportMsg(data.error || "Import failed");
+      } else {
+        const parts = [`${data.added} added`, `${data.updated} updated`];
+        if (data.skipped) parts.push(`${data.skipped} skipped`);
+        setImportMsg(`${parts.join(", ")} · ${data.recategorized} transactions recategorized`);
+        fetchRules();
+      }
+    } catch {
+      setImportMsg("Couldn't read that file — expected a Pare JSON export");
+    } finally {
+      setImporting(false);
+    }
+  };
+
   const categories = [...new Set(rules.map((r) => r.category))];
   const filteredRules = filter
     ? rules.filter(
@@ -157,8 +194,26 @@ export default function CategoriesPage() {
               </span>
             )}
           </p>
+          {importMsg && (
+            <p className="font-mono text-xs text-muted-foreground mt-1">{importMsg}</p>
+          )}
         </div>
         <div className="flex items-center gap-3">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="application/json,.json"
+            onChange={handleImportFile}
+            className="hidden"
+          />
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={importing}
+            title="Import a rules JSON export from another Pare instance"
+            className="inline-flex items-center justify-center border border-input bg-background px-4 py-2 font-mono text-xs tracking-widest uppercase hover:bg-accent hover:text-accent-foreground disabled:opacity-50"
+          >
+            {importing ? "IMPORTING..." : "IMPORT RULES"}
+          </button>
           <button
             onClick={handleRecategorizeAll}
             disabled={recategorizing}

@@ -45,6 +45,7 @@ import {
   removeOverride,
   recategorizeMatching,
   recategorizeAll,
+  importRules,
   uncategorizedCount,
   ruleSuggestions,
 } from "../db/categories";
@@ -193,6 +194,7 @@ export class SqliteRepo implements Repo {
     recategorizeMatching: (keyword, category) =>
       this.write(() => recategorizeMatching(keyword, category)),
     recategorizeAll: () => this.write(() => recategorizeAll()),
+    importRules: (rules) => this.write(() => importRules(rules)),
     uncategorizedCount: () => this.read(() => uncategorizedCount()),
     ruleSuggestions: () => this.read(() => ruleSuggestions()),
   };

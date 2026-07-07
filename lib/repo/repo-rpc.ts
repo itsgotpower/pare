@@ -110,6 +110,7 @@ export const REPO_CATALOGUE: RepoCatalogue = {
     removeOverride: "write",
     recategorizeMatching: "write",
     recategorizeAll: "write",
+    importRules: "write",
     uncategorizedCount: "read",
     ruleSuggestions: "read",
   },
