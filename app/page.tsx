@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowRight, Moon, Sun } from "lucide-react";
+import { ArrowRight, Menu, Moon, Sun, X } from "lucide-react";
 import { PALETTE } from "@/lib/colors";
 import { Turnstile } from "@/components/turnstile";
 import { LocalClock } from "@/components/local-clock";
@@ -124,6 +124,9 @@ export default function MarketingHome() {
   // empty token is fine in dev/self-host.
   const [turnstileToken, setTurnstileToken] = useState("");
   const [dark, setDark] = useState(false);
+  // Mobile nav drawer (below `sm`). Desktop renders the full nav inline, so this
+  // is only ever open on small screens.
+  const [menuOpen, setMenuOpen] = useState(false);
   // Which preview month the bento is showing. Defaults to the latest; hovering /
   // focusing / tapping a bar scrubs, and leaving the chart snaps back to latest.
   const [selectedMonth, setSelectedMonth] = useState(LATEST_MONTH);
@@ -150,6 +153,27 @@ export default function MarketingHome() {
     document.documentElement.classList.toggle("dark", next);
     localStorage.setItem("parse-dark", String(next));
   };
+
+  // While the mobile drawer is open: lock body scroll, close on Escape, and close
+  // if the viewport grows past `sm` (the drawer is CSS-hidden there anyway, but
+  // clearing the state keeps scroll-lock from lingering after a rotate/resize).
+  useEffect(() => {
+    if (!menuOpen) return;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMenuOpen(false);
+    };
+    const mql = window.matchMedia("(min-width: 640px)");
+    const onDesktop = () => mql.matches && setMenuOpen(false);
+    document.addEventListener("keydown", onKey);
+    mql.addEventListener("change", onDesktop);
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      document.removeEventListener("keydown", onKey);
+      mql.removeEventListener("change", onDesktop);
+    };
+  }, [menuOpen]);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -193,7 +217,9 @@ export default function MarketingHome() {
           <span className="block h-6 w-px bg-border" aria-hidden="true" />
           <LocalClock className="flex" />
         </div>
-        <div className="flex items-center gap-5">
+        {/* Desktop nav — inline from `sm` up (unchanged). Below `sm` it collapses
+            into the hamburger drawer to stop the links wrapping on narrow phones. */}
+        <div className="hidden sm:flex items-center gap-5">
           <a
             href={REPO_URL}
             target="_blank"
@@ -220,7 +246,86 @@ export default function MarketingHome() {
             {dark ? <Sun className="size-4" /> : <Moon className="size-4" />}
           </button>
         </div>
+
+        {/* Mobile — hamburger only; every nav item lives in the drawer below. */}
+        <button
+          type="button"
+          onClick={() => setMenuOpen(true)}
+          aria-label="Open menu"
+          aria-expanded={menuOpen}
+          aria-controls="mobile-menu"
+          className="flex sm:hidden items-center justify-center -mr-1 p-1 text-foreground"
+        >
+          <Menu className="size-5" />
+        </button>
       </header>
+
+      {/* Mobile nav drawer — full-width sheet under a scrim, `sm:hidden` so it can
+          never appear on desktop. Rows are ≥44px tall for comfortable tapping. */}
+      {menuOpen && (
+        <div className="sm:hidden fixed inset-0 z-50" role="dialog" aria-modal="true" aria-label="Menu">
+          <button
+            type="button"
+            aria-label="Close menu"
+            onClick={() => setMenuOpen(false)}
+            className="absolute inset-0 bg-background/70 backdrop-blur-sm"
+          />
+          <div
+            id="mobile-menu"
+            className="absolute inset-x-0 top-0 bg-card border-b border-border shadow-sm pt-[env(safe-area-inset-top)]"
+          >
+            {/* Mirror the bar so PARE stays put and the icon flips to a close (X). */}
+            <div className="flex items-center justify-between px-5 h-14 border-b border-border">
+              <span className="font-mono text-sm font-bold tracking-tight">
+                <span aria-hidden="true">🍐</span> PARE
+              </span>
+              <button
+                type="button"
+                onClick={() => setMenuOpen(false)}
+                aria-label="Close menu"
+                className="flex items-center justify-center -mr-1 p-1 text-foreground"
+              >
+                <X className="size-5" />
+              </button>
+            </div>
+            <nav className="flex flex-col font-mono text-xs tracking-widest uppercase">
+              <Link
+                href="/demo"
+                onClick={() => setMenuOpen(false)}
+                className="flex items-center justify-between gap-3 px-5 min-h-[3.25rem] border-b border-border text-muted-foreground hover:text-foreground hover:bg-secondary/50 transition-colors"
+              >
+                See sample data <ArrowRight className="size-4" />
+              </Link>
+              <a
+                href={REPO_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => setMenuOpen(false)}
+                className="flex items-center gap-2 px-5 min-h-[3.25rem] border-b border-border text-muted-foreground hover:text-foreground hover:bg-secondary/50 transition-colors"
+              >
+                <GithubMark className="size-4" /> GitHub
+              </a>
+              {!WAITLIST_ONLY && (
+                <Link
+                  href="/login"
+                  onClick={() => setMenuOpen(false)}
+                  className="flex items-center px-5 min-h-[3.25rem] border-b border-border text-muted-foreground hover:text-foreground hover:bg-secondary/50 transition-colors"
+                >
+                  Sign in
+                </Link>
+              )}
+              <button
+                type="button"
+                onClick={toggleDark}
+                className="flex items-center justify-between gap-3 px-5 min-h-[3.25rem] text-muted-foreground hover:text-foreground hover:bg-secondary/50 transition-colors"
+              >
+                {dark ? "Light mode" : "Dark mode"}
+                {dark ? <Sun className="size-4" /> : <Moon className="size-4" />}
+              </button>
+            </nav>
+          </div>
+        </div>
+      )}
 
       {/* Hero — full-height first screen (header h-14 = 3.5rem). */}
       <main className="grid grid-cols-1 md:grid-cols-2 min-h-[calc(100svh-3.5rem)]">
