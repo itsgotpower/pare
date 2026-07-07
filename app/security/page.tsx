@@ -65,8 +65,10 @@ export default function SecurityPage() {
                 the app that can reach another account&apos;s data.
               </li>
               <li>
-                We never ask for your bank login and don&apos;t use account
-                aggregators. You hand us a PDF; nothing connects to your bank.
+                We never ask for your bank login. You hand us a PDF; nothing
+                connects to your bank — unless you opt in to SimpleFIN sync on a
+                self-hosted install, a read-only bridge you pay and control, where
+                your login still never touches Pare.
               </li>
               <li>Uploaded PDFs are deleted the moment they&apos;re parsed.</li>
               <li>Everything is encrypted in transit (TLS) and at rest.</li>
@@ -107,12 +109,21 @@ export default function SecurityPage() {
 
           <Section title="You upload PDFs — we never touch your bank">
             <p>
-              Pare has no link to your financial institution. There&apos;s no
-              &ldquo;connect your bank&rdquo; step, no stored bank credentials, and
-              no third-party aggregator (Plaid and the like) sitting between you and
-              your accounts. You export a statement PDF and upload it. That&apos;s
-              the whole pipeline — which means there&apos;s no standing connection
-              for anyone to abuse.
+              The hosted service has no link to your financial institution.
+              There&apos;s no &ldquo;connect your bank&rdquo; step, no stored bank
+              credentials, and no third-party aggregator (Plaid and the like) sitting
+              between you and your accounts. You export a statement PDF and upload
+              it. That&apos;s the whole pipeline — which means there&apos;s no
+              standing connection for anyone to abuse.
+            </p>
+            <p>
+              Self-hosted Pare offers one explicit exception: an opt-in SimpleFIN
+              sync. It&apos;s read-only, you pay and control the bridge directly,
+              and your bank credentials live there — Pare stores only a
+              revocable access token, kept out of the database and its backups. Off
+              by default, and a{" "}
+              <code className="font-mono text-xs">PARE_SIMPLEFIN_DISABLED</code>{" "}
+              flag hides it entirely.
             </p>
           </Section>
 
