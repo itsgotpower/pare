@@ -30,11 +30,10 @@ PARE_DEPLOY_TARGET = "hosted"
 # so a deploy can't silently re-add it to the live Worker.
 
 # --- Custom domain (pare.money) ----------------------------------------------
-# Launching on the workers.dev subdomain first (no DNS dependency). To attach the
-# apex once pare.money is an active zone on this account, uncomment and redeploy:
-# [[routes]]
-# pattern = "pare.money"
-# custom_domain = true
+# LIVE: the apex `pare.money` is attached to the `pare` Worker as a custom domain
+# added via the DASHBOARD, not config — no `[[routes]]` block needed (dashboard-
+# added domains survive deploys). See wrangler.full.toml for the origin-change
+# checklist (BETTER_AUTH_URL secret + Google OAuth redirect URI move with it).
 
 # Static assets emitted by the OpenNext build.
 [assets]
