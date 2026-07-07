@@ -56,7 +56,8 @@ npx wrangler login                      # interactive OAuth, or
 export CLOUDFLARE_API_TOKEN=...         # CI / non-interactive
 ```
 
-The app serves on `https://pare.<your-subdomain>.workers.dev` after deploy.
+The app serves on `https://pare.money` (custom domain, dashboard-attached) and
+`https://pare.<your-subdomain>.workers.dev` after deploy.
 
 ### Before the first real deploy — full hosted provisioning (Phase 3 / P6)
 
@@ -163,19 +164,23 @@ create and no id to paste. Counting is per-colo + best-effort (abuse mitigation,
 not a billing-grade counter). They fail OPEN when absent (dev/self-host), so they
 never break local work.
 
-### Custom domain (Phase 4)
+### Custom domain
 
-Deferred for the closed beta — the Worker serves on `pare.<sub>.workers.dev`.
-When ready to move to the real domain:
+**DONE** — the apex `pare.money` is live on the `pare` Worker, attached via the
+**dashboard** (Workers & Pages → pare → Domains → Add Domain; DNS record + edge
+cert were provisioned automatically), not via a `[[routes]]` block. Dashboard-
+added custom domains survive deploys, so the config deliberately carries no
+routes. `BETTER_AUTH_URL` is set to `https://pare.money`.
 
-1. Add the zone (e.g. `pare.money`) to this Cloudflare account (dashboard → Add a
-   site), and point your registrar's nameservers at Cloudflare.
-2. Uncomment the `[[routes]]` block in `wrangler.toml` (set `pattern` to the host,
-   e.g. `app.pare.money`, `custom_domain = true`).
-3. `npm run cf:deploy` — Wrangler provisions the DNS record + edge certificate
-   automatically (no manual DNS row to add).
-4. Update the origin secret so auth cookies/links match:
-   `npx wrangler secret put BETTER_AUTH_URL` → `https://app.pare.money`.
+If the origin ever changes (or another host is added), three things move
+together — auth breaks in confusing ways if any one is skipped:
+
+1. `npx wrangler secret put BETTER_AUTH_URL` → the new origin (better-auth
+   issues cookies/email links and derives the passkey rpID from it).
+2. Google OAuth: add `<new origin>/api/auth/callback/google` to the client's
+   authorized redirect URIs in the Google Cloud console (exact string match;
+   keep the old URI during cutover — extra entries are harmless).
+3. Redeploy.
 
 ### Account deletion
 
