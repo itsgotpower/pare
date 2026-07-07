@@ -184,6 +184,11 @@ export interface CategoryRepo {
   removeOverride(transactionId: number): Promise<void>;
   recategorizeMatching(keyword: string, category: string): Promise<number>;
   recategorizeAll(): Promise<number>;
+  // Bulk-import keyword→category rules from another instance's JSON export.
+  // Upserts by keyword; caller runs recategorizeAll() afterwards.
+  importRules(
+    rules: { category: string; keyword: string }[]
+  ): Promise<{ added: number; updated: number; skipped: number }>;
   // Count of card-spend rows still in 'Other / uncategorized'.
   uncategorizedCount(): Promise<number>;
   // Rule suggestions derived from recorded manual overrides.

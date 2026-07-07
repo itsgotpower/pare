@@ -10,7 +10,12 @@ import path from "path";
  * Privacy: this lives under data/ (gitignored), so private keywords like an
  * e-transfer recipient handle (used to tag rent) never enter tracked source.
  */
-const FILE = path.join(process.cwd(), "data", "user-rules.json");
+// Data dir defaults to <cwd>/data (self-host/hosted); PARE_DATA_DIR overrides it
+// so the test suite can run hermetically instead of reading/writing the real
+// data/ (which in a working checkout holds the user's private seed-rules.json).
+const DATA_DIR = process.env.PARE_DATA_DIR || path.join(process.cwd(), "data");
+
+const FILE = path.join(DATA_DIR, "user-rules.json");
 
 export interface UserRule {
   category: string;
@@ -51,7 +56,7 @@ function loadUserRulesForWrite(): UserRule[] {
 // The full personal taxonomy, kept gitignored at data/seed-rules.json so real
 // merchant keywords never enter tracked source. Used as the seed source when
 // present; otherwise the generic STARTER_RULES in categories.ts is used.
-const SEED_FILE = path.join(process.cwd(), "data", "seed-rules.json");
+const SEED_FILE = path.join(DATA_DIR, "seed-rules.json");
 
 export function loadSeedRules(): UserRule[] | null {
   try {
@@ -70,13 +75,18 @@ function writeUserRules(rules: UserRule[]): void {
 }
 
 export function saveUserRule(category: string, keyword: string): void {
-  const rules = loadUserRulesForWrite();
-  // Dedupe by keyword (case-insensitive) — last write wins on category.
-  const filtered = rules.filter(
-    (r) => r.keyword.toUpperCase() !== keyword.toUpperCase()
-  );
-  filtered.push({ category, keyword });
-  writeUserRules(filtered);
+  saveUserRules([{ category, keyword }]);
+}
+
+// Merge many rules into the persisted set in ONE read+write (bulk import path —
+// calling saveUserRule per rule would reload+rewrite the file O(n) times). Later
+// entries win on a keyword collision, matching saveUserRule's last-write-wins.
+export function saveUserRules(incoming: UserRule[]): void {
+  if (!incoming.length) return;
+  const byKeyword = new Map<string, UserRule>();
+  for (const r of loadUserRulesForWrite()) byKeyword.set(r.keyword.toUpperCase(), r);
+  for (const r of incoming) byKeyword.set(r.keyword.toUpperCase(), r);
+  writeUserRules([...byKeyword.values()]);
 }
 
 export function removeUserRule(keyword: string): void {
