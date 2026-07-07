@@ -18,6 +18,17 @@ import { hostedAuthOptions } from "./hosted";
 
 const FAKE_D1 = {} as Parameters<typeof hostedAuthOptions>[0];
 
+// better-auth now types provider options (and accountLinking.trustedProviders)
+// as EITHER a literal OR an awaitable factory function. hostedAuthOptions()
+// always assembles plain literals, so narrow away the function form for the
+// assertions below (asserting, not silently coercing — a function here would be
+// a real regression).
+type NonFactory<T> = Exclude<T, (...args: never[]) => unknown>;
+function asValue<T>(v: T): NonFactory<T> {
+  assert.equal(typeof v, "object", "expected a resolved config object, not a factory");
+  return v as NonFactory<T>;
+}
+
 function withEnv(vars: Record<string, string | undefined>, fn: () => void) {
   const saved = new Map(
     Object.keys(vars).map((k) => [k, process.env[k]] as const)
@@ -59,8 +70,9 @@ test("Google provider wired from env when configured", () => {
       PARE_SIGNUP_DISABLED: undefined,
     },
     () => {
-      const google = hostedAuthOptions(FAKE_D1).socialProviders?.google;
-      assert.ok(google, "google provider present");
+      const raw = hostedAuthOptions(FAKE_D1).socialProviders?.google;
+      assert.ok(raw, "google provider present");
+      const google = asValue(raw);
       assert.equal(google.clientId, "test-client-id");
       assert.equal(google.clientSecret, "test-client-secret");
       assert.equal(google.disableSignUp, false);
@@ -77,7 +89,8 @@ test("PARE_SIGNUP_DISABLED closes the Google sign-up door too", () => {
     },
     () => {
       const opts = hostedAuthOptions(FAKE_D1);
-      assert.equal(opts.socialProviders?.google?.disableSignUp, true);
+      const google = asValue(opts.socialProviders!.google!);
+      assert.equal(google.disableSignUp, true);
       // Same flag, same semantics on the email door (regression guard: the two
       // gates must never drift apart).
       assert.equal(opts.emailAndPassword?.disableSignUp, true);
@@ -92,7 +105,8 @@ test("PARE_SIGNUP_DISABLED closes the Google sign-up door too", () => {
     },
     () => {
       const opts = hostedAuthOptions(FAKE_D1);
-      assert.equal(opts.socialProviders?.google?.disableSignUp, false);
+      const google = asValue(opts.socialProviders!.google!);
+      assert.equal(google.disableSignUp, false);
       assert.equal(opts.emailAndPassword?.disableSignUp, false);
     }
   );
@@ -107,7 +121,8 @@ test("google is a trusted account-linking provider", () => {
     () => {
       const linking = hostedAuthOptions(FAKE_D1).account?.accountLinking;
       assert.equal(linking?.enabled, true);
-      assert.ok(linking?.trustedProviders?.includes("google"));
+      const trusted = asValue(linking!.trustedProviders!);
+      assert.ok(trusted.includes("google"));
     }
   );
 });
