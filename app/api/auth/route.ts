@@ -33,9 +33,22 @@ async function isAuthenticated(): Promise<boolean> {
 // node:fs secret). In hosted mode it must NOT run — it would 500 on Workers
 // (better-sqlite3 can't load) and mixes auth domains with better-auth. Hosted auth
 // lives at /api/auth/[...all]; this exact path returns 404 there.
+//
+// The login page probes this exact GET to detect the deploy mode (404 = hosted),
+// so the 404 body doubles as the hosted capability flag: `social.google` tells
+// the client whether to render the Google button (the provider is only wired
+// into better-auth when both secrets exist — lib/auth/hosted.ts). Only the
+// PRESENCE of the secrets is exposed, never their values.
 function hostedDisabled(): Response {
   return Response.json(
-    { error: "Not found (hosted mode uses /api/auth/* via better-auth)" },
+    {
+      error: "Not found (hosted mode uses /api/auth/* via better-auth)",
+      social: {
+        google: Boolean(
+          process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET
+        ),
+      },
+    },
     { status: 404 }
   );
 }
