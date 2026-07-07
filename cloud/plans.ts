@@ -18,7 +18,7 @@ export type PlanId = "free" | "pro";
  * this union and (2) listing it in the unlocking plan's `features` below; then gate
  * it server-side via cloud/billing/gate.ts `requireFeature`.
  */
-export type Feature = "email_ingest" | "llm_autocoverage";
+export type Feature = "email_ingest" | "llm_autocoverage" | "simplefin";
 
 export interface Plan {
   id: PlanId;
@@ -44,9 +44,13 @@ export const PLANS: Record<PlanId, Plan> = {
   // matched by the Stripe webhook — renaming the id is a data migration).
   pro: {
     id: "pro", label: "Plus", statementsPerMonth: null, accounts: 2,
-    // PLACEHOLDER membership pending the FR-72 plan matrix. Both are cloud-only
-    // conveniences, so gating them removes nothing from existing free users.
-    features: new Set<Feature>(["email_ingest", "llm_autocoverage"]),
+    // PLACEHOLDER membership pending the FR-72 plan matrix (email_ingest /
+    // llm_autocoverage). Both are cloud-only conveniences, so gating them
+    // removes nothing from existing free users. `simplefin` is decided: bank
+    // sync bypasses the Free statement cap entirely and a bridge connection
+    // typically carries 2+ accounts, so it's Plus-shaped by construction
+    // (2026-07-06 build plan).
+    features: new Set<Feature>(["email_ingest", "llm_autocoverage", "simplefin"]),
     stripePriceEnv: "STRIPE_PRICE_PRO",
   },
 };
