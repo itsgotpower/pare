@@ -111,7 +111,24 @@ export async function upsert(rec: SubscriptionRecord): Promise<void> {
  * enforce.ts consumes (UsageQuery.planId).
  */
 export async function resolvePlan(userId: string): Promise<PlanId> {
-  const rec = await getByUserId(userId);
+  return resolvePlanFrom(await getD1(), userId);
+}
+
+/**
+ * resolvePlan with the D1 handle passed EXPLICITLY. For callers that run outside
+ * a request context — the SimpleFIN cron's scheduled() invocation gets `env.DB`
+ * as a parameter, and getD1()'s getCloudflareContext() is not reliably available
+ * there (same constraint the queue consumer documents).
+ */
+export async function resolvePlanFrom(
+  db: Awaited<ReturnType<typeof getD1>>,
+  userId: string
+): Promise<PlanId> {
+  const row = await db
+    .prepare('SELECT * FROM "subscription" WHERE "userId" = ?')
+    .bind(userId)
+    .first();
+  const rec = row ? toRecord(row) : null;
   if (!rec) return DEFAULT_PLAN;
   if (rec.plan !== "free" && rec.status && ENTITLING_STATUSES.has(rec.status)) {
     return rec.plan;

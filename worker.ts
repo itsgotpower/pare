@@ -51,6 +51,19 @@ import { sentryOptions } from "./lib/sentry";
 const handler = {
   // The Next.js app's fetch handler, untouched.
   fetch: (openNextHandler as { fetch: (...args: unknown[]) => Promise<Response> }).fetch,
+
+  // Daily SimpleFIN sync (wrangler `[triggers] crons`). Same env-parameter
+  // discipline as the queue consumer: everything resolves off `env` (D1 via
+  // env.DB, the per-user DO namespace via env.USER_DATA) — getCloudflareContext
+  // is not reliably available inside a scheduled() invocation. Without a cron
+  // trigger configured this handler simply never runs, so deploys whose
+  // wrangler config has no [triggers] (e.g. the trimmed one) are unaffected.
+  // NOTE for the deploy/full-app merge: that branch's worker.ts also carries
+  // `queue` + `email` handlers — keep all three side by side there.
+  async scheduled(_event: unknown, env: unknown) {
+    const { scheduledSimplefinSync } = await import("./cloud/simplefin/scheduled");
+    await scheduledSimplefinSync(env as never);
+  },
 };
 
 // PHASE 4 — error tracking. withSentry wraps BOTH the fetch and queue handlers,

@@ -149,6 +149,13 @@ max_batch_size = 10
 max_batch_timeout = 5
 max_retries = 3
 
+# Daily SimpleFIN sync (worker.ts `scheduled` → cloud/simplefin/scheduled.ts).
+# One quiet-hours run; the sync core's own 20h-success/1h-attempt watermarks
+# make the exact time uncritical, and users who already synced today via the
+# dashboard trigger are skipped for free.
+[triggers]
+crons = ["23 9 * * *"]
+
 # Parse-job status records (KV) — the P5 status endpoint reads these. Keyed
 # `job/<userId>/<jobId>` so a caller can only ever read their own jobs; records
 # carry a 24h TTL (ephemeral status, not data of record).

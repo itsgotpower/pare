@@ -19,7 +19,12 @@ import type { AccountKind } from "./account-kinds";
  * account's history across two kinds. Reconnect to reclassify.
  */
 
-const FILE = path.join(process.cwd(), "data", "simplefin.json");
+// Same data-dir convention as user-rules.ts: <cwd>/data by default,
+// PARE_DATA_DIR overrides it (tests point it at a temp dir for isolation).
+const FILE = path.join(
+  process.env.PARE_DATA_DIR || path.join(process.cwd(), "data"),
+  "simplefin.json"
+);
 
 export interface SimplefinAccountState {
   name: string; // bridge's account name (display)

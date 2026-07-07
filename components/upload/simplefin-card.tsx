@@ -20,6 +20,9 @@ interface SfinAccount {
 
 interface SfinStatus {
   connected: boolean;
+  // Hosted only: the caller's plan doesn't unlock SimpleFIN — render the
+  // upsell instead of the connect form (the server enforces the real gate).
+  upgradeRequired?: boolean;
   bridge?: string;
   autoSync?: boolean;
   lastSyncedAt?: string | null;
@@ -131,6 +134,30 @@ export function SimplefinCard() {
 
   const btn =
     "inline-flex items-center px-4 py-2 border border-foreground font-mono text-xs tracking-widest uppercase cursor-pointer hover:bg-foreground hover:text-background transition-colors disabled:opacity-50 disabled:cursor-default";
+
+  if (!status.connected && status.upgradeRequired) {
+    return (
+      <Card className="mt-6">
+        <CardContent className="py-4 flex items-center justify-between gap-4">
+          <div>
+            <p className="font-mono text-sm font-medium uppercase tracking-wide">
+              AUTOMATIC BANK SYNC (SIMPLEFIN)
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Daily transaction sync via a read-only bridge you control — a Plus
+              feature.
+            </p>
+          </div>
+          <a
+            href="/pricing"
+            className="shrink-0 inline-flex items-center px-4 py-2 border border-foreground font-mono text-xs tracking-widest uppercase cursor-pointer hover:bg-foreground hover:text-background transition-colors"
+          >
+            UPGRADE
+          </a>
+        </CardContent>
+      </Card>
+    );
+  }
 
   if (!status.connected) {
     return (
