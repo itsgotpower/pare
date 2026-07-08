@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, Menu, X } from "lucide-react";
 import dynamic from "next/dynamic";
 import { categoryColor, PALETTE } from "@/lib/colors";
 import { formatCurrency, formatMonthShort } from "@/lib/format";
@@ -63,6 +63,8 @@ const goalColor = (pct: number) =>
 export default function DemoPage() {
   const [data, setData] = useState<DemoData | null>(null);
   const [error, setError] = useState(false);
+  // Mobile nav drawer (below `sm`); the inline links render on desktop.
+  const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
     fetch("/demo-data.json")
@@ -70,6 +72,26 @@ export default function DemoPage() {
       .then(setData)
       .catch(() => setError(true));
   }, []);
+
+  // While the drawer is open: lock body scroll, close on Escape, and close if the
+  // viewport grows past `sm` (matches the marketing header behaviour).
+  useEffect(() => {
+    if (!menuOpen) return;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMenuOpen(false);
+    };
+    const mql = window.matchMedia("(min-width: 640px)");
+    const onDesktop = () => mql.matches && setMenuOpen(false);
+    document.addEventListener("keydown", onKey);
+    mql.addEventListener("change", onDesktop);
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      document.removeEventListener("keydown", onKey);
+      mql.removeEventListener("change", onDesktop);
+    };
+  }, [menuOpen]);
 
   const monthly = data ? [...data.monthly_totals].reverse() : [];
   const categories = data?.category_breakdown ?? [];
@@ -102,7 +124,9 @@ export default function DemoPage() {
             SAMPLE DATA
           </span>
         </div>
-        <div className="flex items-center gap-4">
+        {/* Desktop nav — inline from `sm` up. Below `sm` it collapses into the
+            hamburger so the SAMPLE DATA pill + CTA stop crowding on phones. */}
+        <div className="hidden sm:flex items-center gap-4">
           {!WAITLIST_ONLY && (
             <Link
               href="/login"
@@ -118,7 +142,82 @@ export default function DemoPage() {
             Join waitlist
           </Link>
         </div>
+
+        {/* Mobile — hamburger; the links live in the drawer below. */}
+        <button
+          type="button"
+          onClick={() => setMenuOpen(true)}
+          aria-label="Open menu"
+          aria-expanded={menuOpen}
+          aria-controls="demo-mobile-menu"
+          className="flex sm:hidden items-center justify-center -mr-1 p-1 text-foreground"
+        >
+          <Menu className="size-5" />
+        </button>
       </header>
+
+      {/* Mobile nav drawer — full-width sheet under a scrim, `sm:hidden` so it can
+          never appear on desktop. Rows are ≥44px tall for comfortable tapping. */}
+      {menuOpen && (
+        <div className="sm:hidden fixed inset-0 z-50" role="dialog" aria-modal="true" aria-label="Menu">
+          <button
+            type="button"
+            aria-label="Close menu"
+            onClick={() => setMenuOpen(false)}
+            className="absolute inset-0 bg-background/70 backdrop-blur-sm"
+          />
+          <div
+            id="demo-mobile-menu"
+            className="absolute inset-x-0 top-0 bg-card border-b border-border shadow-sm"
+          >
+            {/* Mirror the bar: PARE + SAMPLE DATA pill, icon flips to a close (X). */}
+            <div className="flex items-center justify-between border-b border-border px-4 py-3">
+              <div className="flex items-center gap-3">
+                <span className="font-mono text-sm font-bold tracking-widest">PARE</span>
+                <span
+                  className="font-mono text-[10px] tracking-widest px-1.5 py-0.5 border"
+                  style={{ borderColor: PALETTE.mustard, color: PALETTE.mustard }}
+                >
+                  SAMPLE DATA
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setMenuOpen(false)}
+                aria-label="Close menu"
+                className="flex items-center justify-center -mr-1 p-1 text-foreground"
+              >
+                <X className="size-5" />
+              </button>
+            </div>
+            <nav className="flex flex-col font-mono text-xs tracking-widest uppercase">
+              <Link
+                href="/"
+                onClick={() => setMenuOpen(false)}
+                className="flex items-center px-4 min-h-[3.25rem] border-b border-border text-muted-foreground hover:text-foreground hover:bg-secondary/50 transition-colors"
+              >
+                Home
+              </Link>
+              {!WAITLIST_ONLY && (
+                <Link
+                  href="/login"
+                  onClick={() => setMenuOpen(false)}
+                  className="flex items-center px-4 min-h-[3.25rem] border-b border-border text-muted-foreground hover:text-foreground hover:bg-secondary/50 transition-colors"
+                >
+                  Sign in
+                </Link>
+              )}
+              <Link
+                href="/"
+                onClick={() => setMenuOpen(false)}
+                className="flex items-center justify-between gap-3 px-4 min-h-[3.25rem] text-foreground hover:bg-secondary/50 transition-colors"
+              >
+                Join waitlist <ArrowRight className="size-4" />
+              </Link>
+            </nav>
+          </div>
+        </div>
+      )}
 
       <main className="flex-1 p-4 md:p-6 max-w-6xl w-full mx-auto">
         <h1 className="font-mono text-2xl font-bold tracking-tight uppercase mb-1">
