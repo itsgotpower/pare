@@ -17,6 +17,10 @@ contracts, on-disk and crypto formats) may change between minor versions — see
   in the database and in exports), or mark it closed — history stays, upload
   nudges stop, and its last balance no longer carries into net worth or the
   cash-flow forecast ([#110]).
+- **In-app feedback** — a FEEDBACK entry in the sidebar (and on Profile)
+  opens a dialog to send a bug report, idea, or note. On the hosted app it
+  submits in place (with an optional reply email); self-host installs get a
+  GitHub-issues link instead, so feedback never phones home ([#111]).
 
 ## [0.3.0] - 2026-07-04
 
@@ -201,3 +205,4 @@ server exposing the local data to MCP clients. Ships open-source repo scaffoldin
 [#72]: https://github.com/itsgotpower/pare/pull/72
 [#73]: https://github.com/itsgotpower/pare/pull/73
 [#110]: https://github.com/itsgotpower/pare/pull/110
+[#111]: https://github.com/itsgotpower/pare/pull/111
