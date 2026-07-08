@@ -43,6 +43,7 @@ import type {
 import type { DataHealth } from "../db/profile";
 import type { AccountInfo, AccountMetaInput } from "../db/accounts";
 import type { WaitlistResult, WaitlistEntry } from "../db/waitlist";
+import type { FeedbackResult, FeedbackEntry } from "../db/feedback";
 import type {
   ImportRow,
   ImportWatermark,
@@ -84,6 +85,8 @@ export type {
   AccountMetaInput,
   WaitlistResult,
   WaitlistEntry,
+  FeedbackResult,
+  FeedbackEntry,
   ImportRow,
   ImportWatermark,
   ImportedWindowRow,
@@ -297,6 +300,14 @@ export interface WaitlistRepo {
   list(): Promise<WaitlistEntry[]>;
 }
 
+// Product feedback (lib/db/feedback.ts). Like the waitlist it lives in the
+// SHARED (tenant-less) repo on hosted — see getSharedRepo() — with a token-gated
+// admin export as the only read path.
+export interface FeedbackRepo {
+  submit(kind: string, message: string, email?: string | null): Promise<FeedbackResult>;
+  list(): Promise<FeedbackEntry[]>;
+}
+
 // Provenance + rollback for cross-app imports (lib/db/imports.ts). `create` and
 // `delete` are writes; the rest are reads (watermarks/window feed the overlap
 // guard).
@@ -337,6 +348,7 @@ export interface Repo {
   profile: ProfileRepo;
   accounts: AccountRepo;
   waitlist: WaitlistRepo;
+  feedback: FeedbackRepo;
   imports: ImportRepo;
 
   // Group several writes into ONE durability boundary. Every write issued by `fn`

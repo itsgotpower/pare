@@ -143,6 +143,7 @@ export const REPO_CATALOGUE: RepoCatalogue = {
   profile: { dataHealth: "read" },
   accounts: { list: "read", setMeta: "write" },
   waitlist: { join: "write", count: "read", list: "read" },
+  feedback: { submit: "write", list: "read" },
   imports: { create: "write", list: "read", delete: "write", watermarks: "read", rowsInWindow: "read" },
 };
 

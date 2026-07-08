@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { getSharedRepo } from "@/lib/repo/scoped";
 import { allowRequest, clientIp, tooManyRequests } from "@/lib/ratelimit";
 import { verifyTurnstile } from "@/lib/turnstile";
+import { safeEqual } from "@/lib/safe-equal";
 import { csvField } from "@/lib/csv";
 
 // Public endpoint (allowlisted in the auth gate) — the marketing homepage posts
@@ -86,14 +87,4 @@ export async function GET(request: NextRequest) {
       "content-disposition": 'attachment; filename="waitlist.csv"',
     },
   });
-}
-
-// Length-aware constant-time-ish string compare so the token check doesn't leak
-// via early-exit timing. Runtime-agnostic (no node:crypto) — runs on the Edge/
-// Workers target too.
-function safeEqual(a: string, b: string): boolean {
-  if (a.length !== b.length) return false;
-  let diff = 0;
-  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
-  return diff === 0;
 }

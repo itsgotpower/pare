@@ -14,8 +14,9 @@ import {
 } from "@/components/ui/dialog";
 import { PALETTE } from "@/lib/colors";
 import { purgeDataCaches } from "@/lib/purge-data-cache";
-import { LogOut, Pencil, Download, Database, FileJson, CreditCard, Settings2 } from "lucide-react";
+import { LogOut, Pencil, Download, Database, FileJson, CreditCard, Settings2, MessageSquarePlus } from "lucide-react";
 import { IngestInbox } from "@/components/profile/ingest-inbox";
+import { FeedbackDialog } from "@/components/feedback/feedback-dialog";
 import { authClient } from "@/lib/auth/client";
 
 interface SourceHealth {
@@ -772,8 +773,20 @@ export default function ProfilePage() {
         </Card>
       </div>
 
+      <div className="mt-6">
+        <FeedbackDialog
+          triggerClassName="inline-flex items-center gap-2 border border-input bg-background px-4 py-2 font-mono text-xs tracking-widest uppercase hover:bg-accent hover:text-accent-foreground transition-colors"
+          trigger={
+            <>
+              <MessageSquarePlus className="size-3.5" />
+              SEND FEEDBACK
+            </>
+          }
+        />
+      </div>
+
       {APP_VERSION && (
-        <p className="mt-6 font-mono text-[10px] tracking-widest uppercase text-muted-foreground/60">
+        <p className="mt-2 font-mono text-[10px] tracking-widest uppercase text-muted-foreground/60">
           Pare{" "}
           <a
             href={`${REPO_URL}/releases/tag/v${APP_VERSION}`}
