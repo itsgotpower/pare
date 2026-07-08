@@ -16,6 +16,7 @@ import { PALETTE } from "@/lib/colors";
 import { purgeDataCaches } from "@/lib/purge-data-cache";
 import { LogOut, Pencil, Download, Database, FileJson, CreditCard } from "lucide-react";
 import { IngestInbox } from "@/components/profile/ingest-inbox";
+import { authClient } from "@/lib/auth/client";
 
 interface SourceHealth {
   source: string;
@@ -29,8 +30,10 @@ interface SourceHealth {
 
 interface Profile {
   display_name: string;
+  email: string | null; // null in self-host (no email identity)
+  email_verified: boolean | null;
   created_at: string;
-  password_changed_at: string;
+  password_changed_at: string | null; // null in hosted (better-auth manages it)
   health: {
     transactions: number;
     statements: number;
@@ -135,7 +138,9 @@ export default function ProfilePage() {
 
   const fetchProfile = useCallback(async () => {
     try {
-      const res = await fetch("/api/auth");
+      // Mode-agnostic profile endpoint — the self-host-only GET /api/auth is
+      // hostedDisabled() in hosted mode, which used to redirect-loop this page.
+      const res = await fetch("/api/profile");
       const data = await res.json();
       if (data.authenticated) {
         setProfile(data.profile);
@@ -298,9 +303,20 @@ export default function ProfilePage() {
   };
 
   const handleSignOut = async () => {
-    await post({ action: "logout" });
-    // Evict this session's cached financial data from the SW data cache before
-    // the next user can sign in on the same browser (see lib/purge-data-cache).
+    // Two deploy modes, two session systems — and each one's sign-out endpoint
+    // 404s harmlessly in the other mode, so fire both instead of branching on
+    // the async-loaded `hosted` flag (a click before that fetch resolves would
+    // pick the wrong branch). Hosted MUST go through authClient.signOut(): the
+    // self-host gate's POST /api/auth is hostedDisabled() there, so posting
+    // {action:"logout"} alone was a silent no-op — the surviving better-auth
+    // session made /login bounce straight back into the app.
+    await Promise.allSettled([
+      authClient.signOut(),
+      post({ action: "logout" }),
+    ]);
+    // Now that the session is actually gone, evict this session's cached
+    // financial data from the SW data cache before the next user can sign in on
+    // the same browser (see lib/purge-data-cache).
     await purgeDataCaches();
     router.replace("/login");
     router.refresh();
