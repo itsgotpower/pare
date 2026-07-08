@@ -41,6 +41,7 @@ import type {
   MerchantDetail,
 } from "../db/merchants";
 import type { DataHealth } from "../db/profile";
+import type { AccountInfo, AccountMetaInput } from "../db/accounts";
 import type { WaitlistResult, WaitlistEntry } from "../db/waitlist";
 import type {
   ImportRow,
@@ -79,6 +80,8 @@ export type {
   MerchantSummary,
   MerchantDetail,
   DataHealth,
+  AccountInfo,
+  AccountMetaInput,
   WaitlistResult,
   WaitlistEntry,
   ImportRow,
@@ -281,6 +284,13 @@ export interface ProfileRepo {
   dataHealth(): Promise<DataHealth>;
 }
 
+// Per-source account management (migration 009): nickname / hide / mark closed.
+// setMeta is a partial upsert; resolves false when the source has no data.
+export interface AccountRepo {
+  list(): Promise<AccountInfo[]>;
+  setMeta(source: string, meta: AccountMetaInput): Promise<boolean>;
+}
+
 export interface WaitlistRepo {
   join(email: string, source?: string): Promise<WaitlistResult>;
   count(): Promise<number>;
@@ -325,6 +335,7 @@ export interface Repo {
   heatmap: HeatmapRepo;
   merchants: MerchantRepo;
   profile: ProfileRepo;
+  accounts: AccountRepo;
   waitlist: WaitlistRepo;
   imports: ImportRepo;
 
