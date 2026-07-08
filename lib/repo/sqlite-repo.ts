@@ -23,6 +23,7 @@ import type {
   ProfileRepo,
   AccountRepo,
   WaitlistRepo,
+  FeedbackRepo,
   ImportRepo,
 } from "./types";
 
@@ -84,6 +85,7 @@ import { getMerchants, getMerchantDetail } from "../db/merchants";
 import { getDataHealth } from "../db/profile";
 import { listAccounts, setAccountMeta } from "../db/accounts";
 import { joinWaitlist, waitlistCount, listWaitlist } from "../db/waitlist";
+import { submitFeedback, listFeedback } from "../db/feedback";
 import {
   createImport,
   listImports,
@@ -282,6 +284,11 @@ export class SqliteRepo implements Repo {
   accounts: AccountRepo = {
     list: () => this.read(() => listAccounts()),
     setMeta: (source, meta) => this.write(() => setAccountMeta(source, meta)),
+  };
+
+  feedback: FeedbackRepo = {
+    submit: (kind, message, email) => this.write(() => submitFeedback(kind, message, email)),
+    list: () => this.read(() => listFeedback()),
   };
 
   waitlist: WaitlistRepo = {
