@@ -1,4 +1,5 @@
 import { getDb } from "../db";
+import { NOT_HIDDEN_SOURCE_SQL, getAccountMetaMap } from "./accounts";
 
 // Statement-cadence net worth: each statement's closing balance is a
 // point-in-time observation (chequing positive, card balances negative);
@@ -26,6 +27,7 @@ export interface NetWorthAccount {
   kind: "asset" | "liability";
   current: number; // signed: liabilities negative
   asOf: string;
+  closed?: boolean; // marked closed — balance no longer carries forward
 }
 
 export interface NetWorthPoint {
@@ -105,11 +107,14 @@ export function deleteManualEntry(id: number): void {
 export function getNetWorth(): NetWorthData {
   const db = getDb();
 
+  // Hidden accounts are out of net worth entirely (consistent with every other
+  // chart); closed ones keep their history but stop carrying forward below.
   const statements = db
     .prepare(
       `SELECT account, source, account_kind, closing_date, closing_balance
        FROM statements
        WHERE closing_balance IS NOT NULL AND closing_date IS NOT NULL
+         AND ${NOT_HIDDEN_SOURCE_SQL}
        ORDER BY closing_date`
     )
     .all() as {
@@ -139,8 +144,13 @@ export function getNetWorth(): NetWorthData {
     t.obs.push({ date, value });
   };
 
+  // Timelines are keyed by account name; closed status lives on the source —
+  // collect the closed names so the series can stop carrying them forward.
+  const meta = getAccountMetaMap();
+  const closedNames = new Set<string>();
   for (const s of statements) {
     const liability = s.account_kind === "card";
+    if (meta.get(s.source)?.closed) closedNames.add(s.account);
     observe(
       s.account,
       liability ? "liability" : "asset",
@@ -189,6 +199,14 @@ export function getNetWorth(): NetWorthData {
         latest = o;
       }
       if (!latest) continue;
+      // A closed account's balance stops carrying forward after its final
+      // statement — otherwise its last printed balance would pollute net worth
+      // forever. History up to (and including) that month is untouched.
+      if (
+        closedNames.has(name) &&
+        month > t.obs[t.obs.length - 1].date.slice(0, 7)
+      )
+        continue;
       balances[name] = latest.value;
       if (latest.value >= 0) assets += latest.value;
       else liabilities += -latest.value;
@@ -205,7 +223,14 @@ export function getNetWorth(): NetWorthData {
   const accounts: NetWorthAccount[] = [...timelines.entries()]
     .map(([name, t]) => {
       const latest = t.obs[t.obs.length - 1];
-      return { name, type: t.type, kind: t.kind, current: latest.value, asOf: latest.date };
+      return {
+        name,
+        type: t.type,
+        kind: t.kind,
+        current: latest.value,
+        asOf: latest.date,
+        closed: closedNames.has(name) || undefined,
+      };
     })
     .sort((a, b) => b.current - a.current);
 

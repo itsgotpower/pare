@@ -1,9 +1,13 @@
 import fs from "fs";
 import { getDb, DB_PATH } from "@/lib/db";
+import { getAccountMetaMap, sourceLabel } from "./accounts";
 
 export interface SourceHealth {
   source: string;
-  label: string;
+  label: string; // nickname if set, else derived from the source string
+  nickname: string | null;
+  hidden: boolean; // excluded from charts (data health always shows it)
+  closed: boolean; // history kept; staleness nudges suppressed
   statement_count: number;
   last_period: string | null; // YYYY-MM of the newest statement
   last_txn_date: string | null;
@@ -22,21 +26,6 @@ export interface DataHealth {
   rule_count: number;
   coverage_window: string[]; // last 12 data months, oldest→newest (YYYY-MM)
   sources: SourceHealth[];
-}
-
-// Only the labels that differ from the derived `<bank>_<kind>` form below.
-const SOURCE_LABELS: Record<string, string> = {
-  cibc_chequing: "CHEQUING",
-  wealthsimple_cash: "WS CASH",
-  wealthsimple_savings: "WS SAVINGS",
-  manual: "CASH", // in-app quick-added rows, not a bank feed
-};
-
-// Human label for a parser `source`. Explicit overrides win; otherwise derive a
-// readable label from the `<bank>_<kind>` convention (rbc_chequing → "RBC
-// CHEQUING") so a newly-added bank renders sensibly without a map entry.
-function sourceLabel(source: string): string {
-  return SOURCE_LABELS[source] ?? source.replace(/_/g, " ").toUpperCase();
 }
 
 // Days without a new transaction before a source is flagged as stale.
@@ -81,10 +70,16 @@ export function getDataHealth(): DataHealth {
     db.prepare("SELECT COUNT(*) AS n FROM category_rules").get() as { n: number }
   ).n;
 
+  // Base table + override join, NOT v_transactions: the view excludes hidden
+  // accounts (migration 009) but the totals above count every row, so the view
+  // would overstate categorized_pct whenever a hidden account has stragglers.
   const uncategorized = (
     db
       .prepare(
-        "SELECT COUNT(*) AS n FROM v_transactions WHERE effective_category = 'Other / uncategorized'"
+        `SELECT COUNT(*) AS n
+         FROM transactions t
+         LEFT JOIN category_overrides co ON co.transaction_id = t.id
+         WHERE COALESCE(co.new_category, t.category) = 'Other / uncategorized'`
       )
       .get() as { n: number }
   ).n;
@@ -134,12 +129,15 @@ export function getDataHealth(): DataHealth {
     monthsBySource.get(row.source)!.add(row.month);
   }
 
+  const accountMeta = getAccountMetaMap();
+
   const today = new Date().toISOString().slice(0, 10);
   const sources: SourceHealth[] = perSource
     .sort((a, b) => a.source.localeCompare(b.source))
     .map((row) => {
       const stmt = stmtBySource.get(row.source);
       const covered = monthsBySource.get(row.source) ?? new Set<string>();
+      const meta = accountMeta.get(row.source);
       const daysSince = Math.max(
         0,
         Math.round(
@@ -148,7 +146,10 @@ export function getDataHealth(): DataHealth {
       );
       return {
         source: row.source,
-        label: sourceLabel(row.source),
+        label: meta?.nickname?.trim() || sourceLabel(row.source),
+        nickname: meta?.nickname ?? null,
+        hidden: meta?.hidden ?? false,
+        closed: meta?.closed ?? false,
         statement_count: stmt?.n ?? 0,
         last_period: stmt?.last_close?.slice(0, 7) ?? null,
         last_txn_date: row.last_txn_date,

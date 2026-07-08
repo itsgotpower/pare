@@ -141,6 +141,7 @@ export const REPO_CATALOGUE: RepoCatalogue = {
   heatmap: { dailySpend: "read" },
   merchants: { list: "read", detail: "read" },
   profile: { dataHealth: "read" },
+  accounts: { list: "read", setMeta: "write" },
   waitlist: { join: "write", count: "read", list: "read" },
   imports: { create: "write", list: "read", delete: "write", watermarks: "read", rowsInWindow: "read" },
 };

@@ -25,12 +25,16 @@ interface ExportTxn {
 }
 
 function exportTransactions(): ExportTxn[] {
+  // Base table + override join, NOT v_transactions: the view excludes hidden
+  // accounts (migration 009), but an export is the user's own data and must
+  // always be complete.
   return getDb()
     .prepare(
-      `SELECT txn_date, source, description, amount, flow,
-              effective_category AS category
-       FROM v_transactions
-       ORDER BY txn_date, source, id`
+      `SELECT t.txn_date, t.source, t.description, t.amount, t.flow,
+              COALESCE(co.new_category, t.category) AS category
+       FROM transactions t
+       LEFT JOIN category_overrides co ON co.transaction_id = t.id
+       ORDER BY t.txn_date, t.source, t.id`
     )
     .all() as ExportTxn[];
 }

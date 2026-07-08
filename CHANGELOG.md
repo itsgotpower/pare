@@ -10,6 +10,14 @@ contracts, on-disk and crypto formats) may change between minor versions — see
 
 ## [Unreleased]
 
+### Added
+
+- **Account management** — each account row in Profile → Data Health gets a
+  MANAGE dialog: nickname it, hide it from every chart and total (data stays
+  in the database and in exports), or mark it closed — history stays, upload
+  nudges stop, and its last balance no longer carries into net worth or the
+  cash-flow forecast ([#110]).
+
 ## [0.3.0] - 2026-07-04
 
 ### Added
@@ -192,3 +200,4 @@ server exposing the local data to MCP clients. Ships open-source repo scaffoldin
 [#71]: https://github.com/itsgotpower/pare/pull/71
 [#72]: https://github.com/itsgotpower/pare/pull/72
 [#73]: https://github.com/itsgotpower/pare/pull/73
+[#110]: https://github.com/itsgotpower/pare/pull/110

@@ -21,6 +21,7 @@ import type {
   HeatmapRepo,
   MerchantRepo,
   ProfileRepo,
+  AccountRepo,
   WaitlistRepo,
   ImportRepo,
 } from "./types";
@@ -81,6 +82,7 @@ import { getBaseline } from "../db/baseline";
 import { getDailySpend } from "../db/heatmap";
 import { getMerchants, getMerchantDetail } from "../db/merchants";
 import { getDataHealth } from "../db/profile";
+import { listAccounts, setAccountMeta } from "../db/accounts";
 import { joinWaitlist, waitlistCount, listWaitlist } from "../db/waitlist";
 import {
   createImport,
@@ -275,6 +277,11 @@ export class SqliteRepo implements Repo {
 
   profile: ProfileRepo = {
     dataHealth: () => this.read(() => getDataHealth()),
+  };
+
+  accounts: AccountRepo = {
+    list: () => this.read(() => listAccounts()),
+    setMeta: (source, meta) => this.write(() => setAccountMeta(source, meta)),
   };
 
   waitlist: WaitlistRepo = {

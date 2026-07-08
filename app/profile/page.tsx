@@ -14,13 +14,16 @@ import {
 } from "@/components/ui/dialog";
 import { PALETTE } from "@/lib/colors";
 import { purgeDataCaches } from "@/lib/purge-data-cache";
-import { LogOut, Pencil, Download, Database, FileJson, CreditCard } from "lucide-react";
+import { LogOut, Pencil, Download, Database, FileJson, CreditCard, Settings2 } from "lucide-react";
 import { IngestInbox } from "@/components/profile/ingest-inbox";
 import { authClient } from "@/lib/auth/client";
 
 interface SourceHealth {
   source: string;
   label: string;
+  nickname: string | null;
+  hidden: boolean;
+  closed: boolean;
   statement_count: number;
   last_period: string | null;
   last_txn_date: string | null;
@@ -122,6 +125,16 @@ export default function ProfilePage() {
   const [wipeOpen, setWipeOpen] = useState(false);
   const [wipeConfirm, setWipeConfirm] = useState("");
   const [wipeError, setWipeError] = useState<string | null>(null);
+
+  // Account management (nickname / hide / mark closed) — one dialog for the
+  // source being managed. Open state is its own boolean (like pwOpen/wipeOpen):
+  // deriving it from manageSource left an empty dialog shell mounted mid-exit.
+  const [manageOpen, setManageOpen] = useState(false);
+  const [manageSource, setManageSource] = useState<SourceHealth | null>(null);
+  const [acctNickname, setAcctNickname] = useState("");
+  const [acctHidden, setAcctHidden] = useState(false);
+  const [acctClosed, setAcctClosed] = useState(false);
+  const [acctError, setAcctError] = useState<string | null>(null);
 
   // Account deletion (hosted mode only — the affordance is hidden in self-host).
   const [hosted, setHosted] = useState(false);
@@ -261,6 +274,47 @@ export default function ProfilePage() {
       }
     } else {
       setPwStatus({ ok: false, msg: data.error || "Failed to change password" });
+    }
+  };
+
+  const openManageAccount = (s: SourceHealth) => {
+    setAcctNickname(s.nickname ?? "");
+    setAcctHidden(s.hidden);
+    setAcctClosed(s.closed);
+    setAcctError(null);
+    setManageSource(s);
+    setManageOpen(true);
+  };
+
+  const handleSaveAccount = async () => {
+    if (!manageSource) return;
+    setAcctError(null);
+    setBusy(true);
+    try {
+      const res = await fetch("/api/accounts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          source: manageSource.source,
+          nickname: acctNickname.trim() || null,
+          hidden: acctHidden,
+          closed: acctClosed,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setAcctError(data.error || "Failed to save");
+        return;
+      }
+      // Hiding/unhiding changes every chart — drop the SW's cached /api/* GETs
+      // so stale data doesn't linger offline-first.
+      await purgeDataCaches();
+      setManageOpen(false);
+      fetchProfile();
+    } catch {
+      setAcctError("Failed to save");
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -557,14 +611,17 @@ export default function ProfilePage() {
         <div>
           {health.sources.map((s, i) => {
             // Quick-added cash rows have no statement feed behind them — there
-            // is nothing to upload, so staleness doesn't apply.
+            // is nothing to upload, so staleness doesn't apply. Closed accounts
+            // are done on purpose — no point nagging for an upload either.
             const isManual = s.source === "manual";
             const stale =
               !isManual &&
+              !s.closed &&
               s.days_since_last !== null &&
               s.days_since_last > STALE_AFTER_DAYS;
             const aging =
               !isManual &&
+              !s.closed &&
               !stale &&
               s.days_since_last !== null &&
               s.days_since_last > WARN_AFTER_DAYS;
@@ -574,9 +631,9 @@ export default function ProfilePage() {
                 key={s.source}
                 className={`flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-2.5 ${
                   i > 0 ? "border-t border-border/50" : ""
-                }`}
+                } ${s.hidden ? "opacity-60" : ""}`}
               >
-                <span className="font-mono text-xs tracking-widest w-24 shrink-0">
+                <span className="font-mono text-xs tracking-widest w-24 shrink-0 truncate" title={s.source}>
                   {s.label}
                 </span>
                 <span className="text-xs text-muted-foreground flex-1 min-w-40">
@@ -609,7 +666,16 @@ export default function ProfilePage() {
                     {monthAbbr(health.coverage_window[health.coverage_window.length - 1])}
                   </span>
                 </span>
-                {stale || aging ? (
+                {s.hidden && (
+                  <span className="font-mono text-[10px] tracking-widest uppercase border border-border px-1.5 py-0.5 text-muted-foreground">
+                    Hidden
+                  </span>
+                )}
+                {s.closed ? (
+                  <span className="font-mono text-[10px] tracking-widest uppercase border border-border px-1.5 py-0.5 text-muted-foreground">
+                    Closed
+                  </span>
+                ) : stale || aging ? (
                   <Link
                     href="/upload"
                     className="font-mono text-[10px] tracking-widest uppercase border px-1.5 py-0.5"
@@ -631,6 +697,13 @@ export default function ProfilePage() {
                       ` · ${s.days_since_last === 0 ? "today" : `${s.days_since_last}d`}`}
                   </span>
                 )}
+                <button
+                  onClick={() => openManageAccount(s)}
+                  aria-label={`Manage ${s.label}`}
+                  className="text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  <Settings2 className="size-3.5" />
+                </button>
               </div>
             );
           })}
@@ -771,6 +844,87 @@ export default function ProfilePage() {
               Update password
             </Button>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={manageOpen} onOpenChange={setManageOpen}>
+        <DialogContent className="rounded-none">
+          <DialogHeader>
+            <DialogTitle className="font-mono text-sm tracking-widest uppercase">
+              Manage account
+            </DialogTitle>
+          </DialogHeader>
+          {manageSource && (
+            <div className="space-y-4 text-sm">
+              <p className="font-mono text-xs tracking-widest uppercase text-muted-foreground">
+                {manageSource.source}
+              </p>
+              <div className="space-y-1.5">
+                <label className={labelClass}>Nickname</label>
+                <Input
+                  value={acctNickname}
+                  onChange={(e) => setAcctNickname(e.target.value)}
+                  placeholder={manageSource.label}
+                  maxLength={40}
+                  className="rounded-none font-mono"
+                />
+                <p className="text-[11px] text-muted-foreground">
+                  Shown instead of the derived name. Leave empty to reset.
+                </p>
+              </div>
+              <button
+                onClick={() => setAcctHidden((v) => !v)}
+                className="flex w-full items-start gap-3 border border-border px-3 py-2.5 text-left hover:bg-accent/50 transition-colors"
+                aria-pressed={acctHidden}
+              >
+                <span
+                  className={`mt-0.5 size-3 shrink-0 border border-foreground ${
+                    acctHidden ? "bg-foreground" : "bg-transparent"
+                  }`}
+                />
+                <span>
+                  <span className="block font-mono text-[10px] tracking-widest uppercase">
+                    Hide from charts
+                  </span>
+                  <span className="block text-[11px] text-muted-foreground">
+                    Excluded from every chart, total, and list. Data stays in
+                    the database and in exports.
+                  </span>
+                </span>
+              </button>
+              <button
+                onClick={() => setAcctClosed((v) => !v)}
+                className="flex w-full items-start gap-3 border border-border px-3 py-2.5 text-left hover:bg-accent/50 transition-colors"
+                aria-pressed={acctClosed}
+              >
+                <span
+                  className={`mt-0.5 size-3 shrink-0 border border-foreground ${
+                    acctClosed ? "bg-foreground" : "bg-transparent"
+                  }`}
+                />
+                <span>
+                  <span className="block font-mono text-[10px] tracking-widest uppercase">
+                    Mark closed
+                  </span>
+                  <span className="block text-[11px] text-muted-foreground">
+                    History stays in the charts; upload nudges stop, and its
+                    last balance no longer carries into net worth or the
+                    forecast.
+                  </span>
+                </span>
+              </button>
+              {acctError && (
+                <p className="font-mono text-xs text-destructive">{acctError}</p>
+              )}
+              <Button
+                disabled={busy}
+                onClick={handleSaveAccount}
+                className="rounded-none font-mono text-xs tracking-widest uppercase"
+              >
+                Save
+              </Button>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 

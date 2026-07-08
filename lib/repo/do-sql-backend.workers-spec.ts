@@ -4,6 +4,7 @@ import { SqliteRepo } from "./sqlite-repo";
 import { DoSqlBackend } from "./do-sql-backend";
 import { runMigrationsOnDoSql } from "./do-sql-backend";
 import { DoSqlDatabase, type DoStorageWithSql } from "./do-sql-adapter";
+import { MIGRATIONS } from "../db/migrations";
 
 // These tests run INSIDE workerd (via @cloudflare/vitest-pool-workers), so
 // `ctx.storage.sql` is Cloudflare's REAL native SQLite — exactly the surface the
@@ -68,7 +69,9 @@ describe("DoSqlBackend over real ctx.storage.sql (workerd)", () => {
       runMigrationsOnDoSql(db);
       const after = db.prepare("SELECT COUNT(*) c FROM _migrations").get<{ c: number }>()!;
       expect(after.c).toBe(before.c);
-      expect(before.c).toBe(8);
+      // Derived, so a new migration can't rot this assertion (the old
+      // hardcoded count broke on every schema addition).
+      expect(before.c).toBe(MIGRATIONS.length);
     });
   });
 
