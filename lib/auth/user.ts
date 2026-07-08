@@ -65,7 +65,11 @@ export function updateDisplayName(displayName: string): void {
     .run(displayName);
 }
 
-export function changePassword(newPassword: string): void {
+// Returns whether outstanding sessions were actually invalidated: true in file
+// mode (the signing secret rotated), false under an env secret (nothing the app
+// can rotate — the operator must change PARE_AUTH_SECRET and restart). The
+// caller re-issues its own cookie and surfaces this to the user.
+export function changePassword(newPassword: string): boolean {
   getDb()
     .prepare(
       `UPDATE app_user
@@ -73,6 +77,5 @@ export function changePassword(newPassword: string): void {
        WHERE id = 1`
     )
     .run(hashPassword(newPassword));
-  // Invalidate every outstanding session cookie; caller issues a fresh one.
-  rotateSecret();
+  return rotateSecret();
 }

@@ -68,6 +68,73 @@ export interface SimplefinAccountSet {
 
 // --- Access-URL handling ----------------------------------------------------
 
+// SSRF guard. The claim URL (from the setup token) and the access-URL base are
+// BOTH user-supplied, so a bare `https://` check would let a caller aim Pare's
+// server-side fetch at internal hosts — cloud metadata endpoints
+// (169.254.169.254), LAN services, loopback. We reject https URLs whose host is
+// an IP literal in a private/loopback/link-local/reserved range, or an obviously
+// internal name (localhost, *.local, single-label host with no dot). Paired with
+// `redirect: "error"` on the fetches (so an allowed host can't 3xx-bounce to a
+// blocked one), this closes the direct and redirect SSRF vectors.
+//
+// NOT caught: a PUBLIC hostname that resolves to a private IP (DNS rebinding) —
+// the Workers/undici fetch can't resolve-then-pin the connection. That needs
+// attacker-controlled DNS and is materially harder than the vectors closed here;
+// a fuller fix would resolve the host and connect to the pinned public IP.
+function isBlockedHost(hostname: string): boolean {
+  // Strip IPv6 brackets AND a trailing FQDN dot: `localhost.` / `10.0.0.1.`
+  // resolve identically to the un-dotted form, so they must normalize the same
+  // way here or they slip past the checks below.
+  const h = hostname.toLowerCase().replace(/^\[|\]$/g, "").replace(/\.$/, "");
+  if (h === "localhost" || h.endsWith(".localhost") || h.endsWith(".local")) return true;
+
+  const v4 = h.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+  if (v4) {
+    const o = v4.slice(1).map(Number);
+    if (o.some((n) => n > 255)) return true; // malformed octet → block
+    const [a, b] = o;
+    if (a === 0 || a === 127) return true; // 0.0.0.0/8, loopback
+    if (a === 10) return true; // private
+    if (a === 172 && b >= 16 && b <= 31) return true; // private
+    if (a === 192 && b === 168) return true; // private
+    if (a === 169 && b === 254) return true; // link-local incl. cloud metadata
+    if (a === 100 && b >= 64 && b <= 127) return true; // CGNAT 100.64/10
+    if (a >= 224) return true; // multicast / reserved
+    return false;
+  }
+
+  if (h.includes(":")) {
+    // IPv6 literal. ALLOWLIST, not blocklist: permit only global-unicast
+    // 2000::/3 (first hextet 0x2000–0x3fff, i.e. the address begins with "2" or
+    // "3") and block everything else. A blocklist can't reliably catch the
+    // compressed/embedded forms — new URL() renders `::127.0.0.1` as `::7f00:1`
+    // and `::ffff:1.2.3.4` as `::ffff:102:304`, so string-prefix checks miss
+    // loopback/mapped embeddings. The allowlist blocks ::1, ::, fe80::, fc00::/7,
+    // ff00::/8, IPv4-mapped, and every IPv4-in-IPv6 embedding in one rule.
+    return !/^[23]/.test(h);
+  }
+
+  // Single-label host with no dot (e.g. an internal service name like "bridge").
+  if (!h.includes(".")) return true;
+  return false;
+}
+
+// Parse + validate a user-supplied URL as a public https endpoint. Throws on a
+// non-https scheme or a blocked/internal host. Returns the parsed URL.
+export function assertPublicHttpsUrl(raw: string): URL {
+  let u: URL;
+  try {
+    u = new URL(raw);
+  } catch {
+    throw new Error("Invalid URL.");
+  }
+  if (u.protocol !== "https:") throw new Error("URL must be https.");
+  if (isBlockedHost(u.hostname)) {
+    throw new Error("URL host is not permitted (private or internal address).");
+  }
+  return u;
+}
+
 // The setup token is base64 of the claim URL. Whitespace-tolerant (users paste
 // from a copy button, but also from PDFs/emails that wrap lines).
 export function decodeSetupToken(token: string): string {
@@ -81,6 +148,7 @@ export function decodeSetupToken(token: string): string {
   if (!/^https:\/\//i.test(url)) {
     throw new Error("Setup token did not decode to an https claim URL.");
   }
+  assertPublicHttpsUrl(url); // SSRF guard: reject internal/private claim hosts
   return url;
 }
 
@@ -102,6 +170,11 @@ export function splitAccessUrl(accessUrl: string): {
 } {
   const u = new URL(accessUrl);
   if (u.protocol !== "https:") throw new Error("Access URL must be https.");
+  if (isBlockedHost(u.hostname)) {
+    // SSRF guard: the access URL comes back from the claim server's response
+    // body, so a malicious claim host could return an internal target here.
+    throw new Error("Access URL host is not permitted (private or internal address).");
+  }
   if (!u.username) throw new Error("Access URL is missing credentials.");
   const auth = Buffer.from(
     `${decodeURIComponent(u.username)}:${decodeURIComponent(u.password)}`
@@ -125,6 +198,10 @@ export async function claimAccessUrl(
   const res = await fetchImpl(claimUrl, {
     method: "POST",
     headers: { "Content-Length": "0" },
+    // Reject rather than follow redirects: the SimpleFIN claim is a direct 200,
+    // so a 3xx here would only be an attempt to bounce a validated host to an
+    // unvalidated (possibly internal) one. Same on the /accounts GET below.
+    redirect: "error",
   });
   if (res.status === 403) {
     throw new Error(
@@ -174,6 +251,7 @@ export async function fetchSimplefinAccounts(
 
   const res = await fetchImpl(`${base}/accounts${qs ? `?${qs}` : ""}`, {
     headers: { Authorization: authHeader },
+    redirect: "error", // SSRF guard — see claimAccessUrl
   });
   if (res.status === 403) {
     throw new Error(

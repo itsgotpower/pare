@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { ShieldCheck, Lock, KeyRound } from "lucide-react";
 import { authClient } from "@/lib/auth/client";
 import { Turnstile, turnstileConfigured } from "@/components/turnstile";
+import { purgeDataCaches } from "@/lib/purge-data-cache";
 
 // In-app redirect target from ?from=. Only follow same-app paths — never an
 // absolute URL from the query string. Default to /dashboard (the app entry);
@@ -76,6 +77,14 @@ function LoginForm() {
   const [mode, setMode] = useState<"loading" | "self" | "hosted">("loading");
   const [configured, setConfigured] = useState<boolean | null>(null);
   const [googleEnabled, setGoogleEnabled] = useState(false);
+
+  // The login page is the choke point every signed-out state passes through
+  // (explicit logout, session expiry, a forged/expired cookie bounced here).
+  // Purge the SW's per-user data cache on arrival so no prior tenant's cached
+  // financial PII survives into the next sign-in on a shared browser.
+  useEffect(() => {
+    void purgeDataCaches();
+  }, []);
 
   useEffect(() => {
     fetch("/api/auth")

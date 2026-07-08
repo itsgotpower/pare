@@ -13,6 +13,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { PALETTE } from "@/lib/colors";
+import { purgeDataCaches } from "@/lib/purge-data-cache";
 import { LogOut, Pencil, Download, Database, FileJson, CreditCard } from "lucide-react";
 import { IngestInbox } from "@/components/profile/ingest-inbox";
 import { authClient } from "@/lib/auth/client";
@@ -244,8 +245,20 @@ export default function ProfilePage() {
       setCurrentPw("");
       setNewPw("");
       setConfirmPw("");
-      setPwOpen(false);
       fetchProfile();
+      // Under an env-var signing secret (PARE_AUTH_SECRET), the server can't
+      // revoke other sessions on its own — warn the user and keep the dialog
+      // open so they see it. In file-secret mode every other session is already
+      // dead, so just close.
+      if (data.sessionsInvalidated === false) {
+        setPwStatus({
+          ok: true,
+          msg: "Password changed. Other signed-in sessions stay valid until you rotate PARE_AUTH_SECRET and restart the server.",
+        });
+      } else {
+        setPwStatus(null);
+        setPwOpen(false);
+      }
     } else {
       setPwStatus({ ok: false, msg: data.error || "Failed to change password" });
     }
@@ -301,6 +314,10 @@ export default function ProfilePage() {
       authClient.signOut(),
       post({ action: "logout" }),
     ]);
+    // Now that the session is actually gone, evict this session's cached
+    // financial data from the SW data cache before the next user can sign in on
+    // the same browser (see lib/purge-data-cache).
+    await purgeDataCaches();
     router.replace("/login");
     router.refresh();
   };
@@ -740,6 +757,11 @@ export default function ProfilePage() {
             </div>
             {pwStatus && !pwStatus.ok && (
               <p className="font-mono text-xs text-destructive">{pwStatus.msg}</p>
+            )}
+            {pwStatus && pwStatus.ok && (
+              <p className="font-mono text-xs text-amber-600 dark:text-amber-500">
+                {pwStatus.msg}
+              </p>
             )}
             <Button
               type="submit"

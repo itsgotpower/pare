@@ -23,8 +23,13 @@ import {
 //      for local Node-only use; the Edge middleware cannot see it, so without (1)
 //      the middleware treats every request as signed-out.
 //
-// Either way the secret is rotated on password change (file mode) — see
-// rotateSecret — which invalidates every outstanding cookie at once.
+// The secret is rotated on password change in FILE mode — see rotateSecret —
+// which invalidates every outstanding cookie at once. Under an ENV secret there
+// is nothing the app can rotate (the value is externally managed and the Edge
+// middleware, which can't read the DB or a file, verifies against it), so a
+// password change does NOT auto-invalidate other sessions: the operator must
+// rotate PARE_AUTH_SECRET and restart. rotateSecret returns which case applied
+// so the change-password handler can tell the user the truth.
 
 const SECRET_PATH = process.env.PARE_DB_PATH
   ? path.join(path.dirname(process.env.PARE_DB_PATH), "auth-secret")
@@ -72,13 +77,15 @@ function ensureSecret(): string {
   return secret;
 }
 
-// Rotate the file secret, killing every outstanding session. A no-op when an
-// env secret is in force (it's externally managed — rotate it by changing the
-// env var and restarting); we still rewrite the file so file-mode deployments
-// keep their invalidate-on-password-change behavior.
-export function rotateSecret(): void {
-  if (envSecret()) return;
+// Rotate the file secret, killing every outstanding session. Returns true when
+// rotation actually happened (file mode). Returns FALSE — a no-op — when an env
+// secret is in force: it's externally managed, so outstanding sessions survive
+// until the operator changes PARE_AUTH_SECRET and restarts. Callers use the
+// return value to tell the user whether other sessions were actually revoked.
+export function rotateSecret(): boolean {
+  if (envSecret()) return false;
   writeSecretFile(randomHex(32));
+  return true;
 }
 
 // Token format: <expiresAtMs>.<nonce>.<hmac(expiresAtMs.nonce)>. Async because
