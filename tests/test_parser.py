@@ -13,6 +13,8 @@ These guard the bugs fixed during development:
   - Amex closing-date period + Dec→prior-year inference
   - the PHO / PAYBYPHONE substring collision
 """
+import contextlib
+import io
 import os
 import sys
 import unittest
@@ -711,6 +713,77 @@ class TestVerifyScaffolds(unittest.TestCase):
         r = V.verify(rows, meta, TD_VISA)
         self.assertFalse(r.ok)
         self.assertEqual(r.method, "card_balance")
+
+
+class TestReportCli(unittest.TestCase):
+    """The `--report <file.pdf>` tuning CLI (P.report): one statement in, a
+    human-readable routing + reconciliation summary out. Exit code 0 when a
+    parser matched, 1 when none did (with the first pdftotext lines echoed so
+    a contributor can pick detector markers)."""
+
+    def _report(self, fixture):
+        buf = io.StringIO()
+        with mock.patch.object(P, "text", return_value=fixture):
+            with contextlib.redirect_stdout(buf):
+                code = P.report("dummy.pdf")
+        return code, buf.getvalue()
+
+    def test_ledger_scaffold_report(self):
+        code, out = self._report(RBC_CHEQUING)
+        self.assertEqual(code, 0)
+        self.assertIn("rbc_chequing (scaffold", out)
+        self.assertIn("LEDGER RECONCILIATION", out)
+        self.assertIn("unreconciled rows", out)
+        self.assertIn("ROWS       3", out)
+        for flow in ("income", "transfer", "spend"):
+            self.assertIn(flow, out)
+        self.assertIn("2026-10-03 .. 2026-10-12", out)
+        self.assertIn("ok=True method=running_balance", out)
+
+    def test_builtin_ledger_report(self):
+        code, out = self._report(CIBC_CHEQUING)
+        self.assertEqual(code, 0)
+        self.assertIn("cibc_chequing (builtin", out)
+        self.assertIn("ok=True method=running_balance", out)
+
+    def test_card_report_with_verify(self):
+        # RBC's fixture carries both balance anchors -> the verify identity runs.
+        code, out = self._report(RBC_VISA)
+        self.assertEqual(code, 0)
+        self.assertIn("rbc_visa (scaffold", out)
+        self.assertIn("ok=True method=card_balance", out)
+        self.assertNotIn("WARNING", out)
+
+    def test_builtin_card_report(self):
+        code, out = self._report(AMEX)
+        self.assertEqual(code, 0)
+        self.assertIn("amex (builtin", out)
+        self.assertIn("ok=True method=card_balance", out)
+
+    def test_card_report_without_opening_warns(self):
+        # TD's fixture has no previous-balance line -> no checksum available;
+        # the report must say so explicitly instead of implying a pass.
+        code, out = self._report(TD_VISA)
+        self.assertEqual(code, 0)
+        self.assertIn("td_visa (scaffold", out)
+        self.assertIn("cards have no checksum", out)
+        self.assertNotIn("ok=", out)
+
+    def test_unrecognized_exits_1_and_echoes_text(self):
+        fixture = "Some Unknown Bank\nStatement of account\nLine three"
+        code, out = self._report(fixture)
+        self.assertEqual(code, 1)
+        self.assertIn("none matched", out)
+        # The first pdftotext lines are echoed so markers can be picked.
+        self.assertIn("  | Some Unknown Bank", out)
+        self.assertIn("  | Line three", out)
+
+    def test_unrecognized_echo_is_capped(self):
+        fixture = "\n".join(f"filler line {i}" for i in range(40))
+        code, out = self._report(fixture)
+        self.assertEqual(code, 1)
+        self.assertIn("filler line 14", out)
+        self.assertNotIn("filler line 15", out)
 
 
 if __name__ == "__main__":

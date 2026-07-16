@@ -2,6 +2,13 @@
 
 Usage:
     python lib/parser/parse_statements.py /path/to/statements_dir out.csv
+    python lib/parser/parse_statements.py /path/to/statements_dir --json
+    python lib/parser/parse_statements.py --report /path/to/one_statement.pdf
+
+`--report` is the parser-tuning loop: it routes ONE statement, prints the
+selected parser, metadata, per-flow row counts, and the reconciliation /
+verify signal (see docs/parser-contributions.md). Exit 0 = parsed, 1 = no
+parser matched (the first pdftotext lines are printed to pick markers from).
 
 Output columns: source, account, period, txn_date, description, amount, category, flow
   - source: 'amex' | 'cibc_visa' | 'cibc_chequing' | 'rbc_visa' | 'rbc_chequing' | …
@@ -864,6 +871,105 @@ def statement_meta(path):
     return None
 
 
+def _fmt_money(v):
+    return f"{v:,.2f}" if v is not None else "(not captured)"
+
+
+def report(path):
+    """Single-statement parse report — the tuning loop for `--report <file.pdf>`.
+
+    Prints a human-readable summary to stdout: the selected parser (id + origin
+    via registry.select), statement metadata, per-flow row counts, first/last
+    transaction dates, and the correctness signal — the ledger_report
+    reconciliation for ledger sources (headline: unreconciled must be 0) or the
+    verify.py balance identity for cards. Read-only; never writes CSV/JSON.
+    Returns the process exit code: 0 parsed, 1 unrecognized/unreadable.
+    """
+    import registry
+    registry.register_builtins(sys.modules[__name__])
+    registry.register_scaffolds(sys.modules[__name__])
+    import verify as verify_mod
+
+    try:
+        t = text(path)
+    except RuntimeError as e:
+        print(f"ERROR      {e}")
+        return 1
+
+    print(f"FILE       {os.path.basename(path)}")
+    parser = registry.select(t)
+    if parser is None:
+        print("PARSER     none matched")
+        print()
+        print("No registered parser recognised this statement. The first lines of")
+        print("the pdftotext output are below — pick brand/shape markers for a")
+        print("detector from these (see docs/parser-contributions.md):")
+        print()
+        for ln in t.splitlines()[:15]:
+            print(f"  | {ln}")
+        return 1
+
+    rows = parser.parse(path)
+    meta = (parser.meta(path) if parser.meta is not None
+            else statement_meta(path)) or {}
+    opening = meta.get('opening_balance')
+    closing = meta.get('closing_balance')
+
+    print(f"PARSER     {parser.id} ({parser.origin}, priority {parser.priority})")
+    print(f"ACCOUNT    {meta.get('account', '?')}")
+    print(f"PERIOD     {meta.get('period', '?')}")
+    print(f"OPENING    {_fmt_money(opening)}")
+    closing_s = _fmt_money(closing)
+    if meta.get('closing_date'):
+        closing_s += f" on {meta['closing_date']}"
+    print(f"CLOSING    {closing_s}")
+
+    flows = {}
+    for r in rows:
+        flows[r[7]] = flows.get(r[7], 0) + 1
+    print(f"ROWS       {len(rows)}")
+    for flow in ('spend', 'payment', 'income', 'transfer', 'fee_interest'):
+        if flow in flows:
+            print(f"  {flow:<13}{flows[flow]}")
+    dates = sorted(r[3] for r in rows if r[3])
+    if dates:
+        print(f"DATES      {dates[0]} .. {dates[-1]}")
+    print()
+
+    profile = LEDGER_PROFILES.get(parser.id)
+    if profile is not None:
+        # Ledger source: tie the parse to the printed summary box. The headline
+        # tuning signal is `unreconciled` — every skipped row is also logged to
+        # stderr by the parse above with its prev/amount/balance triple.
+        rep = ledger_report(path, profile)
+        s = rep['summary']
+        flag = "   <-- skipped rows; see stderr for each" if rep['unreconciled'] else ""
+        print("LEDGER RECONCILIATION  (tuning target: unreconciled = 0)")
+        print(f"  unreconciled rows {rep['unreconciled']:>12}{flag}")
+        print(f"  parsed inflow     {_fmt_money(rep['parsed_inflow']):>12}"
+              f"   summary deposits    {_fmt_money(s['deposits']):>12}")
+        print(f"  parsed outflow    {_fmt_money(rep['parsed_outflow']):>12}"
+              f"   summary withdrawals {_fmt_money(s['withdrawals']):>12}")
+        print(f"  parsed closing    {_fmt_money(rep['parsed_closing']):>12}"
+              f"   summary closing     {_fmt_money(s['closing']):>12}")
+        res = verify_mod.verify(rows, meta, t)
+        print(f"VERIFY     ok={res.ok} method={res.method} "
+              f"confidence={res.confidence} residual={res.residual:+.2f}")
+    elif opening is not None and closing is not None:
+        # Card source with both balance anchors captured: the one checksum a
+        # card statement has (charges - credits == closing - opening).
+        res = verify_mod.verify(rows, meta, t)
+        print(f"VERIFY     ok={res.ok} method={res.method} "
+              f"confidence={res.confidence} residual={res.residual:+.2f}")
+        print("           identity: charges - credits == closing - opening")
+    else:
+        missing = 'opening' if opening is None else 'closing'
+        print(f"WARNING    cards have no checksum, and the {missing} balance was")
+        print("           not captured — compare the row count and total against")
+        print("           the printed statement before trusting this parse.")
+    return 0
+
+
 def main(src_dir, out_csv):
     # Routing lives in the registry (registry.py) and is driven by the
     # orchestrator (orchestrator.py) — Phase 1 of the self-improving parser.
@@ -906,5 +1012,10 @@ def main(src_dir, out_csv):
 
 
 if __name__ == '__main__':
+    if len(sys.argv) > 1 and sys.argv[1] == '--report':
+        if len(sys.argv) < 3:
+            sys.stderr.write("usage: parse_statements.py --report <statement.pdf>\n")
+            sys.exit(2)
+        sys.exit(report(sys.argv[2]))
     main(sys.argv[1] if len(sys.argv) > 1 else '.',
          sys.argv[2] if len(sys.argv) > 2 else 'transactions.csv')
