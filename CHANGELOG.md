@@ -21,6 +21,13 @@ contracts, on-disk and crypto formats) may change between minor versions — see
   opens a dialog to send a bug report, idea, or note. On the hosted app it
   submits in place (with an optional reply email); self-host installs get a
   GitHub-issues link instead, so feedback never phones home ([#111]).
+- **Remote MCP connector (hosted)** — connect Claude to your Pare data with
+  one URL, no terminal: claude.ai → Settings → Connectors →
+  `https://pare.money/api/mcp` → sign in → consent. OAuth 2.1 (dynamic client
+  registration + PKCE) with a mandatory consent screen; all 18 MCP tools,
+  scoped to your account, per-user rate-limited. `/connect` on the hosted app
+  becomes the ADD TO CLAUDE walkthrough. Self-host keeps the fully local
+  stdio server, unchanged ([#112]).
 
 ## [0.3.0] - 2026-07-04
 
@@ -206,3 +213,4 @@ server exposing the local data to MCP clients. Ships open-source repo scaffoldin
 [#73]: https://github.com/itsgotpower/pare/pull/73
 [#110]: https://github.com/itsgotpower/pare/pull/110
 [#111]: https://github.com/itsgotpower/pare/pull/111
+[#112]: https://github.com/itsgotpower/pare/pull/112
