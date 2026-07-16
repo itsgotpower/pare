@@ -73,7 +73,7 @@ export function getForecast(now: Date = new Date()): Forecast | null {
     .prepare(
       `SELECT effective_category AS category, SUM(amount) AS total,
               MAX(CAST(substr(txn_date, 9, 2) AS INTEGER)) AS lastDay
-       FROM v_transactions
+       FROM v_category_slices
        WHERE ${EXPENSE_WHERE} AND substr(txn_date, 1, 7) = @month
          AND effective_category NOT IN ${FIXED_CATEGORIES}
          AND NOT (account_kind = 'chequing' AND flow = 'fee_interest')
@@ -94,7 +94,7 @@ export function getForecast(now: Date = new Date()): Forecast | null {
     const typicalRows = db
       .prepare(
         `SELECT effective_category AS category, SUM(amount) / ${basisMonths.length}.0 AS typical
-         FROM v_transactions
+         FROM v_category_slices
          WHERE ${EXPENSE_WHERE} AND substr(txn_date, 1, 7) IN (${basisList})
            AND effective_category NOT IN ${FIXED_CATEGORIES}
            AND NOT (account_kind = 'chequing' AND flow = 'fee_interest')

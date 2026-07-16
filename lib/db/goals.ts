@@ -53,7 +53,7 @@ export function getCategoryAverages(): CategoryAverage[] {
               AVG(monthly_total) AS avg_monthly
        FROM (
          SELECT effective_category, substr(txn_date, 1, 7) AS month, SUM(amount) AS monthly_total
-         FROM v_transactions
+         FROM v_category_slices
          WHERE ${SPEND_WHERE}
          GROUP BY effective_category, month
        )
@@ -90,7 +90,7 @@ export function getCurrentProgress(): GoalProgress[] {
            ELSE 0
          END AS percentage
        FROM spending_goals g
-       LEFT JOIN v_transactions v
+       LEFT JOIN v_category_slices v
          ON v.effective_category = g.category
          AND v.flow = 'spend'
          AND v.account_kind = 'card'

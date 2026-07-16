@@ -18,6 +18,7 @@ import type {
 } from "../db/transactions";
 import type { StatementRow } from "../db/statements";
 import type { CategoryRule } from "../db/categories";
+import type { SplitRow, SplitPart } from "../db/splits";
 import type { SpendingGoal, GoalProgress } from "../db/goals";
 import type { ManualEntry, NetWorthData } from "../db/networth";
 import type {
@@ -58,6 +59,8 @@ export type {
   ManualTransactionInput,
   StatementRow,
   CategoryRule,
+  SplitRow,
+  SplitPart,
   SpendingGoal,
   GoalProgress,
   ManualEntry,
@@ -199,6 +202,20 @@ export interface CategoryRepo {
   uncategorizedCount(): Promise<number>;
   // Rule suggestions derived from recorded manual overrides.
   ruleSuggestions(): Promise<RuleSuggestion[]>;
+  // Bulk single-category assign: one override per id (original_category =
+  // stored base, resolved server-side). Missing rows and SPLIT rows are
+  // skipped, never clobbered. Max 500 ids per call.
+  bulkOverride(ids: number[], category: string): Promise<{ updated: number; skipped: number }>;
+}
+
+// Split transactions (lib/db/splits.ts): >= 2 category parts summing to the
+// parent spend amount. set() validates and replaces atomically (clearing any
+// whole-row override — splits and overrides are mutually exclusive); clear()
+// reverts the row to its base/override category.
+export interface SplitsRepo {
+  list(transactionId: number): Promise<SplitRow[]>;
+  set(transactionId: number, parts: SplitPart[]): Promise<void>;
+  clear(transactionId: number): Promise<void>;
 }
 
 // A category's average monthly card spend over the data window — the basis for
@@ -331,6 +348,7 @@ export interface Repo {
   transactions: TransactionRepo;
   statements: StatementRepo;
   categories: CategoryRepo;
+  splits: SplitsRepo;
   goals: GoalRepo;
   netWorth: NetWorthRepo;
   summary: SummaryRepo;

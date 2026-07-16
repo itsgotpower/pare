@@ -120,8 +120,11 @@ export function getMonthReview(month?: string): MonthReview {
   // `spend` (rent + chequing debits included, not card-only).
   const topCategories = db
     .prepare(
-      `SELECT effective_category AS category, SUM(amount) AS total, COUNT(*) AS count
-       FROM v_transactions
+      // Slice view + DISTINCT parent count: a split transaction spreads its
+      // dollars across categories but stays ONE transaction in txnCount.
+      `SELECT effective_category AS category, SUM(amount) AS total,
+              COUNT(DISTINCT transaction_id) AS count
+       FROM v_category_slices
        WHERE ${OUTFLOW_WHERE} AND substr(txn_date, 1, 7) = @month
        GROUP BY category
        ORDER BY total DESC`
