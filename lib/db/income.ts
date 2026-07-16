@@ -92,7 +92,7 @@ export function getIncomeVsSpend(): IncomeVsSpend[] {
              ELSE 'variable'
            END AS etype,
            amount
-         FROM v_transactions
+         FROM v_category_slices
          WHERE ${OUTFLOW_WHERE}
        ),
        fix AS (

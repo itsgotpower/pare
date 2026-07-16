@@ -56,11 +56,15 @@ describe("DoSqlBackend over real ctx.storage.sql (workerd)", () => {
         "manual_entries",
         "waitlist",
         "imports",
+        "transaction_splits",
       ]) {
         expect(byName.get(t), `table ${t} created`).toBe("table");
       }
       // The documented unknown #2: CREATE VIEW works on DO SQLite.
       expect(byName.get("v_transactions"), "v_transactions VIEW created on DO SQLite").toBe(
+        "view"
+      );
+      expect(byName.get("v_category_slices"), "v_category_slices VIEW created on DO SQLite").toBe(
         "view"
       );
 

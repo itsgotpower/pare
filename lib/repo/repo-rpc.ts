@@ -113,7 +113,9 @@ export const REPO_CATALOGUE: RepoCatalogue = {
     importRules: "write",
     uncategorizedCount: "read",
     ruleSuggestions: "read",
+    bulkOverride: "write",
   },
+  splits: { list: "read", set: "write", clear: "write" },
   goals: {
     list: "read",
     upsert: "write",

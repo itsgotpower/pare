@@ -16,6 +16,7 @@ export interface TransactionRow {
   flow: string;
   effective_category: string;
   has_override: number;
+  has_splits: number;
   dedup_key: string;
   created_at: string;
 }
@@ -173,8 +174,9 @@ export function deleteManualTransaction(id: number): { deleted: number } {
       | { source: string }
       | undefined;
     if (!row || row.source !== MANUAL_SOURCE) return 0;
-    // Override first — it carries a FK to transactions(id).
+    // Children first — both carry a FK to transactions(id).
     db.prepare("DELETE FROM category_overrides WHERE transaction_id = ?").run(id);
+    db.prepare("DELETE FROM transaction_splits WHERE transaction_id = ?").run(id);
     return db.prepare("DELETE FROM transactions WHERE id = ?").run(id).changes;
   });
   return { deleted: tx() };
@@ -197,7 +199,14 @@ export function listTransactions(filters: TransactionFilters = {}): {
   const params: Record<string, string | number> = {};
 
   if (filters.category) {
-    conditions.push("effective_category = @category");
+    // Via the slice view so a split parent matches when ANY of its parts is in
+    // the category (unsplit rows appear whole in the view, so this is exactly
+    // the old effective_category = @category for them).
+    conditions.push(
+      `EXISTS(SELECT 1 FROM v_category_slices s
+              WHERE s.transaction_id = v_transactions.id
+                AND s.effective_category = @category)`
+    );
     params.category = filters.category;
   }
   if (filters.source) {
@@ -234,7 +243,8 @@ export function listTransactions(filters: TransactionFilters = {}): {
   const rows = db
     .prepare(
       `SELECT *,
-         EXISTS(SELECT 1 FROM category_overrides co WHERE co.transaction_id = v_transactions.id) AS has_override
+         EXISTS(SELECT 1 FROM category_overrides co WHERE co.transaction_id = v_transactions.id) AS has_override,
+         EXISTS(SELECT 1 FROM transaction_splits ts WHERE ts.transaction_id = v_transactions.id) AS has_splits
        FROM v_transactions ${where} ORDER BY txn_date DESC, id DESC LIMIT @limit OFFSET @offset`
     )
     .all({ ...params, limit, offset }) as TransactionRow[];
@@ -244,9 +254,11 @@ export function listTransactions(filters: TransactionFilters = {}): {
 
 export function getCategories(): string[] {
   const db = getDb();
+  // Slice view, not v_transactions: a category that only exists as a split
+  // part must still show up in filter dropdowns and category pickers.
   const rows = db
     .prepare(
-      "SELECT DISTINCT effective_category FROM v_transactions WHERE flow = 'spend' ORDER BY effective_category"
+      "SELECT DISTINCT effective_category FROM v_category_slices WHERE flow = 'spend' ORDER BY effective_category"
     )
     .all() as { effective_category: string }[];
   return rows.map((r) => r.effective_category);
