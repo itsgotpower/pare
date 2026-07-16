@@ -479,15 +479,18 @@ def chequing_report(path):
 def _ledger_meta(path, profile):
     """Closing balance + date for a ledger statement. Prefers the summary-box
     closing value; falls back to the last reconciled running balance (same chain
-    as `ledger_report`)."""
+    as `ledger_report`). Also captures the opening balance (verify.py anchors
+    on it; None when the anchor missed)."""
     t = text(path)
     m = re.search(profile.closing_rx, t)
+    om = re.search(profile.opening_rx, t)
     period, txns = _walk_ledger(path, profile)
     reconciled = [x for x in txns if x['direction'] != 'unreconciled']
     closing = _money(m.group(1)) if m else (
         reconciled[-1]['balance'] if reconciled else None)
     return {'source': profile.source, 'account': profile.account, 'period': period,
-            'closing_balance': closing, 'closing_date': period_end(period)}
+            'closing_balance': closing, 'closing_date': period_end(period),
+            'opening_balance': _money(om.group(1)) if om else None}
 
 
 # ===========================================================================
@@ -518,7 +521,8 @@ class CardProfile:
     """
 
     def __init__(self, source, account, *, period_rx, balance_rx,
-                 start_rx=None, stop_rx=None, row_rx=CARD_ROW_RX):
+                 start_rx=None, stop_rx=None, row_rx=CARD_ROW_RX,
+                 opening_rx=r'PREVIOUS (?:STATEMENT )?BALANCE[^\n]*?' + _MONEY_SIGNED):
         self.source = source
         self.account = account
         self.period_rx = period_rx
@@ -526,6 +530,7 @@ class CardProfile:
         self.start_rx = start_rx
         self.stop_rx = stop_rx
         self.row_rx = row_rx
+        self.opening_rx = opening_rx    # opening (previous) balance — verify.py's card identity
 
 
 def _card_period(t, profile):
@@ -574,8 +579,13 @@ def _card_meta(path, profile):
     period = _card_period(t, profile)
     m = re.search(profile.balance_rx, t, re.I)
     closing = _money(m.group(1)) if m else None
+    # Opening (previous) balance: with both balances captured, verify.py can
+    # check the card identity (charges - credits == closing - opening) — the
+    # only checksum a card statement has. None when the anchor missed.
+    om = re.search(profile.opening_rx, t, re.I) if profile.opening_rx else None
     return {'source': profile.source, 'account': profile.account, 'period': period,
-            'closing_balance': closing, 'closing_date': period_end(period)}
+            'closing_balance': closing, 'closing_date': period_end(period),
+            'opening_balance': _money(om.group(1)) if om else None}
 
 
 # ===========================================================================
@@ -652,6 +662,18 @@ BMO_CARD = CardProfile(
     period_rx=r'(?:statement period|period covered)[^\n]*?to\s+([A-Z][a-z]+\s+\d{1,2},\s*\d{4})',
     balance_rx=r'(?:NEW BALANCE|TOTAL BALANCE)[^\n]*?' + _MONEY_SIGNED,
 )
+
+
+# Source -> profile lookups over the engine-backed parsers. verify.py routes on
+# these (any ledger source gets the running-balance re-walk, any card-engine
+# source gets the balance-identity check), and the --report CLI uses them to
+# pick the right reconciliation output. The bespoke Amex / CIBC Visa parsers are
+# deliberately absent from CARD_PROFILES (verify.py routes them by name).
+LEDGER_PROFILES = {p.source: p for p in (
+    CIBC_LEDGER, RBC_CHEQUING, TD_CHEQUING, SCOTIA_CHEQUING, BMO_CHEQUING,
+    TANGERINE_CHEQUING, TANGERINE_SAVINGS, WS_CASH, WS_SAVINGS)}
+
+CARD_PROFILES = {p.source: p for p in (RBC_CARD, TD_CARD, SCOTIA_CARD, BMO_CARD)}
 
 
 def parse_rbc_visa(path):
@@ -797,11 +819,9 @@ def _cibc_visa_meta(path):
 
 def _cibc_chequing_meta(path):
     # The shared ledger meta (summary-box closing with the reconciled-balance
-    # fallback — same chain as chequing_report), plus the opening balance.
-    meta = _ledger_meta(path, CIBC_LEDGER)
-    om = re.search(CIBC_LEDGER.opening_rx, text(path))
-    meta['opening_balance'] = _money(om.group(1)) if om else None
-    return meta
+    # fallback — same chain as chequing_report). opening_balance is captured
+    # there for every ledger profile now, so CIBC needs nothing extra.
+    return _ledger_meta(path, CIBC_LEDGER)
 
 
 def _amex_meta(path):
@@ -825,9 +845,8 @@ def statement_meta(path):
     chequing/savings and amount owed for cards; the app's net-worth layer applies
     the liability sign. A thin router: the SAME detect/meta pairs the registry
     registers (built-ins above, scaffolds via _SCAFFOLD_BANKS), one source of
-    truth. The three verified built-ins carry an `opening_balance` too (verify.py
-    reconciles cards with it); the scaffolds don't yet. Returns None for
-    unrecognized PDFs.
+    truth. Every source carries an `opening_balance` too (None when the anchor
+    missed) — verify.py reconciles with it. Returns None for unrecognized PDFs.
     """
     t = text(path)
     if _detect_cibc_visa(t):

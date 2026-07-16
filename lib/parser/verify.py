@@ -1,20 +1,25 @@
 """Statement verifier — the automatic correctness oracle (the "reward signal").
 
-Phase 2 of the self-improving parser (see internal/self-improving-parser-plan.md).
-Lifts the reconciliation that lives inside parse_statements (`_walk_chequing` /
-`chequing_report`) into a standalone, source-agnostic check, and adds a card check
-that uses the newly-captured opening balance.
+Phase 2 of the self-improving parser. Lifts the reconciliation that lives inside
+parse_statements (`_walk_ledger_text` / `ledger_report`) into a standalone,
+source-agnostic check, and adds a card check on the captured opening balance.
 
     verify(transactions, meta, text) -> VerifyResult
 
-Confidence reflects how strong the available check is. Chequing prints a running
-balance, so it reconciles row-by-row and ties to the printed closing (high
+Routing covers every registered source: ledger statements (CIBC chequing plus
+all scaffold chequing/savings — `parse_statements.LEDGER_PROFILES`) re-walk the
+text against the printed running balance; card statements (Amex, CIBC Visa,
+and the card-engine scaffolds in `parse_statements.CARD_PROFILES`) check the
+balance identity charges - credits == closing - opening.
+
+Confidence reflects how strong the available check is. Ledgers print a running
+balance, so they reconcile row-by-row and tie to the printed closing (high
 confidence). Cards have no running balance, so the check is a one-sided balance
-bound until payment-side rows or the printed new-transactions total are extracted
-(medium confidence) — see the plan, sections 4.1 and 4.4.
+bound unless credit-side rows are present (medium confidence).
 
 NOT wired into the live pipeline yet: Phase 3 rebuilds the orchestrator into the
-Tier 1/2/3 ladder and uses this as the gate. Today this is a tested library.
+Tier 1/2/3 ladder and uses this as the gate. Today this is a tested library —
+and the reconciliation signal behind the `--report` tuning CLI.
 """
 from dataclasses import dataclass, field
 from typing import List, Optional
@@ -46,23 +51,26 @@ class VerifyResult:
 def verify(transactions, meta, text: str = "") -> VerifyResult:
     """Verify a parsed statement reconciles. `meta` is the statement_meta() dict
     (must include opening_balance + closing_balance for cards); `text` is the raw
-    pdftotext output (used to re-walk chequing)."""
+    pdftotext output (used to re-walk ledger statements)."""
     if not meta:
         return VerifyResult(False, "none", 0.0, 0.0, [])
     source = meta.get("source")
-    if source == "cibc_chequing":
-        return _verify_chequing(meta, text)
-    if source in ("amex", "cibc_visa"):
+    profile = ps.LEDGER_PROFILES.get(source)
+    if profile is not None:
+        return _verify_ledger(meta, text, profile)
+    if source in ("amex", "cibc_visa") or source in ps.CARD_PROFILES:
         return _verify_card(transactions, meta)
     return VerifyResult(False, "none", 0.0, 0.0, [])
 
 
-def _verify_chequing(meta, text: str) -> VerifyResult:
+def _verify_ledger(meta, text: str, profile) -> VerifyResult:
     # Re-walk the statement text: every row must reconcile against the printed
     # running balance, and the final balance must tie to the printed closing.
+    # Parametrized on the LedgerProfile so every ledger source (CIBC chequing +
+    # the scaffold chequing/savings banks) gets the same check.
     # (Phase 3 will instead verify the extractor's own balance-carrying rows; for
     # the deterministic Tier-1 parser, re-walking is equivalent.)
-    _period, txns = ps._walk_chequing_text(text)
+    _period, txns = ps._walk_ledger_text(profile, text)
     reconciled = [x for x in txns if x["direction"] != "unreconciled"]
     unreconciled = len(txns) - len(reconciled)
     parsed_closing = reconciled[-1]["balance"] if reconciled else None
