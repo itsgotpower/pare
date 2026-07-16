@@ -12,6 +12,13 @@ contracts, on-disk and crypto formats) may change between minor versions — see
 
 ### Added
 
+- **Bulk recategorize** — on `/transactions`, hit SELECT to enter selection
+  mode, tick any number of rows (or the header box for the whole page), and
+  assign one category to all of them at once ([#115]).
+- **Split transactions** — divide a single charge across categories (e.g. a
+  Costco run into Groceries + Household) from the row dialog. Every chart,
+  goal, and total counts each part under its own category while the amount
+  still reconciles to the original transaction ([#115]).
 - **Account management** — each account row in Profile → Data Health gets a
   MANAGE dialog: nickname it, hide it from every chart and total (data stays
   in the database and in exports), or mark it closed — history stays, upload
@@ -227,3 +234,4 @@ server exposing the local data to MCP clients. Ships open-source repo scaffoldin
 [#111]: https://github.com/itsgotpower/pare/pull/111
 [#112]: https://github.com/itsgotpower/pare/pull/112
 [#113]: https://github.com/itsgotpower/pare/pull/113
+[#115]: https://github.com/itsgotpower/pare/pull/115
