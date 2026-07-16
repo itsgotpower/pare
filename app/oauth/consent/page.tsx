@@ -62,9 +62,17 @@ function ConsentInner() {
         <h1 className="font-mono text-sm tracking-[0.2em] uppercase">Connect to Pare</h1>
       </div>
       <div className="space-y-4 px-6 py-6">
+        {/* Deliberately client-neutral: DCR client names are self-declared, so
+            naming the requester ("Claude") would lend false authority to any
+            client that registers with that name. The user's own provenance —
+            "did I just start this from Claude's settings?" — is the real check. */}
         <p className="text-sm leading-snug">
-          <span className="font-mono uppercase">Claude</span> is asking to access your Pare
-          financial data — spending, transactions, budgets, and subscriptions — acting as you.
+          An app is asking to access your Pare financial data — spending,
+          transactions, budgets, and subscriptions — acting as you.
+        </p>
+        <p className="text-[11px] leading-snug text-muted-foreground">
+          Only continue if you started this yourself — e.g. you just added Pare
+          under Claude&apos;s connector settings.
         </p>
         <div className="border border-border">
           {(scopes.length ? scopes : ["openid"]).map((s) => (
