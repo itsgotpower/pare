@@ -88,9 +88,60 @@ test("parses an SGML credit-card statement (unclosed leaf tags)", () => {
   assert.equal(payment.flow, "payment");
   assert.equal(payment.amount, 200);
 
-  // Card closing balances are left NULL (issuer sign is inconsistent).
-  assert.equal(card.closing_balance, null);
+  // Card LEDGERBAL: spec BALAMT is customer-perspective (-852.30 = $852.30
+  // owed) — stored NEGATED to match Pare's positive-when-owed convention.
+  assert.equal(card.closing_balance, 852.3);
+  assert.equal(card.closing_date, "2026-01-31");
   assert.equal(card.period, "2026-01-01 to 2026-01-31");
+});
+
+// OFX 2.x XML credit card with a LEDGERBAL — the closed-tag wire format must
+// negate the spec sign exactly like the SGML path.
+const XML_CARD = `<?xml version="1.0" encoding="UTF-8"?>
+<?OFX OFXHEADER="200" VERSION="220" SECURITY="NONE"?>
+<OFX>
+  <CREDITCARDMSGSRSV1><CCSTMTTRNRS><CCSTMTRS>
+    <CURDEF>CAD</CURDEF>
+    <CCACCTFROM><ACCTID>5500999988887777</ACCTID></CCACCTFROM>
+    <BANKTRANLIST>
+      <DTSTART>20260301</DTSTART><DTEND>20260331</DTEND>
+      <STMTTRN><TRNTYPE>DEBIT</TRNTYPE><DTPOSTED>20260310</DTPOSTED><TRNAMT>-120.00</TRNAMT><FITID>XC1</FITID><NAME>HARDWARE STORE</NAME></STMTTRN>
+    </BANKTRANLIST>
+    <LEDGERBAL><BALAMT>-420.00</BALAMT><DTASOF>20260331</DTASOF></LEDGERBAL>
+  </CCSTMTRS></CCSTMTTRNRS></CREDITCARDMSGSRSV1>
+</OFX>`;
+
+test("parses an XML credit-card LEDGERBAL and negates the spec sign", () => {
+  const { accounts } = parseOfx(XML_CARD);
+  assert.equal(accounts.length, 1);
+  const card = accounts[0];
+  assert.equal(card.account_kind, "card");
+  assert.equal(card.source, "ofx_card_7777");
+  // BALAMT -420.00 (owed) → stored positive-when-owed.
+  assert.equal(card.closing_balance, 420);
+  assert.equal(card.closing_date, "2026-03-31");
+});
+
+test("a genuine card credit balance stores negative (negation, not abs)", () => {
+  // Spec-positive BALAMT = the issuer owes the customer. abs() would flip it
+  // into a fake liability; negation keeps it an asset for net worth.
+  const credit = XML_CARD.replace("<BALAMT>-420.00</BALAMT>", "<BALAMT>25.00</BALAMT>");
+  const { accounts } = parseOfx(credit);
+  assert.equal(accounts[0].closing_balance, -25);
+});
+
+test("keeps a balance-only card file (no transactions, LEDGERBAL present)", () => {
+  const balanceOnly = `<OFX><CREDITCARDMSGSRSV1><CCSTMTTRNRS><CCSTMTRS>
+    <CCACCTFROM><ACCTID>5500999988887777</ACCTID></CCACCTFROM>
+    <BANKTRANLIST></BANKTRANLIST>
+    <LEDGERBAL><BALAMT>-99.50</BALAMT><DTASOF>20260415</DTASOF></LEDGERBAL>
+  </CCSTMTRS></CCSTMTTRNRS></CREDITCARDMSGSRSV1></OFX>`;
+  const { accounts } = parseOfx(balanceOnly);
+  // The anchor alone is worth keeping — matches the bank-branch behaviour.
+  assert.equal(accounts.length, 1);
+  assert.equal(accounts[0].transactions.length, 0);
+  assert.equal(accounts[0].closing_balance, 99.5);
+  assert.equal(accounts[0].closing_date, "2026-04-15");
 });
 
 test("parses an XML chequing statement with income / spend / fee flows", () => {
