@@ -2,6 +2,13 @@
 
 Usage:
     python lib/parser/parse_statements.py /path/to/statements_dir out.csv
+    python lib/parser/parse_statements.py /path/to/statements_dir --json
+    python lib/parser/parse_statements.py --report /path/to/one_statement.pdf
+
+`--report` is the parser-tuning loop: it routes ONE statement, prints the
+selected parser, metadata, per-flow row counts, and the reconciliation /
+verify signal (see docs/parser-contributions.md). Exit 0 = parsed, 1 = no
+parser matched (the first pdftotext lines are printed to pick markers from).
 
 Output columns: source, account, period, txn_date, description, amount, category, flow
   - source: 'amex' | 'cibc_visa' | 'cibc_chequing' | 'rbc_visa' | 'rbc_chequing' | …
@@ -17,7 +24,7 @@ Tangerine / Wealthsimple) are declared in `_SCAFFOLD_BANKS` and register via
 `registry.register_scaffolds`. Order matters: CIBC chequing PDFs contain the
 literal "American Express" (Amex card-payment lines), so the specific titles
 outrank the Amex fallback (priority 90, always last); scaffolds slot between
-(30–80).
+(30–41).
 
 Two shared, bank-agnostic engines back the scaffolds:
   - `_walk_ledger` + `LedgerProfile` (chequing/savings) — direction by balance
@@ -479,15 +486,18 @@ def chequing_report(path):
 def _ledger_meta(path, profile):
     """Closing balance + date for a ledger statement. Prefers the summary-box
     closing value; falls back to the last reconciled running balance (same chain
-    as `ledger_report`)."""
+    as `ledger_report`). Also captures the opening balance (verify.py anchors
+    on it; None when the anchor missed)."""
     t = text(path)
     m = re.search(profile.closing_rx, t)
+    om = re.search(profile.opening_rx, t)
     period, txns = _walk_ledger(path, profile)
     reconciled = [x for x in txns if x['direction'] != 'unreconciled']
     closing = _money(m.group(1)) if m else (
         reconciled[-1]['balance'] if reconciled else None)
     return {'source': profile.source, 'account': profile.account, 'period': period,
-            'closing_balance': closing, 'closing_date': period_end(period)}
+            'closing_balance': closing, 'closing_date': period_end(period),
+            'opening_balance': _money(om.group(1)) if om else None}
 
 
 # ===========================================================================
@@ -518,7 +528,8 @@ class CardProfile:
     """
 
     def __init__(self, source, account, *, period_rx, balance_rx,
-                 start_rx=None, stop_rx=None, row_rx=CARD_ROW_RX):
+                 start_rx=None, stop_rx=None, row_rx=CARD_ROW_RX,
+                 opening_rx=r'PREVIOUS (?:STATEMENT )?BALANCE[^\n]*?' + _MONEY_SIGNED):
         self.source = source
         self.account = account
         self.period_rx = period_rx
@@ -526,6 +537,7 @@ class CardProfile:
         self.start_rx = start_rx
         self.stop_rx = stop_rx
         self.row_rx = row_rx
+        self.opening_rx = opening_rx    # opening (previous) balance — verify.py's card identity
 
 
 def _card_period(t, profile):
@@ -574,8 +586,13 @@ def _card_meta(path, profile):
     period = _card_period(t, profile)
     m = re.search(profile.balance_rx, t, re.I)
     closing = _money(m.group(1)) if m else None
+    # Opening (previous) balance: with both balances captured, verify.py can
+    # check the card identity (charges - credits == closing - opening) — the
+    # only checksum a card statement has. None when the anchor missed.
+    om = re.search(profile.opening_rx, t, re.I) if profile.opening_rx else None
     return {'source': profile.source, 'account': profile.account, 'period': period,
-            'closing_balance': closing, 'closing_date': period_end(period)}
+            'closing_balance': closing, 'closing_date': period_end(period),
+            'opening_balance': _money(om.group(1)) if om else None}
 
 
 # ===========================================================================
@@ -654,6 +671,18 @@ BMO_CARD = CardProfile(
 )
 
 
+# Source -> profile lookups over the engine-backed parsers. verify.py routes on
+# these (any ledger source gets the running-balance re-walk, any card-engine
+# source gets the balance-identity check), and the --report CLI uses them to
+# pick the right reconciliation output. The bespoke Amex / CIBC Visa parsers are
+# deliberately absent from CARD_PROFILES (verify.py routes them by name).
+LEDGER_PROFILES = {p.source: p for p in (
+    CIBC_LEDGER, RBC_CHEQUING, TD_CHEQUING, SCOTIA_CHEQUING, BMO_CHEQUING,
+    TANGERINE_CHEQUING, TANGERINE_SAVINGS, WS_CASH, WS_SAVINGS)}
+
+CARD_PROFILES = {p.source: p for p in (RBC_CARD, TD_CARD, SCOTIA_CARD, BMO_CARD)}
+
+
 def parse_rbc_visa(path):
     """RBC Visa — thin wrapper over the shared card engine (pinned by tests)."""
     return _parse_card(path, RBC_CARD)
@@ -714,7 +743,7 @@ def _ledger_detect(brand, *, savings=None):
 # Scaffold bank registry — the single source of truth for the SCAFFOLDED banks.
 # `registry.register_scaffolds()` reads this to wire routing (main/orchestrator);
 # `statement_meta()` reads it for per-bank metadata. Each entry carries its
-# routing priority (30–80, between the CIBC built-ins at 10/20 and the Amex
+# routing priority (30–41, between the CIBC built-ins at 10/20 and the Amex
 # fallback at 90). Within a brand that has both chequing AND savings (Tangerine,
 # Wealthsimple), the SAVINGS handler is listed (and prioritised) FIRST so its
 # savings-marker detector wins.
@@ -797,11 +826,9 @@ def _cibc_visa_meta(path):
 
 def _cibc_chequing_meta(path):
     # The shared ledger meta (summary-box closing with the reconciled-balance
-    # fallback — same chain as chequing_report), plus the opening balance.
-    meta = _ledger_meta(path, CIBC_LEDGER)
-    om = re.search(CIBC_LEDGER.opening_rx, text(path))
-    meta['opening_balance'] = _money(om.group(1)) if om else None
-    return meta
+    # fallback — same chain as chequing_report). opening_balance is captured
+    # there for every ledger profile now, so CIBC needs nothing extra.
+    return _ledger_meta(path, CIBC_LEDGER)
 
 
 def _amex_meta(path):
@@ -825,9 +852,8 @@ def statement_meta(path):
     chequing/savings and amount owed for cards; the app's net-worth layer applies
     the liability sign. A thin router: the SAME detect/meta pairs the registry
     registers (built-ins above, scaffolds via _SCAFFOLD_BANKS), one source of
-    truth. The three verified built-ins carry an `opening_balance` too (verify.py
-    reconciles cards with it); the scaffolds don't yet. Returns None for
-    unrecognized PDFs.
+    truth. Every source carries an `opening_balance` too (None when the anchor
+    missed) — verify.py reconciles with it. Returns None for unrecognized PDFs.
     """
     t = text(path)
     if _detect_cibc_visa(t):
@@ -845,12 +871,111 @@ def statement_meta(path):
     return None
 
 
+def _fmt_money(v):
+    return f"{v:,.2f}" if v is not None else "(not captured)"
+
+
+def report(path):
+    """Single-statement parse report — the tuning loop for `--report <file.pdf>`.
+
+    Prints a human-readable summary to stdout: the selected parser (id + origin
+    via registry.select), statement metadata, per-flow row counts, first/last
+    transaction dates, and the correctness signal — the ledger_report
+    reconciliation for ledger sources (headline: unreconciled must be 0) or the
+    verify.py balance identity for cards. Read-only; never writes CSV/JSON.
+    Returns the process exit code: 0 parsed, 1 unrecognized/unreadable.
+    """
+    import registry
+    registry.register_builtins(sys.modules[__name__])
+    registry.register_scaffolds(sys.modules[__name__])
+    import verify as verify_mod
+
+    try:
+        t = text(path)
+    except RuntimeError as e:
+        print(f"ERROR      {e}")
+        return 1
+
+    print(f"FILE       {os.path.basename(path)}")
+    parser = registry.select(t)
+    if parser is None:
+        print("PARSER     none matched")
+        print()
+        print("No registered parser recognised this statement. The first lines of")
+        print("the pdftotext output are below — pick brand/shape markers for a")
+        print("detector from these (see docs/parser-contributions.md):")
+        print()
+        for ln in t.splitlines()[:15]:
+            print(f"  | {ln}")
+        return 1
+
+    rows = parser.parse(path)
+    meta = (parser.meta(path) if parser.meta is not None
+            else statement_meta(path)) or {}
+    opening = meta.get('opening_balance')
+    closing = meta.get('closing_balance')
+
+    print(f"PARSER     {parser.id} ({parser.origin}, priority {parser.priority})")
+    print(f"ACCOUNT    {meta.get('account', '?')}")
+    print(f"PERIOD     {meta.get('period', '?')}")
+    print(f"OPENING    {_fmt_money(opening)}")
+    closing_s = _fmt_money(closing)
+    if meta.get('closing_date'):
+        closing_s += f" on {meta['closing_date']}"
+    print(f"CLOSING    {closing_s}")
+
+    flows = {}
+    for r in rows:
+        flows[r[7]] = flows.get(r[7], 0) + 1
+    print(f"ROWS       {len(rows)}")
+    for flow in ('spend', 'payment', 'income', 'transfer', 'fee_interest'):
+        if flow in flows:
+            print(f"  {flow:<13}{flows[flow]}")
+    dates = sorted(r[3] for r in rows if r[3])
+    if dates:
+        print(f"DATES      {dates[0]} .. {dates[-1]}")
+    print()
+
+    profile = LEDGER_PROFILES.get(parser.id)
+    if profile is not None:
+        # Ledger source: tie the parse to the printed summary box. The headline
+        # tuning signal is `unreconciled` — every skipped row is also logged to
+        # stderr by the parse above with its prev/amount/balance triple.
+        rep = ledger_report(path, profile)
+        s = rep['summary']
+        flag = "   <-- skipped rows; see stderr for each" if rep['unreconciled'] else ""
+        print("LEDGER RECONCILIATION  (tuning target: unreconciled = 0)")
+        print(f"  unreconciled rows {rep['unreconciled']:>12}{flag}")
+        print(f"  parsed inflow     {_fmt_money(rep['parsed_inflow']):>12}"
+              f"   summary deposits    {_fmt_money(s['deposits']):>12}")
+        print(f"  parsed outflow    {_fmt_money(rep['parsed_outflow']):>12}"
+              f"   summary withdrawals {_fmt_money(s['withdrawals']):>12}")
+        print(f"  parsed closing    {_fmt_money(rep['parsed_closing']):>12}"
+              f"   summary closing     {_fmt_money(s['closing']):>12}")
+        res = verify_mod.verify(rows, meta, t)
+        print(f"VERIFY     ok={res.ok} method={res.method} "
+              f"confidence={res.confidence} residual={res.residual:+.2f}")
+    elif opening is not None and closing is not None:
+        # Card source with both balance anchors captured: the one checksum a
+        # card statement has (charges - credits == closing - opening).
+        res = verify_mod.verify(rows, meta, t)
+        print(f"VERIFY     ok={res.ok} method={res.method} "
+              f"confidence={res.confidence} residual={res.residual:+.2f}")
+        print("           identity: charges - credits == closing - opening")
+    else:
+        missing = 'opening' if opening is None else 'closing'
+        print(f"WARNING    cards have no checksum, and the {missing} balance was")
+        print("           not captured — compare the row count and total against")
+        print("           the printed statement before trusting this parse.")
+    return 0
+
+
 def main(src_dir, out_csv):
     # Routing lives in the registry (registry.py) and is driven by the
     # orchestrator (orchestrator.py) — Phase 1 of the self-improving parser.
     # register_builtins wires the three verified parsers (Visa 10 -> chequing 20
     # -> Amex fallback 90); register_scaffolds wires the scaffolded banks from
-    # _SCAFFOLD_BANKS (priorities 30-80, so they slot between chequing and the
+    # _SCAFFOLD_BANKS (priorities 30-41, so they slot between chequing and the
     # Amex fallback — chequing statements contain the text "American Express").
     import sys as _sys
     import registry, orchestrator
@@ -887,5 +1012,10 @@ def main(src_dir, out_csv):
 
 
 if __name__ == '__main__':
+    if len(sys.argv) > 1 and sys.argv[1] == '--report':
+        if len(sys.argv) < 3:
+            sys.stderr.write("usage: parse_statements.py --report <statement.pdf>\n")
+            sys.exit(2)
+        sys.exit(report(sys.argv[2]))
     main(sys.argv[1] if len(sys.argv) > 1 else '.',
          sys.argv[2] if len(sys.argv) > 2 else 'transactions.csv')

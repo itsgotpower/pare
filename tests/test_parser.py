@@ -13,6 +13,8 @@ These guard the bugs fixed during development:
   - Amex closing-date period + Dec→prior-year inference
   - the PHO / PAYBYPHONE substring collision
 """
+import contextlib
+import io
 import os
 import sys
 import unittest
@@ -90,6 +92,7 @@ RBC_VISA = """\
 RBC Royal Bank
 Visa Classic
 STATEMENT FROM October 1, 2026 TO October 31, 2026
+PREVIOUS STATEMENT BALANCE                             $1,356.71
 TRANSACTION  POSTING   ACTIVITY DESCRIPTION                AMOUNT ($)
 DATE         DATE
 Oct 02       Oct 03    STARBUCKS #1234 VANCOUVER            5.75
@@ -537,6 +540,9 @@ class TestScaffoldCards(unittest.TestCase):
             self.assertEqual(m["source"], source)
             self.assertAlmostEqual(m["closing_balance"], bal)
             self.assertEqual(m["closing_date"], date)
+            # The key is always present; these fixtures print no previous-
+            # balance line, so the anchor misses -> None (verify.py fails safe).
+            self.assertIsNone(m["opening_balance"], source)
 
 
 class TestScaffoldLedgers(unittest.TestCase):
@@ -624,8 +630,8 @@ class TestScaffoldRouting(unittest.TestCase):
 
 
 class TestScaffoldMeta(unittest.TestCase):
-    """Scaffold statement_meta (closing balance + date). No opening_balance yet
-    (scaffolds aren't verified against real PDFs)."""
+    """Scaffold statement_meta (closing balance + date, and the opening balance
+    verify.py anchors its checks on)."""
 
     def _meta(self, fixture):
         with mock.patch.object(P, "text", return_value=fixture):
@@ -636,12 +642,148 @@ class TestScaffoldMeta(unittest.TestCase):
         self.assertEqual(m["source"], "rbc_visa")
         self.assertAlmostEqual(m["closing_balance"], 1234.56)
         self.assertEqual(m["closing_date"], "2026-10-31")
+        # "PREVIOUS STATEMENT BALANCE" -> opening for verify.py's card identity.
+        self.assertAlmostEqual(m["opening_balance"], 1356.71)
 
     def test_rbc_chequing_closing_balance(self):
         m = self._meta(RBC_CHEQUING)
         self.assertEqual(m["source"], "rbc_chequing")
         self.assertAlmostEqual(m["closing_balance"], 2380.00)
         self.assertEqual(m["closing_date"], "2026-10-31")
+        self.assertAlmostEqual(m["opening_balance"], 1000.00)
+
+
+class TestVerifyScaffolds(unittest.TestCase):
+    """verify.py covers the scaffold sources: every ledger profile gets the
+    parametrized running-balance re-walk, and the card-engine scaffolds get the
+    opening/closing balance identity. Failure cases (tampered amounts) must be
+    caught — the whole point of extending the verifier."""
+
+    def _rows_meta(self, parse_fn, fixture):
+        with mock.patch.object(P, "text", return_value=fixture):
+            return parse_fn("dummy.pdf"), P.statement_meta("dummy.pdf")
+
+    def test_ledger_scaffolds_reconcile(self):
+        cases = [(P.RBC_CHEQUING, RBC_CHEQUING, "rbc_chequing")]
+        cases += TestScaffoldLedgers.CASES
+        for profile, fix, source in cases:
+            rows, meta = self._rows_meta(
+                lambda p, _pr=profile: P._parse_ledger(p, _pr), fix)
+            r = V.verify(rows, meta, fix)
+            self.assertTrue(r.ok, source)
+            self.assertEqual(r.method, "running_balance", source)
+            self.assertEqual(r.confidence, 1.0, source)
+            self.assertAlmostEqual(r.residual, 0.0, msg=source)
+
+    def test_tampered_ledger_amount_is_caught(self):
+        # 120.00 -> 130.00 breaks the running-balance chain: the row no longer
+        # reconciles either direction, and the last reconciled balance no longer
+        # ties to the printed closing.
+        tampered = TD_CHEQUING_FIX.replace("120.00", "130.00")
+        rows, meta = self._rows_meta(
+            lambda p: P._parse_ledger(p, P.TD_CHEQUING), tampered)
+        r = V.verify(rows, meta, tampered)
+        self.assertFalse(r.ok)
+        self.assertEqual(r.method, "running_balance")
+
+    def test_card_scaffold_reconciles(self):
+        rows, meta = self._rows_meta(P.parse_rbc_visa, RBC_VISA)
+        r = V.verify(rows, meta, RBC_VISA)
+        self.assertTrue(r.ok)
+        self.assertEqual(r.method, "card_balance")
+        self.assertAlmostEqual(r.residual, 0.0)
+        # The fixture has credit rows (payment + refund), so both sides are
+        # present and the identity holds exactly (two-sided, high confidence).
+        self.assertAlmostEqual(r.confidence, 0.9)
+
+    def test_tampered_card_amount_is_caught(self):
+        # 5.75 -> 3.75 shrinks Σcharges while the printed balances stand ->
+        # the identity misses by -2.00 -> fail.
+        tampered = RBC_VISA.replace("5.75", "3.75")
+        rows, meta = self._rows_meta(P.parse_rbc_visa, tampered)
+        r = V.verify(rows, meta, tampered)
+        self.assertFalse(r.ok)
+        self.assertAlmostEqual(r.residual, -2.00)
+
+    def test_card_scaffold_without_opening_balance_does_not_pass(self):
+        # TD's fixture prints no previous-balance line -> opening None ->
+        # verify must fail safe, never claim a pass it can't check.
+        rows, meta = self._rows_meta(
+            lambda p: P._parse_card(p, P.TD_CARD), TD_VISA)
+        r = V.verify(rows, meta, TD_VISA)
+        self.assertFalse(r.ok)
+        self.assertEqual(r.method, "card_balance")
+
+
+class TestReportCli(unittest.TestCase):
+    """The `--report <file.pdf>` tuning CLI (P.report): one statement in, a
+    human-readable routing + reconciliation summary out. Exit code 0 when a
+    parser matched, 1 when none did (with the first pdftotext lines echoed so
+    a contributor can pick detector markers)."""
+
+    def _report(self, fixture):
+        buf = io.StringIO()
+        with mock.patch.object(P, "text", return_value=fixture):
+            with contextlib.redirect_stdout(buf):
+                code = P.report("dummy.pdf")
+        return code, buf.getvalue()
+
+    def test_ledger_scaffold_report(self):
+        code, out = self._report(RBC_CHEQUING)
+        self.assertEqual(code, 0)
+        self.assertIn("rbc_chequing (scaffold", out)
+        self.assertIn("LEDGER RECONCILIATION", out)
+        self.assertIn("unreconciled rows", out)
+        self.assertIn("ROWS       3", out)
+        for flow in ("income", "transfer", "spend"):
+            self.assertIn(flow, out)
+        self.assertIn("2026-10-03 .. 2026-10-12", out)
+        self.assertIn("ok=True method=running_balance", out)
+
+    def test_builtin_ledger_report(self):
+        code, out = self._report(CIBC_CHEQUING)
+        self.assertEqual(code, 0)
+        self.assertIn("cibc_chequing (builtin", out)
+        self.assertIn("ok=True method=running_balance", out)
+
+    def test_card_report_with_verify(self):
+        # RBC's fixture carries both balance anchors -> the verify identity runs.
+        code, out = self._report(RBC_VISA)
+        self.assertEqual(code, 0)
+        self.assertIn("rbc_visa (scaffold", out)
+        self.assertIn("ok=True method=card_balance", out)
+        self.assertNotIn("WARNING", out)
+
+    def test_builtin_card_report(self):
+        code, out = self._report(AMEX)
+        self.assertEqual(code, 0)
+        self.assertIn("amex (builtin", out)
+        self.assertIn("ok=True method=card_balance", out)
+
+    def test_card_report_without_opening_warns(self):
+        # TD's fixture has no previous-balance line -> no checksum available;
+        # the report must say so explicitly instead of implying a pass.
+        code, out = self._report(TD_VISA)
+        self.assertEqual(code, 0)
+        self.assertIn("td_visa (scaffold", out)
+        self.assertIn("cards have no checksum", out)
+        self.assertNotIn("ok=", out)
+
+    def test_unrecognized_exits_1_and_echoes_text(self):
+        fixture = "Some Unknown Bank\nStatement of account\nLine three"
+        code, out = self._report(fixture)
+        self.assertEqual(code, 1)
+        self.assertIn("none matched", out)
+        # The first pdftotext lines are echoed so markers can be picked.
+        self.assertIn("  | Some Unknown Bank", out)
+        self.assertIn("  | Line three", out)
+
+    def test_unrecognized_echo_is_capped(self):
+        fixture = "\n".join(f"filler line {i}" for i in range(40))
+        code, out = self._report(fixture)
+        self.assertEqual(code, 1)
+        self.assertIn("filler line 14", out)
+        self.assertNotIn("filler line 15", out)
 
 
 if __name__ == "__main__":
