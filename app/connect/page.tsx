@@ -2,8 +2,10 @@ import path from "node:path";
 import { CopyBlock } from "@/components/connect/copy-block";
 import { Card, CardContent } from "@/components/ui/card";
 import { PALETTE } from "@/lib/colors";
+import { isHostedMode } from "@/lib/auth/resolve";
 
-// Paths are computed per-request so the snippets always reflect this machine.
+// Paths (self-host) / the connector URL (hosted) are computed per-request so
+// the snippets always reflect this deployment.
 export const dynamic = "force-dynamic";
 
 const READ_TOOLS = [
@@ -38,7 +40,171 @@ const EXAMPLE_PROMPTS = [
   "Which categories are pacing over budget this month?",
 ];
 
-export default function ConnectPage() {
+function ToolsGrid() {
+  return (
+    <>
+      <h2 className="font-mono text-xs tracking-widest uppercase text-muted-foreground mb-4">
+        AVAILABLE TOOLS
+      </h2>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-[1px] bg-border border border-border mb-8">
+        <div className="bg-card p-6">
+          <h3 className="font-mono text-xs tracking-widest uppercase text-muted-foreground flex items-center gap-2 mb-4">
+            <span className="inline-block w-2.5 h-2.5" style={{ backgroundColor: PALETTE.sage }} />
+            READ · {READ_TOOLS.length}
+          </h3>
+          <ul className="space-y-2">
+            {READ_TOOLS.map(([name, desc]) => (
+              <li key={name} className="text-xs">
+                <span className="font-mono">{name}</span>
+                <span className="text-muted-foreground"> — {desc}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+        <div className="bg-card p-6">
+          <h3 className="font-mono text-xs tracking-widest uppercase text-muted-foreground flex items-center gap-2 mb-4">
+            <span
+              className="inline-block w-2.5 h-2.5"
+              style={{ backgroundColor: PALETTE.terracotta }}
+            />
+            WRITE · {WRITE_TOOLS.length}
+          </h3>
+          <ul className="space-y-2">
+            {WRITE_TOOLS.map(([name, desc]) => (
+              <li key={name} className="text-xs">
+                <span className="font-mono">{name}</span>
+                <span className="text-muted-foreground"> — {desc}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
+    </>
+  );
+}
+
+function ExamplePrompts() {
+  return (
+    <div className="border border-border">
+      <div className="border-b border-border px-3 h-8 flex items-center">
+        <span className="font-mono text-[10px] tracking-widest text-muted-foreground uppercase">
+          THEN ASK CLAUDE THINGS LIKE
+        </span>
+      </div>
+      <ul className="p-3 space-y-1.5">
+        {EXAMPLE_PROMPTS.map((p) => (
+          <li key={p} className="text-xs text-muted-foreground">
+            <span className="font-mono text-foreground">&gt;</span> {p}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+// Hosted: the remote MCP connector — claude.ai Settings → Connectors, one URL,
+// zero terminal. OAuth (better-auth mcp plugin) handles sign-in + consent; the
+// per-user Durable Object keeps tool calls scoped to the caller's own data.
+function HostedConnect() {
+  // BETTER_AUTH_URL is the deployment's canonical origin (required in hosted
+  // prod for cookie/passkey config); the connector endpoint lives under it.
+  const base = process.env.BETTER_AUTH_URL ?? "https://pare.money";
+  const connectorUrl = `${base.replace(/\/$/, "")}/api/mcp`;
+
+  const steps = [
+    ["1", "Open Claude", "claude.ai → Settings → Connectors (web, desktop, or mobile)"],
+    ["2", "Add custom connector", "paste the URL below and confirm"],
+    ["3", "Approve access", "sign in to Pare if asked, review the consent screen, ALLOW"],
+  ] as const;
+
+  return (
+    <div className="p-6 max-w-4xl">
+      <div className="mb-6">
+        <h1 className="font-mono text-2xl font-bold tracking-tight uppercase">CONNECT</h1>
+        <p className="text-xs text-muted-foreground mt-1">
+          Talk to Claude about your money — one click, no terminal
+        </p>
+      </div>
+
+      {/* ADD TO CLAUDE hero */}
+      <div className="border border-border mb-8">
+        <div className="border-b border-border px-4 h-9 flex items-center">
+          <span className="font-mono text-[10px] tracking-widest uppercase">
+            ADD TO CLAUDE
+          </span>
+        </div>
+        <div className="p-4 space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-[1px] bg-border border border-border">
+            {steps.map(([n, title, detail]) => (
+              <div key={n} className="bg-card p-4">
+                <div className="font-mono text-xs tracking-widest uppercase mb-1">
+                  <span className="text-muted-foreground">{n} · </span>
+                  {title}
+                </div>
+                <p className="text-xs text-muted-foreground leading-relaxed">{detail}</p>
+              </div>
+            ))}
+          </div>
+          <CopyBlock label="CONNECTOR URL" text={connectorUrl} />
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            Claude connects with its own scoped access token — it never sees your
+            Pare password. Every write tool call still asks for your approval
+            inside Claude, and you can disconnect anytime from Claude&apos;s
+            connector settings.
+          </p>
+        </div>
+      </div>
+
+      <ToolsGrid />
+
+      <div className="mb-8">
+        <ExamplePrompts />
+      </div>
+
+      {/* PRIVACY */}
+      <Card className="mb-8">
+        <CardContent className="py-5">
+          <h3 className="font-mono text-xs tracking-widest uppercase text-muted-foreground mb-2">
+            PRIVACY
+          </h3>
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            Tool calls are scoped to your account&apos;s data and nothing else —
+            but whatever Claude reads through these tools becomes conversation
+            context at the model provider. Connect only if you&apos;re
+            comfortable with that; disconnecting revokes the token.
+          </p>
+        </CardContent>
+      </Card>
+
+      {/* PREFER LOCAL */}
+      <Card>
+        <CardContent className="py-5">
+          <h3 className="font-mono text-xs tracking-widest uppercase text-muted-foreground mb-2">
+            PREFER FULLY LOCAL?
+          </h3>
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            Self-hosted Pare ships the same {READ_TOOLS.length + WRITE_TOOLS.length} tools
+            as a local stdio MCP server — zero network, your data never leaves the
+            machine. See{" "}
+            <a
+              href="https://github.com/itsgotpower/pare"
+              target="_blank"
+              rel="noreferrer"
+              className="underline hover:text-foreground"
+            >
+              the open-source repo
+            </a>{" "}
+            to run it yourself.
+          </p>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// Self-host: the local stdio server, configured by absolute paths computed for
+// THIS machine per request.
+function SelfHostConnect() {
   const root = process.cwd();
   const dbPath = process.env.PARE_DB_PATH ?? path.join(root, "data", "pare.db");
   const nodeBin = process.execPath;
@@ -101,43 +267,7 @@ export default function ConnectPage() {
         </CardContent>
       </Card>
 
-      {/* TOOLS */}
-      <h2 className="font-mono text-xs tracking-widest uppercase text-muted-foreground mb-4">
-        AVAILABLE TOOLS
-      </h2>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-[1px] bg-border border border-border mb-8">
-        <div className="bg-card p-6">
-          <h3 className="font-mono text-xs tracking-widest uppercase text-muted-foreground flex items-center gap-2 mb-4">
-            <span className="inline-block w-2.5 h-2.5" style={{ backgroundColor: PALETTE.sage }} />
-            READ · {READ_TOOLS.length}
-          </h3>
-          <ul className="space-y-2">
-            {READ_TOOLS.map(([name, desc]) => (
-              <li key={name} className="text-xs">
-                <span className="font-mono">{name}</span>
-                <span className="text-muted-foreground"> — {desc}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-        <div className="bg-card p-6">
-          <h3 className="font-mono text-xs tracking-widest uppercase text-muted-foreground flex items-center gap-2 mb-4">
-            <span
-              className="inline-block w-2.5 h-2.5"
-              style={{ backgroundColor: PALETTE.terracotta }}
-            />
-            WRITE · {WRITE_TOOLS.length}
-          </h3>
-          <ul className="space-y-2">
-            {WRITE_TOOLS.map(([name, desc]) => (
-              <li key={name} className="text-xs">
-                <span className="font-mono">{name}</span>
-                <span className="text-muted-foreground"> — {desc}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      </div>
+      <ToolsGrid />
 
       {/* SETUP */}
       <h2 className="font-mono text-xs tracking-widest uppercase text-muted-foreground mb-4">
@@ -186,20 +316,7 @@ export default function ConnectPage() {
           Smoke-test the server outside any client (lists tools and runs a sample query):
         </p>
         <CopyBlock label="terminal — from the repo root" text={`npx tsx mcp/test-client.ts`} />
-        <div className="border border-border">
-          <div className="border-b border-border px-3 h-8 flex items-center">
-            <span className="font-mono text-[10px] tracking-widest text-muted-foreground uppercase">
-              THEN ASK CLAUDE THINGS LIKE
-            </span>
-          </div>
-          <ul className="p-3 space-y-1.5">
-            {EXAMPLE_PROMPTS.map((p) => (
-              <li key={p} className="text-xs text-muted-foreground">
-                <span className="font-mono text-foreground">&gt;</span> {p}
-              </li>
-            ))}
-          </ul>
-        </div>
+        <ExamplePrompts />
       </div>
 
       {/* PRIVACY */}
@@ -219,4 +336,8 @@ export default function ConnectPage() {
       </Card>
     </div>
   );
+}
+
+export default function ConnectPage() {
+  return isHostedMode() ? <HostedConnect /> : <SelfHostConnect />;
 }
