@@ -53,6 +53,7 @@ interface ManualEntry {
 
 interface NetWorthAccount {
   name: string;
+  label?: string; // nickname from /profile account management — display only
   type: "statement" | "manual";
   kind: "asset" | "liability";
   current: number;
@@ -394,7 +395,7 @@ export function NetWorthTab({
                     />
                     <div className="min-w-0">
                       <p className="font-mono truncate">
-                        {a.name}
+                        {a.label ?? a.name}
                         {a.closed && (
                           <span className="ml-2 border border-border px-1 py-px text-[9px] tracking-widest uppercase text-muted-foreground">
                             Closed

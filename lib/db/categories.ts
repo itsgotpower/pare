@@ -276,10 +276,61 @@ function longestCommonSubstring(strings: string[]): string {
 
 export function addOverride(transactionId: number, originalCategory: string, newCategory: string): void {
   const db = getDb();
-  db.prepare(
+  const tx = db.transaction(() => {
+    // Overrides and splits are mutually exclusive (both directions — the other
+    // direction lives in setSplits, lib/db/splits.ts): picking one whole-row
+    // category replaces any per-part split.
+    db.prepare("DELETE FROM transaction_splits WHERE transaction_id = ?").run(transactionId);
+    db.prepare(
+      `INSERT OR REPLACE INTO category_overrides (transaction_id, original_category, new_category)
+       VALUES (?, ?, ?)`
+    ).run(transactionId, originalCategory, newCategory);
+  });
+  tx();
+}
+
+/**
+ * Bulk single-category assign: INSERT OR REPLACE an override per id, with the
+ * stored base category recorded as original_category (same semantics as
+ * addOverride — never trust the client for the before-value). Rows that don't
+ * exist or that have SPLITS are skipped (a split is a finer-grained explicit
+ * choice; clobbering it from a bulk action would be silent data loss — the
+ * user removes the split first if that's what they want). One DB transaction.
+ */
+export const BULK_ASSIGN_MAX = 500;
+
+export function bulkAssignCategory(
+  ids: number[],
+  category: string
+): { updated: number; skipped: number } {
+  const db = getDb();
+  if (ids.length > BULK_ASSIGN_MAX) {
+    throw new Error(`Too many transactions in one bulk update (max ${BULK_ASSIGN_MAX})`);
+  }
+  const getBase = db.prepare("SELECT category FROM transactions WHERE id = ?");
+  const hasSplit = db.prepare(
+    "SELECT 1 FROM transaction_splits WHERE transaction_id = ? LIMIT 1"
+  );
+  const upsert = db.prepare(
     `INSERT OR REPLACE INTO category_overrides (transaction_id, original_category, new_category)
      VALUES (?, ?, ?)`
-  ).run(transactionId, originalCategory, newCategory);
+  );
+
+  let updated = 0;
+  let skipped = 0;
+  const tx = db.transaction(() => {
+    for (const id of ids) {
+      const row = getBase.get(id) as { category: string } | undefined;
+      if (!row || hasSplit.get(id)) {
+        skipped++;
+        continue;
+      }
+      upsert.run(id, row.category, category);
+      updated++;
+    }
+  });
+  tx();
+  return { updated, skipped };
 }
 
 export function removeOverride(transactionId: number): void {
@@ -323,6 +374,7 @@ export function recategorizeMatching(keyword: string, category: string): number 
       `UPDATE transactions SET category = ?
        WHERE UPPER(description) LIKE '%' || UPPER(?) || '%'
          AND id NOT IN (SELECT transaction_id FROM category_overrides)
+         AND id NOT IN (SELECT transaction_id FROM transaction_splits)
          AND import_id IS NULL
          AND NOT (account_kind IN ${DEPOSIT_KINDS_SQL} AND flow IN ('income', 'payment', 'fee_interest'))
          ${transferGate}`
@@ -361,6 +413,16 @@ export function recategorizeAll(): number {
       .map((r) => (r as { transaction_id: number }).transaction_id)
   );
 
+  // Split transactions get the same treatment as overridden ones: the per-part
+  // categories are an explicit user choice, so an upload's recategorize pass
+  // must never touch the parent's base category out from under them.
+  const split = new Set(
+    db
+      .prepare("SELECT DISTINCT transaction_id FROM transaction_splits")
+      .all()
+      .map((r) => (r as { transaction_id: number }).transaction_id)
+  );
+
   const rows = db
     .prepare("SELECT id, description, category, account_kind, flow, import_id FROM transactions")
     .all() as {
@@ -378,6 +440,7 @@ export function recategorizeAll(): number {
   const tx = db.transaction(() => {
     for (const row of rows) {
       if (overridden.has(row.id)) continue;
+      if (split.has(row.id)) continue;
       // Imported categories are authoritative — never clobber a migrated row's
       // category on a later PDF upload's recategorize pass.
       if (row.import_id != null) continue;

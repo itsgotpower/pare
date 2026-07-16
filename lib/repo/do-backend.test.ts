@@ -116,7 +116,8 @@ test("DoBackend: migrations run at first access (idempotent, full schema present
   for (const expected of [
     "transactions", "statements", "category_rules", "category_overrides",
     "spending_goals", "app_user", "manual_entries", "waitlist", "imports",
-    "subscription_marks", "account_meta", "v_transactions",
+    "subscription_marks", "account_meta", "transaction_splits",
+    "v_transactions", "v_category_slices",
   ]) {
     assert.ok(tables.includes(expected), `migrations should create ${expected}`);
   }

@@ -258,14 +258,24 @@ test("toOfxImport skips pending and zero-amount rows", () => {
   assert.ok(!descs.includes("ZERO NOISE"));
 });
 
-test("toOfxImport anchors deposit balances but leaves card balances NULL", () => {
+test("toOfxImport anchors deposit balances as-is and negates card balances", () => {
   const { imp } = toOfxImport(demoSet(), CONFIG);
   const chq = imp.accounts.find((a) => a.account_kind === "chequing")!;
   const card = imp.accounts.find((a) => a.account_kind === "card")!;
   assert.equal(chq.closing_balance, 2451.19);
   assert.equal(chq.closing_date, "2026-03-05");
-  assert.equal(card.closing_balance, null);
-  assert.equal(card.closing_date, null);
+  // Bridge card balance is customer-perspective (-512.30 = $512.30 owed) —
+  // stored NEGATED to match Pare's positive-when-owed convention.
+  assert.equal(card.closing_balance, 512.3);
+  assert.equal(card.closing_date, "2026-03-05");
+});
+
+test("toOfxImport stores a genuine card credit balance negative (negation, not abs)", () => {
+  const set = demoSet();
+  set.accounts[1].balance = "25.00"; // the issuer owes the customer
+  const { imp } = toOfxImport(set, CONFIG);
+  const card = imp.accounts.find((a) => a.account_kind === "card")!;
+  assert.equal(card.closing_balance, -25);
 });
 
 test("toOfxImport converts posted epochs to UTC dates and builds the period", () => {

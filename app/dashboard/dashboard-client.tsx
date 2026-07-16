@@ -44,6 +44,7 @@ import {
 interface MonthlyTotal {
   month: string;
   total: number;
+  count: number;
 }
 
 interface CategoryBreakdown {
@@ -499,7 +500,10 @@ export default function Dashboard() {
             <p className="font-mono text-3xl font-bold">{formatCurrency(displayTotal)}</p>
             <p className="text-xs text-muted-foreground mt-1">
               {displayMonthsActive} month{displayMonthsActive !== 1 ? "s" : ""}
-              {!selectedMonth && ` · ${displayCategories.reduce((s, c) => s + c.count, 0)} transactions`}
+              {/* Sum parent-level per-month counts, not per-category counts: a
+                  split transaction spans multiple category rows but is one txn
+                  and belongs to one month, so this stays exact. */}
+              {!selectedMonth && ` · ${monthly.reduce((s, m) => s + m.count, 0)} transactions`}
             </p>
           </div>
 

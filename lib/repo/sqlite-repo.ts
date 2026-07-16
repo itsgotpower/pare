@@ -6,6 +6,7 @@ import type {
   TransactionRepo,
   StatementRepo,
   CategoryRepo,
+  SplitsRepo,
   GoalRepo,
   NetWorthRepo,
   SummaryRepo,
@@ -50,7 +51,9 @@ import {
   importRules,
   uncategorizedCount,
   ruleSuggestions,
+  bulkAssignCategory,
 } from "../db/categories";
+import { getSplits, setSplits, clearSplits } from "../db/splits";
 import {
   listGoals,
   upsertGoal,
@@ -201,6 +204,13 @@ export class SqliteRepo implements Repo {
     importRules: (rules) => this.write(() => importRules(rules)),
     uncategorizedCount: () => this.read(() => uncategorizedCount()),
     ruleSuggestions: () => this.read(() => ruleSuggestions()),
+    bulkOverride: (ids, category) => this.write(() => bulkAssignCategory(ids, category)),
+  };
+
+  splits: SplitsRepo = {
+    list: (transactionId) => this.read(() => getSplits(transactionId)),
+    set: (transactionId, parts) => this.write(() => setSplits(transactionId, parts)),
+    clear: (transactionId) => this.write(() => clearSplits(transactionId)),
   };
 
   goals: GoalRepo = {

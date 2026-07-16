@@ -7,6 +7,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { timeAgo } from "@/lib/format";
 
 interface SfinAccount {
   id: string;
@@ -46,14 +47,6 @@ const KINDS = [
 ] as const;
 
 const BRIDGE_URL = "https://beta-bridge.simplefin.org/";
-
-function timeAgo(iso: string): string {
-  const mins = Math.max(0, Math.round((Date.now() - Date.parse(iso)) / 60000));
-  if (mins < 60) return `${mins}m ago`;
-  const hours = Math.round(mins / 60);
-  if (hours < 48) return `${hours}h ago`;
-  return `${Math.round(hours / 24)}d ago`;
-}
 
 export function SimplefinCard() {
   // null = status unknown (or feature absent) → render nothing.

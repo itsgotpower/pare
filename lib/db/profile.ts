@@ -18,6 +18,12 @@ export interface SourceHealth {
   // to today. Excludes the current month (its statement usually isn't issued
   // yet, so flagging it would be perpetual noise). Empty for manual/cash rows.
   missing_months: string[];
+  // Fed by a sync (statement filename `<source>.sync`, written by the SimpleFIN
+  // sync core) rather than manual uploads — staleness keys off sync recency,
+  // not days-since-last-transaction (a quiet card syncs daily with no spend).
+  // The sync TIMESTAMP lives in the SimpleFIN config store, which this repo/DO
+  // layer can never read; the composition root (/api/profile) merges it.
+  synced: boolean;
 }
 
 export interface DataHealth {
@@ -134,9 +140,16 @@ export function getDataHealth(): DataHealth {
     (
       db
         .prepare(
-          "SELECT source, COUNT(*) AS n, MAX(closing_date) AS last_close FROM statements GROUP BY source"
+          `SELECT source, COUNT(*) AS n, MAX(closing_date) AS last_close,
+                  MAX(CASE WHEN filename LIKE '%.sync' THEN 1 ELSE 0 END) AS synced
+           FROM statements GROUP BY source`
         )
-        .all() as { source: string; n: number; last_close: string | null }[]
+        .all() as {
+        source: string;
+        n: number;
+        last_close: string | null;
+        synced: number;
+      }[]
     ).map((r) => [r.source, r])
   );
 
@@ -201,6 +214,7 @@ export function getDataHealth(): DataHealth {
         days_since_last: daysSince,
         coverage: window.map((m) => covered.has(m)),
         missing_months: missing,
+        synced: (stmt?.synced ?? 0) === 1,
       };
     });
 

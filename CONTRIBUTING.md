@@ -46,6 +46,10 @@ CI should be green.
 **Test data must be synthetic.** Never put real transactions, statement PDFs, or
 account/transit numbers into tests or tracked source — see [SECURITY.md](SECURITY.md).
 
+Tuning a bank statement parser against your own PDFs (and feeding the result
+back via an issue — no code PR needed) has its own guide:
+[docs/parser-contributions.md](docs/parser-contributions.md).
+
 ## PR flow
 
 1. Fork the repo and create a branch off `main`.

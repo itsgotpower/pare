@@ -66,8 +66,10 @@ export function getCashflow(month?: string): Cashflow {
 
   const expenses = db
     .prepare(
+      // Slice view: split transactions feed each part into its own Sankey
+      // category node (slices sum to parents, so MONEY OUT is unchanged).
       `SELECT effective_category AS category, SUM(amount) AS total
-       FROM v_transactions
+       FROM v_category_slices
        WHERE ${EXPENSE_WHERE} ${monthWhere}
        GROUP BY category ORDER BY total DESC`
     )

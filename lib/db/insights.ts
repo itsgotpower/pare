@@ -55,7 +55,8 @@ export function getInsights(): Insight[] {
   const catTotals = (month: string) =>
     db
       .prepare(
-        `SELECT effective_category cat, SUM(amount) total FROM v_transactions
+        // Slice view: split parts count under their own categories.
+        `SELECT effective_category cat, SUM(amount) total FROM v_category_slices
          WHERE ${SPEND_WHERE}
            AND substr(txn_date, 1, 7) = ? GROUP BY cat`
       )

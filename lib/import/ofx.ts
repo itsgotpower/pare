@@ -44,7 +44,7 @@ export interface OfxAccount {
   account: string; // human label, e.g. "OFX CHEQUING ••4567"
   account_kind: AccountKind;
   period: string; // "YYYY-MM-DD to YYYY-MM-DD"
-  closing_balance: number | null; // LEDGERBAL, bank accounts only (see header)
+  closing_balance: number | null; // LEDGERBAL; cards stored positive-when-owed (spec BALAMT negated)
   closing_date: string | null; // LEDGERBAL DTASOF, YYYY-MM-DD
   transactions: OfxTransaction[];
 }
@@ -195,8 +195,7 @@ function buildAccount(
   scope: string,
   kind: AccountKind,
   acctId: string | null,
-  index: number,
-  bankBalance: boolean
+  index: number
 ): OfxAccount {
   const id4 = last4(acctId, index);
   const source = `ofx_${kind}_${id4}`;
@@ -205,19 +204,23 @@ function buildAccount(
   const tranlist = block(scope, "BANKTRANLIST");
   const transactions = parseTransactions(tranlist, kind);
 
-  // LEDGERBAL → closing balance. Set for bank accounts only: a deposit account's
-  // BALAMT is unambiguously positive-when-funded, which is exactly what net worth
-  // expects. Credit-card BALAMT sign is issuer-inconsistent, so we leave card
-  // closing balances NULL rather than risk a wrong-signed net-worth point.
+  // LEDGERBAL → closing balance (the net-worth anchor), kind-aware:
+  //   - Deposit accounts: BALAMT is unambiguously positive-when-funded — exactly
+  //     what net worth expects. Stored as-is.
+  //   - Cards: the spec's BALAMT is customer-perspective, so an owed balance is
+  //     NEGATIVE — the opposite of Pare's as-printed convention (positive = owed;
+  //     lib/db/networth.ts applies the liability sign). NEGATE it, don't abs():
+  //     a genuine credit balance (BALAMT +25.00) must store as -25.00 so net
+  //     worth counts it as an asset. An issuer that mis-signs BALAMT can be
+  //     corrected by re-upload — insertStatement COALESCE-backfills by filename.
   let closing_balance: number | null = null;
   let closing_date: string | null = null;
-  if (bankBalance) {
-    const ledger = block(scope, "LEDGERBAL");
-    const bal = leaf(ledger, "BALAMT");
-    if (bal !== null && Number.isFinite(parseFloat(bal))) {
-      closing_balance = parseFloat(bal);
-      closing_date = ofxDate(leaf(ledger, "DTASOF")) ?? transactions.at(-1)?.txn_date ?? null;
-    }
+  const ledger = block(scope, "LEDGERBAL");
+  const bal = leaf(ledger, "BALAMT");
+  if (bal !== null && Number.isFinite(parseFloat(bal))) {
+    const amt = parseFloat(bal);
+    closing_balance = kind === "card" ? -amt : amt;
+    closing_date = ofxDate(leaf(ledger, "DTASOF")) ?? transactions.at(-1)?.txn_date ?? null;
   }
 
   return {
@@ -239,15 +242,17 @@ export function parseOfx(text: string): OfxImport {
   for (const stmtrs of blocks(text, "STMTRS")) {
     const acctFrom = block(stmtrs, "BANKACCTFROM");
     const kind = acctTypeToKind(leaf(acctFrom, "ACCTTYPE"));
-    const acct = buildAccount(stmtrs, kind, leaf(acctFrom, "ACCTID"), index++, true);
+    const acct = buildAccount(stmtrs, kind, leaf(acctFrom, "ACCTID"), index++);
     if (acct.transactions.length || acct.closing_balance !== null) accounts.push(acct);
   }
 
-  // Credit-card statement responses → card accounts.
+  // Credit-card statement responses → card accounts. A balance-only file (no
+  // transactions, LEDGERBAL present) is still a net-worth anchor — keep it,
+  // same as the bank branch.
   for (const ccstmtrs of blocks(text, "CCSTMTRS")) {
     const acctFrom = block(ccstmtrs, "CCACCTFROM");
-    const acct = buildAccount(ccstmtrs, "card", leaf(acctFrom, "ACCTID"), index++, false);
-    if (acct.transactions.length) accounts.push(acct);
+    const acct = buildAccount(ccstmtrs, "card", leaf(acctFrom, "ACCTID"), index++);
+    if (acct.transactions.length || acct.closing_balance !== null) accounts.push(acct);
   }
 
   return { accounts };

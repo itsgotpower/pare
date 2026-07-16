@@ -39,6 +39,13 @@ PARE_DEPLOY_TARGET = "hosted"
 # the "Get started for free" CTAs work end to end. Set to "1" + redeploy to
 # re-close (a dashboard edit is overwritten by this [vars] on the next deploy).
 PARE_SIGNUP_DISABLED = "0"
+# Billing enforcement master switch (cloud/billing/enforce.ts `cloudEnabled()`).
+# Unset/"0" = every plan cap, feature gate, and the SimpleFIN Plus gate NO-OP —
+# which is how this Worker ran from launch until 2026-07-16. Flipped ON now that
+# external signups have started arriving: each one that lands unenforced makes
+# retroactive gating harder, and the blast radius is still ~nil (no paying subs).
+# Free = 5 statements/mo + 1 account; Plus lifts both + unlocks SimpleFIN.
+PARE_CLOUD = "1"
 
 # --- Custom domain (pare.money) ------------------------------------------------
 #
