@@ -4,6 +4,7 @@ import { SPEND_WHERE } from "./account-kinds";
 export interface MonthlyTotal {
   month: string;
   total: number;
+  count: number; // distinct spend transactions in the month (parent-level, split-immune)
 }
 
 export interface CategoryBreakdown {
@@ -28,7 +29,7 @@ export function getMonthlyTotals(months: number = 12): MonthlyTotal[] {
   const db = getDb();
   return db
     .prepare(
-      `SELECT substr(txn_date, 1, 7) AS month, SUM(amount) AS total
+      `SELECT substr(txn_date, 1, 7) AS month, SUM(amount) AS total, COUNT(*) AS count
        FROM v_transactions
        WHERE ${SPEND_WHERE}
        GROUP BY month

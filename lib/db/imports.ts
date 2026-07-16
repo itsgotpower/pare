@@ -61,6 +61,13 @@ export function deleteImport(id: number): { deleted: number } {
   const db = getDb();
   let deleted = 0;
   const tx = db.transaction(() => {
+    // transaction_splits FK -> transactions(id): clear an imported row's splits
+    // before the row, or the DELETE below throws (the user can split any spend
+    // row, including an imported one). Same "children first" rule as the WIPE
+    // and deleteManualTransaction paths.
+    db.prepare(
+      "DELETE FROM transaction_splits WHERE transaction_id IN (SELECT id FROM transactions WHERE import_id = ?)"
+    ).run(id);
     deleted = db.prepare("DELETE FROM transactions WHERE import_id = ?").run(id).changes;
     db.prepare("DELETE FROM imports WHERE id = ?").run(id);
   });

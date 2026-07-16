@@ -331,3 +331,51 @@ test("deleteManualTransaction removes a split manual row cleanly", async () => {
   assert.equal(deleted, 1);
   assert.equal(await splitCount(id), 0, "the FK children are deleted with the row");
 });
+
+test("deleteImport removes a split imported row without an FK throw", async () => {
+  // Cross-app imports (Monarch/Mint/YNAB) create import_id spend rows the user
+  // can split; deleting that import must clear transaction_splits first, same as
+  // the WIPE and deleteManual paths. Regression for the missed third delete path.
+  const importId = await repo.imports.create({
+    provider: "monarch",
+    row_count: 1,
+    account_map: "{}",
+    date_min: "2026-05-01",
+    date_max: "2026-05-31",
+  });
+  await repo.transactions.insertMany([
+    spend("2026-05-10", "IMPORTED SPLITTABLE", 80, "Shopping / retail", {
+      import_id: importId,
+      dedup_key: `imp|${importId}`,
+    }),
+  ]);
+  const txId = await byDesc("IMPORTED SPLITTABLE");
+  await repo.splits.set(txId, [
+    { category: "Groceries", amount: 50 },
+    { category: "Coffee", amount: 30 },
+  ]);
+  assert.equal(await splitCount(txId), 2);
+
+  const { deleted } = await repo.imports.delete(importId);
+  assert.equal(deleted, 1, "the imported row is removed");
+  assert.equal(await splitCount(txId), 0, "its splits go with it, no FK violation");
+});
+
+test("monthly transaction count is split-immune (parent-level COUNT)", async () => {
+  const before = (await repo.summary.monthlyTotals()).reduce((s, m) => s + m.count, 0);
+  await repo.transactions.insertMany([
+    spend("2026-04-15", "SPLIT ME MONTHLY", 100, "Shopping / retail", {
+      dedup_key: "monthly-split|1",
+    }),
+  ]);
+  const afterInsert = (await repo.summary.monthlyTotals()).reduce((s, m) => s + m.count, 0);
+  assert.equal(afterInsert, before + 1, "one new transaction adds one to the count");
+
+  const id = await byDesc("SPLIT ME MONTHLY");
+  await repo.splits.set(id, [
+    { category: "Groceries", amount: 60 },
+    { category: "Coffee", amount: 40 },
+  ]);
+  const afterSplit = (await repo.summary.monthlyTotals()).reduce((s, m) => s + m.count, 0);
+  assert.equal(afterSplit, afterInsert, "splitting it across 2 categories still counts as one");
+});
