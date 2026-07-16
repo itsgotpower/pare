@@ -76,6 +76,13 @@ export async function GET(request: NextRequest) {
         category_rules: db
           .prepare("SELECT keyword, category, sort_order FROM category_rules ORDER BY sort_order, id")
           .all(),
+        // Split parts, so the JSON export stays a faithful backup (splits
+        // re-slice the transactions above by transaction_id).
+        transaction_splits: db
+          .prepare(
+            "SELECT id, transaction_id, category, amount FROM transaction_splits ORDER BY transaction_id, id"
+          )
+          .all(),
         goals: db
           .prepare("SELECT category, monthly_limit FROM spending_goals WHERE active = 1 ORDER BY category")
           .all(),
@@ -118,11 +125,13 @@ export async function DELETE(request: NextRequest) {
 
   const db = getDb();
   const wipe = db.transaction(() => {
-    // Overrides reference transactions(id) (FKs are ON) — delete them first.
+    // Overrides and splits reference transactions(id) (FKs are ON) — delete
+    // the children first.
     const overrides = db.prepare("DELETE FROM category_overrides").run().changes;
+    const splits = db.prepare("DELETE FROM transaction_splits").run().changes;
     const txns = db.prepare("DELETE FROM transactions").run().changes;
     const stmts = db.prepare("DELETE FROM statements").run().changes;
-    return { transactions: txns, statements: stmts, overrides };
+    return { transactions: txns, statements: stmts, overrides, splits };
   });
   const deleted = wipe();
 
