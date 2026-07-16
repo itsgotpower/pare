@@ -23,6 +23,7 @@ export interface ManualEntry {
 
 export interface NetWorthAccount {
   name: string;
+  label?: string; // nickname (account_meta) — display only; `name` stays the timeline key
   type: "statement" | "manual";
   kind: "asset" | "liability";
   current: number; // signed: liabilities negative
@@ -144,13 +145,19 @@ export function getNetWorth(): NetWorthData {
     t.obs.push({ date, value });
   };
 
-  // Timelines are keyed by account name; closed status lives on the source —
-  // collect the closed names so the series can stop carrying them forward.
+  // Timelines are keyed by account name; closed status and nicknames live on
+  // the source — collect both per account name. Nicknames are display-only
+  // labels: renaming the timeline/balances keys themselves would merge two
+  // accounts' histories on a nickname collision.
   const meta = getAccountMetaMap();
   const closedNames = new Set<string>();
+  const labelByName = new Map<string, string>();
   for (const s of statements) {
     const liability = s.account_kind === "card";
-    if (meta.get(s.source)?.closed) closedNames.add(s.account);
+    const m = meta.get(s.source);
+    if (m?.closed) closedNames.add(s.account);
+    const nickname = m?.nickname?.trim();
+    if (nickname) labelByName.set(s.account, nickname);
     observe(
       s.account,
       liability ? "liability" : "asset",
@@ -225,6 +232,7 @@ export function getNetWorth(): NetWorthData {
       const latest = t.obs[t.obs.length - 1];
       return {
         name,
+        label: labelByName.get(name),
         type: t.type,
         kind: t.kind,
         current: latest.value,
