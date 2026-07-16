@@ -1,8 +1,9 @@
 name: CI
 
-# Runs on every PR: verifies the app type-checks and that the Cloudflare
-# (OpenNext) bundle builds. No deploy — production ships only on merge via
-# deploy.yml. No Cloudflare credentials needed; the build is fully local.
+# Runs on every PR: the parser regression suite, then verifies the app
+# type-checks and that the Cloudflare (OpenNext) bundle builds. No deploy —
+# production ships only on merge via deploy.yml. No Cloudflare credentials
+# needed; everything runs fully local.
 
 on:
   pull_request: {}
@@ -12,6 +13,18 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Parser regression suite (tests/, stdlib unittest, synthetic fixtures).
+  # `npm test` shells straight out to python3 — no npm ci, no pip installs,
+  # and no poppler either: the tests monkeypatch the pdftotext extraction.
+  parser-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Parser test suite
+        run: npm test
+
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 15
