@@ -24,7 +24,7 @@ Tangerine / Wealthsimple) are declared in `_SCAFFOLD_BANKS` and register via
 `registry.register_scaffolds`. Order matters: CIBC chequing PDFs contain the
 literal "American Express" (Amex card-payment lines), so the specific titles
 outrank the Amex fallback (priority 90, always last); scaffolds slot between
-(30–80).
+(30–41).
 
 Two shared, bank-agnostic engines back the scaffolds:
   - `_walk_ledger` + `LedgerProfile` (chequing/savings) — direction by balance
@@ -743,7 +743,7 @@ def _ledger_detect(brand, *, savings=None):
 # Scaffold bank registry — the single source of truth for the SCAFFOLDED banks.
 # `registry.register_scaffolds()` reads this to wire routing (main/orchestrator);
 # `statement_meta()` reads it for per-bank metadata. Each entry carries its
-# routing priority (30–80, between the CIBC built-ins at 10/20 and the Amex
+# routing priority (30–41, between the CIBC built-ins at 10/20 and the Amex
 # fallback at 90). Within a brand that has both chequing AND savings (Tangerine,
 # Wealthsimple), the SAVINGS handler is listed (and prioritised) FIRST so its
 # savings-marker detector wins.
@@ -975,7 +975,7 @@ def main(src_dir, out_csv):
     # orchestrator (orchestrator.py) — Phase 1 of the self-improving parser.
     # register_builtins wires the three verified parsers (Visa 10 -> chequing 20
     # -> Amex fallback 90); register_scaffolds wires the scaffolded banks from
-    # _SCAFFOLD_BANKS (priorities 30-80, so they slot between chequing and the
+    # _SCAFFOLD_BANKS (priorities 30-41, so they slot between chequing and the
     # Amex fallback — chequing statements contain the text "American Express").
     import sys as _sys
     import registry, orchestrator

@@ -65,12 +65,15 @@ the repo (the parent directory is fine).
 **Other commands**
 
 ```bash
-npm run mcp                                          # finance MCP server (stdio) over data/pare.db
-python3 lib/parser/parse_statements.py <dir> --json  # run the PDF parser standalone
-npm test                                             # parser regression suite (synthetic fixtures)
+npm run mcp                                             # finance MCP server (stdio) over data/pare.db
+python3 lib/parser/parse_statements.py <dir> --json     # run the PDF parser standalone
+python3 lib/parser/parse_statements.py --report <pdf>   # single-statement parse report (parser tuning)
+npm test                                                # parser regression suite (synthetic fixtures)
 ```
 
-See [mcp/README.md](mcp/README.md) for wiring the MCP server into Claude, and
+See [mcp/README.md](mcp/README.md) for wiring the MCP server into Claude,
+[docs/parser-contributions.md](docs/parser-contributions.md) for tuning your
+bank's statement parser against your own PDFs, and
 [CONTRIBUTING.md](CONTRIBUTING.md) for tests and the PR flow.
 
 ## Architecture

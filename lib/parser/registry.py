@@ -78,7 +78,7 @@ def register_builtins(mod) -> None:
 def register_scaffolds(mod) -> None:
     """Register the SCAFFOLDED banks from ``mod._SCAFFOLD_BANKS`` (RBC / TD /
     Scotia / BMO / Tangerine / Wealthsimple). Idempotent. Their priorities
-    (30–80) place them between CIBC chequing (20) and the Amex fallback (90), so
+    (30–41) place them between CIBC chequing (20) and the Amex fallback (90), so
     the Amex fallback stays last. Each scaffold carries its own ``detect`` /
     ``parse`` / ``meta`` — the same trio ``statement_meta()`` reads directly, so
     routing (here) and metadata stay in sync from one source of truth.
