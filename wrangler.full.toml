@@ -215,3 +215,30 @@ name = "RL_WAITLIST"
 type = "ratelimit"
 namespace_id = "2002"
 simple = { limit = 10, period = 60 }
+
+# RL_BEACON — unauthenticated client-error beacon (/api/monitoring): 30 req/60s/IP.
+# Its OWN namespace so an error-storm from one IP can't drain the RL_AUTH budget
+# and 429 that user's sign-in (the beacon and login used to share RL_AUTH).
+[[unsafe.bindings]]
+name = "RL_BEACON"
+type = "ratelimit"
+namespace_id = "2004"
+simple = { limit = 30, period = 60 }
+
+# RL_FEEDBACK — in-app product feedback (POST /api/feedback): 5 requests / 60s/IP.
+# The endpoint is authenticated, so this is a backstop against a hostile account
+# scripting row inserts into the shared feedback store.
+[[unsafe.bindings]]
+name = "RL_FEEDBACK"
+type = "ratelimit"
+namespace_id = "2005"
+simple = { limit = 5, period = 60 }
+
+# RL_MCP — remote MCP connector (/api/mcp): 120 requests / 60s / USER (keyed
+# `u:<userId>`, not per-IP — connector traffic egresses from Anthropic's IPs,
+# so IP-keying would pool every user into one bucket). Fail-open when absent.
+[[unsafe.bindings]]
+name = "RL_MCP"
+type = "ratelimit"
+namespace_id = "2006"
+simple = { limit = 120, period = 60 }

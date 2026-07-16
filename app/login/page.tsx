@@ -9,6 +9,7 @@ import { ShieldCheck, Lock, KeyRound } from "lucide-react";
 import { authClient } from "@/lib/auth/client";
 import { Turnstile, turnstileConfigured } from "@/components/turnstile";
 import { Wordmark } from "@/components/layout/wordmark";
+import { purgeDataCaches } from "@/lib/purge-data-cache";
 
 // In-app redirect target from ?from=. Only follow same-app paths — never an
 // absolute URL from the query string. Default to /dashboard (the app entry);
@@ -32,6 +33,22 @@ async function resolveLanding(from: string): Promise<string> {
     /* fall through to the default landing */
   }
   return from;
+}
+
+// Remote-MCP OAuth continuation (hosted only). When the better-auth mcp plugin
+// bounces a signed-out authorize request here, it puts the ENTIRE authorize
+// query on the login URL (client_id, redirect_uri, code_challenge, …). The
+// plugin's own resume mechanism — an after-hook that turns the sign-in response
+// into a 302 to the consent page — is invisible to our fetch-based submit (the
+// browser follows the redirect internally and hands back the consent page's
+// HTML as the fetch body), so the client must re-enter the flow itself: after
+// sign-in, navigate (full page) to /api/mcp-authorize with the same query. The
+// full-page paths (email-verification link, Google callback) don't need this —
+// there the after-hook's 302 really navigates the browser.
+function oauthResumeUrl(searchParams: URLSearchParams): string | null {
+  const required = ["client_id", "redirect_uri", "response_type"];
+  if (!required.every((k) => searchParams.get(k))) return null;
+  return `/api/mcp-authorize?${searchParams.toString()}`;
 }
 
 // Shared brutalist shell so every auth mode looks identical: a PARE header rule
@@ -102,6 +119,14 @@ function LoginForm() {
   const [mode, setMode] = useState<"loading" | "self" | "hosted">("loading");
   const [configured, setConfigured] = useState<boolean | null>(null);
   const [googleEnabled, setGoogleEnabled] = useState(false);
+
+  // The login page is the choke point every signed-out state passes through
+  // (explicit logout, session expiry, a forged/expired cookie bounced here).
+  // Purge the SW's per-user data cache on arrival so no prior tenant's cached
+  // financial PII survives into the next sign-in on a shared browser.
+  useEffect(() => {
+    void purgeDataCaches();
+  }, []);
 
   useEffect(() => {
     fetch("/api/auth")
@@ -362,15 +387,20 @@ function HostedForm({
   const [captchaToken, setCaptchaToken] = useState("");
   const [captchaReset, setCaptchaReset] = useState(0);
 
+  // Mid-OAuth (claude.ai connector) continuation — see oauthResumeUrl above.
+  const oauthResume = oauthResumeUrl(searchParams);
+
   // Already signed in (e.g. returning with a valid cookie)? Skip the form.
   useEffect(() => {
     authClient
       .getSession()
       .then((s) => {
-        if (s.data?.session) resolveLanding(from).then((t) => router.replace(t));
+        if (!s.data?.session) return;
+        if (oauthResume) window.location.assign(oauthResume);
+        else resolveLanding(from).then((t) => router.replace(t));
       })
       .catch(() => {});
-  }, [router, from]);
+  }, [router, from, oauthResume]);
 
   const finish = async () => {
     router.replace(await resolveLanding(from));
@@ -415,6 +445,13 @@ function HostedForm({
         setPendingVerification(email);
         return;
       }
+      // Mid-OAuth: get the user back to claude.ai's consent step, not a
+      // passkey interstitial. Full-page navigation, deliberately not
+      // router.replace — the target is an API route, not an app page.
+      if (oauthResume) {
+        window.location.assign(oauthResume);
+        return;
+      }
       // Signed in. Offer a passkey for faster next time instead of redirecting
       // immediately; WebAuthn registration must run from a user gesture, which
       // the button on the next screen provides.
@@ -438,10 +475,13 @@ function HostedForm({
       // safeFrom). Signup vs sign-in needs no branching — a Google-verified
       // email matching an existing account links to it (trustedProviders in
       // lib/auth/hosted.ts), otherwise an account is created.
+      // Mid-OAuth the plugin's after-hook normally supersedes callbackURL with
+      // the authorize continuation; pointing callbackURL there too covers the
+      // case where its oidc_login_prompt cookie has expired en route.
       const res = await authClient.signIn.social({
         provider: "google",
-        callbackURL: from,
-        newUserCallbackURL: from,
+        callbackURL: oauthResume ?? from,
+        newUserCallbackURL: oauthResume ?? from,
         errorCallbackURL: "/login?error=google",
       });
       if (res?.error) {

@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { SqliteRepo } from "./sqlite-repo";
 import { DoBackend, MemoryDurableStore, runMigrationsFromStrings } from "./do-backend";
+import { MIGRATIONS } from "../db/migrations";
 
 // ---------------------------------------------------------------------------
 // DoBackend + SqliteRepo over an in-memory DurableStore (Node).
@@ -115,17 +116,18 @@ test("DoBackend: migrations run at first access (idempotent, full schema present
   for (const expected of [
     "transactions", "statements", "category_rules", "category_overrides",
     "spending_goals", "app_user", "manual_entries", "waitlist", "imports",
-    "subscription_marks", "v_transactions",
+    "subscription_marks", "account_meta", "v_transactions",
   ]) {
     assert.ok(tables.includes(expected), `migrations should create ${expected}`);
   }
 
-  // All eight migrations recorded; re-running is a no-op (idempotent).
+  // Every migration recorded (derived, so a new migration can't rot this
+  // assertion); re-running is a no-op (idempotent).
   const before = db.prepare("SELECT COUNT(*) c FROM _migrations").get() as { c: number };
-  assert.equal(before.c, 8);
+  assert.equal(before.c, MIGRATIONS.length);
   runMigrationsFromStrings(db);
   const after = db.prepare("SELECT COUNT(*) c FROM _migrations").get() as { c: number };
-  assert.equal(after.c, 8, "re-running migrations must not duplicate rows");
+  assert.equal(after.c, MIGRATIONS.length, "re-running migrations must not duplicate rows");
 
   await backend.close();
 });

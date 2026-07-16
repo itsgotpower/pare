@@ -20,6 +20,10 @@ const PUBLIC_PATHS = [
   "/login",
   "/demo",
   "/api/auth",
+  // OAuth discovery for the remote MCP connector (RFC 8414/9728): claude.ai
+  // fetches these anonymously before any auth exists. Hosted-only routes (404
+  // in self-host), but they must never be gated or redirected.
+  "/.well-known",
   "/api/waitlist",
   "/about",
   "/mcp",

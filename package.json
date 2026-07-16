@@ -13,7 +13,7 @@
     "gen:demo": "tsx scripts/seed-demo.ts && PARE_DB_PATH=data/demo.db tsx scripts/gen-demo-json.ts",
     "test": "python3 -m unittest discover -s tests",
     "test:e2e": "playwright test",
-    "test:repo": "PARE_DATA_DIR=$(mktemp -d) PARE_DB_PATH=$(mktemp -d)/pare-test.db tsx --test lib/*.test.ts lib/repo/*.test.ts lib/parser/*.test.ts lib/storage/*.test.ts lib/queue/*.test.ts cloud/billing/*.test.ts lib/import/*.test.ts lib/simplefin/*.test.ts",
+    "test:repo": "PARE_DATA_DIR=$(mktemp -d) PARE_DB_PATH=$(mktemp -d)/pare-test.db tsx --test lib/*.test.ts lib/repo/*.test.ts lib/parser/*.test.ts lib/storage/*.test.ts lib/queue/*.test.ts cloud/billing/*.test.ts lib/import/*.test.ts lib/simplefin/*.test.ts mcp/*.test.ts",
     "test:do-sql": "vitest run --config vitest.workers.config.ts",
     "test:auth": "tsx --test lib/auth/*.test.ts",
     "test:cloud": "tsx --test cloud/ingest/*.test.ts",

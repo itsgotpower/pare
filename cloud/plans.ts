@@ -18,7 +18,11 @@ export type PlanId = "free" | "pro";
  * this union and (2) listing it in the unlocking plan's `features` below; then gate
  * it server-side via cloud/billing/gate.ts `requireFeature`.
  */
-export type Feature = "email_ingest" | "llm_autocoverage" | "simplefin";
+export type Feature =
+  | "email_ingest"
+  | "llm_autocoverage"
+  | "simplefin"
+  | "mcp_connector";
 
 export interface Plan {
   id: PlanId;
@@ -37,7 +41,10 @@ export interface Plan {
 export const PLANS: Record<PlanId, Plan> = {
   free: {
     id: "free", label: "Free", statementsPerMonth: 5, accounts: 1,
-    features: new Set<Feature>(),
+    // mcp_connector is deliberately on EVERY plan (it's the headline
+    // differentiator); the /api/mcp gate exists so moving it to a paid tier
+    // later is a one-line change here. FR-72 pricing pass decides.
+    features: new Set<Feature>(["mcp_connector"]),
     stripePriceEnv: null,
   },
   // Public name is "Plus"; the id stays "pro" (persisted in billing rows and
@@ -50,7 +57,9 @@ export const PLANS: Record<PlanId, Plan> = {
     // sync bypasses the Free statement cap entirely and a bridge connection
     // typically carries 2+ accounts, so it's Plus-shaped by construction
     // (2026-07-06 build plan).
-    features: new Set<Feature>(["email_ingest", "llm_autocoverage", "simplefin"]),
+    features: new Set<Feature>([
+      "email_ingest", "llm_autocoverage", "simplefin", "mcp_connector",
+    ]),
     stripePriceEnv: "STRIPE_PRICE_PRO",
   },
 };

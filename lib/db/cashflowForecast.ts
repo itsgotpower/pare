@@ -87,12 +87,15 @@ const addDays = (d: Date, n: number) => {
 export function getCashflowForecast(now: Date = new Date()): CashflowForecast | null {
   const db = getDb();
 
+  // Hidden or closed accounts can't anchor the projection: a closed chequing
+  // account's last printed balance is not the user's cash position.
   const anchor = db
     .prepare(
       `SELECT period, closing_balance AS balance, closing_date AS date
        FROM statements
        WHERE account_kind = 'chequing'
          AND closing_balance IS NOT NULL AND closing_date IS NOT NULL
+         AND source NOT IN (SELECT source FROM account_meta WHERE hidden = 1 OR closed = 1)
        ORDER BY closing_date DESC LIMIT 1`
     )
     .get() as { period: string; balance: number; date: string } | undefined;

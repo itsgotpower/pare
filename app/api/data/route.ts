@@ -3,6 +3,7 @@ import fs from "fs";
 import path from "path";
 import { getDb, DB_PATH } from "@/lib/db";
 import { isHostedMode } from "@/lib/auth/resolve";
+import { csvField } from "@/lib/csv";
 
 // Exports + destructive data ops — SELF-HOST ONLY. This route reads the file DB
 // directly (getDb/fs/better-sqlite3), which does not exist on the hosted target,
@@ -24,19 +25,18 @@ interface ExportTxn {
 }
 
 function exportTransactions(): ExportTxn[] {
+  // Base table + override join, NOT v_transactions: the view excludes hidden
+  // accounts (migration 009), but an export is the user's own data and must
+  // always be complete.
   return getDb()
     .prepare(
-      `SELECT txn_date, source, description, amount, flow,
-              effective_category AS category
-       FROM v_transactions
-       ORDER BY txn_date, source, id`
+      `SELECT t.txn_date, t.source, t.description, t.amount, t.flow,
+              COALESCE(co.new_category, t.category) AS category
+       FROM transactions t
+       LEFT JOIN category_overrides co ON co.transaction_id = t.id
+       ORDER BY t.txn_date, t.source, t.id`
     )
     .all() as ExportTxn[];
-}
-
-function csvField(value: string | number): string {
-  const s = String(value);
-  return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
 function attachment(filename: string, contentType: string): HeadersInit {

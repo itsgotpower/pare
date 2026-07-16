@@ -17,9 +17,11 @@ import {
   Sun,
   Moon,
   User,
+  MessageSquarePlus,
 } from "lucide-react";
 import { PALETTE } from "@/lib/colors";
 import { Wordmark } from "@/components/layout/wordmark";
+import { FeedbackDialog } from "@/components/feedback/feedback-dialog";
 
 const REPO_URL = "https://github.com/itsgotpower/pare";
 const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION ?? "";
@@ -303,6 +305,16 @@ export function Sidebar() {
             {dark ? <Sun className="size-4 shrink-0" /> : <Moon className="size-4 shrink-0" />}
             {!collapsed && <span>{dark ? "LIGHT" : "DARK"}</span>}
           </button>
+          <FeedbackDialog
+            triggerTitle={collapsed ? "FEEDBACK" : undefined}
+            triggerClassName="flex items-center gap-3 px-4 py-2.5 w-full font-mono text-xs tracking-widest text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors"
+            trigger={
+              <>
+                <MessageSquarePlus className="size-4 shrink-0" />
+                {!collapsed && <span>FEEDBACK</span>}
+              </>
+            }
+          />
           {!collapsed && APP_VERSION && (
             <a
               href={`${REPO_URL}/releases/tag/v${APP_VERSION}`}
