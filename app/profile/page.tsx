@@ -628,24 +628,26 @@ export default function ProfilePage() {
             // Quick-added cash rows have no statement feed behind them — there
             // is nothing to upload, so staleness doesn't apply. Closed accounts
             // are done on purpose — no point nagging for an upload either.
-            // Synced sources skip the txn-based clock entirely (badge below).
+            // ACTIVELY synced sources skip the txn-based clock (badge below) —
+            // but only while a SimpleFIN connection exists: after a disconnect
+            // the .sync statements remain, and without this guard the source
+            // would be exempt from staleness nudges forever.
             const isManual = s.source === "manual";
+            const sync = profile.simplefin;
+            const syncActive = s.synced && !!sync;
             const stale =
               !isManual &&
-              !s.synced &&
+              !syncActive &&
               !s.closed &&
               s.days_since_last !== null &&
               s.days_since_last > STALE_AFTER_DAYS;
             const aging =
               !isManual &&
-              !s.synced &&
+              !syncActive &&
               !s.closed &&
               !stale &&
               s.days_since_last !== null &&
               s.days_since_last > WARN_AFTER_DAYS;
-            // Synced-source recency = the connection's last successful sync
-            // (merged from the config store by /api/profile), not last_txn_date.
-            const sync = profile.simplefin;
             const syncFresh =
               !!sync?.lastSyncedAt &&
               Date.now() - Date.parse(sync.lastSyncedAt) <
@@ -701,7 +703,7 @@ export default function ProfilePage() {
                   <span className="font-mono text-[10px] tracking-widest uppercase border border-border px-1.5 py-0.5 text-muted-foreground">
                     Closed
                   </span>
-                ) : s.synced ? (
+                ) : syncActive ? (
                   sync?.lastSyncedAt ? (
                     syncFresh ? (
                       <span
