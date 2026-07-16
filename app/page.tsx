@@ -262,15 +262,13 @@ export default function MarketingHome() {
               >
                 <GithubMark className="size-4" /> GitHub
               </a>
-              {!WAITLIST_ONLY && (
-                <Link
-                  href="/login"
-                  onClick={() => setMenuOpen(false)}
-                  className="flex items-center px-5 min-h-[3.25rem] border-b border-border text-muted-foreground hover:text-foreground hover:bg-secondary/50 transition-colors"
-                >
-                  Sign in
-                </Link>
-              )}
+              <Link
+                href="/login"
+                onClick={() => setMenuOpen(false)}
+                className="flex items-center px-5 min-h-[3.25rem] border-b border-border text-muted-foreground hover:text-foreground hover:bg-secondary/50 transition-colors"
+              >
+                Sign in
+              </Link>
               <button
                 type="button"
                 onClick={toggleDark}
