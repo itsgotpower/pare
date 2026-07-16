@@ -13,6 +13,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { PALETTE } from "@/lib/colors";
+import { timeAgo } from "@/lib/format";
 import { purgeDataCaches } from "@/lib/purge-data-cache";
 import { LogOut, Pencil, Download, Database, FileJson, CreditCard, Settings2, MessageSquarePlus } from "lucide-react";
 import { IngestInbox } from "@/components/profile/ingest-inbox";
@@ -30,6 +31,9 @@ interface SourceHealth {
   last_txn_date: string | null;
   days_since_last: number | null;
   coverage: boolean[];
+  // Fed by a sync (SimpleFIN) — staleness keys off sync recency, not
+  // days-since-last-transaction (a quiet card syncs daily with no spend).
+  synced: boolean;
 }
 
 interface Profile {
@@ -50,6 +54,12 @@ interface Profile {
     coverage_window: string[];
     sources: SourceHealth[];
   };
+  // SimpleFIN connection recency, merged by /api/profile from the config store
+  // (null when the feature is disabled or nothing is connected).
+  simplefin?: {
+    lastSyncedAt: string | null;
+    lastSyncStatus: string | null;
+  } | null;
 }
 
 interface Billing {
@@ -64,6 +74,10 @@ const STALE_AFTER_DAYS = 40;
 // Mustard nudge before the terracotta flag — statements are monthly, so a
 // source quietly approaching a missed cycle gets a heads-up first.
 const WARN_AFTER_DAYS = 28;
+// Synced (SimpleFIN) sources: auto-sync runs ~daily, so >2 missed days of
+// successful syncs is worth a nudge — days-since-last-TRANSACTION is the
+// wrong clock for them (a quiet card syncs fine with zero spend).
+const SYNC_OVERDUE_AFTER_HOURS = 48;
 
 const formatDate = (iso: string | null) =>
   iso
@@ -614,18 +628,31 @@ export default function ProfilePage() {
             // Quick-added cash rows have no statement feed behind them — there
             // is nothing to upload, so staleness doesn't apply. Closed accounts
             // are done on purpose — no point nagging for an upload either.
+            // ACTIVELY synced sources skip the txn-based clock (badge below) —
+            // but only while a SimpleFIN connection exists: after a disconnect
+            // the .sync statements remain, and without this guard the source
+            // would be exempt from staleness nudges forever.
             const isManual = s.source === "manual";
+            const sync = profile.simplefin;
+            const syncActive = s.synced && !!sync;
             const stale =
               !isManual &&
+              !syncActive &&
               !s.closed &&
               s.days_since_last !== null &&
               s.days_since_last > STALE_AFTER_DAYS;
             const aging =
               !isManual &&
+              !syncActive &&
               !s.closed &&
               !stale &&
               s.days_since_last !== null &&
               s.days_since_last > WARN_AFTER_DAYS;
+            const syncFresh =
+              !!sync?.lastSyncedAt &&
+              Date.now() - Date.parse(sync.lastSyncedAt) <
+                SYNC_OVERDUE_AFTER_HOURS * 3600_000 &&
+              (sync.lastSyncStatus === "ok" || sync.lastSyncStatus === null);
             const coveredCount = s.coverage.filter(Boolean).length;
             return (
               <div
@@ -676,6 +703,29 @@ export default function ProfilePage() {
                   <span className="font-mono text-[10px] tracking-widest uppercase border border-border px-1.5 py-0.5 text-muted-foreground">
                     Closed
                   </span>
+                ) : syncActive ? (
+                  sync?.lastSyncedAt ? (
+                    syncFresh ? (
+                      <span
+                        className="font-mono text-[10px] tracking-widest uppercase border px-1.5 py-0.5"
+                        style={{ color: PALETTE.sage, borderColor: PALETTE.sage }}
+                      >
+                        Synced {timeAgo(sync.lastSyncedAt)}
+                      </span>
+                    ) : (
+                      <Link
+                        href="/upload"
+                        className="font-mono text-[10px] tracking-widest uppercase border px-1.5 py-0.5"
+                        style={{ color: PALETTE.mustard, borderColor: PALETTE.mustard }}
+                      >
+                        Sync overdue — {timeAgo(sync.lastSyncedAt)}
+                      </Link>
+                    )
+                  ) : (
+                    <span className="font-mono text-[10px] tracking-widest uppercase border border-border px-1.5 py-0.5 text-muted-foreground">
+                      Synced
+                    </span>
+                  )
                 ) : stale || aging ? (
                   <Link
                     href="/upload"

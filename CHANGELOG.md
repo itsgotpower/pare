@@ -28,6 +28,18 @@ contracts, on-disk and crypto formats) may change between minor versions — see
   scoped to your account, per-user rate-limited. `/connect` on the hosted app
   becomes the ADD TO CLAUDE walkthrough. Self-host keeps the fully local
   stdio server, unchanged ([#112]).
+- **Card balances anchor net worth from OFX and SimpleFIN** — credit-card
+  closing balances from `.ofx`/`.qfx` imports and SimpleFIN syncs now feed
+  the NET WORTH tab (previously PDF statements only). Balances follow the
+  as-printed convention automatically; a credit balance on a card correctly
+  counts as an asset ([#113]).
+- **Account nicknames everywhere** — nicknames set in Profile → Data Health
+  now show on the transactions source filter and rows, and on the NET WORTH
+  balances card ([#113]).
+- **Sync-aware freshness** — SimpleFIN-synced accounts show "SYNCED Xh AGO"
+  / "SYNC OVERDUE" in Data Health based on the connection's last sync,
+  instead of a false "upload" nudge when a quiet card simply had no spending
+  ([#113]).
 
 ## [0.3.0] - 2026-07-04
 
@@ -214,3 +226,4 @@ server exposing the local data to MCP clients. Ships open-source repo scaffoldin
 [#110]: https://github.com/itsgotpower/pare/pull/110
 [#111]: https://github.com/itsgotpower/pare/pull/111
 [#112]: https://github.com/itsgotpower/pare/pull/112
+[#113]: https://github.com/itsgotpower/pare/pull/113

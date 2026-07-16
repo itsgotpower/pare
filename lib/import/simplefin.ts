@@ -382,14 +382,21 @@ export function toOfxImport(
       });
     }
 
-    // Balance → net-worth anchor for deposit accounts only. Card balance sign
-    // conventions vary by institution behind the bridge, and net worth signs
-    // card balances itself from as-printed-positive — same rationale as the
-    // OFX path leaving card BALAMT alone.
-    const isDeposit = kind === "chequing" || kind === "savings" || kind === "investment";
+    // Balance → net-worth anchor, kind-aware. SimpleFIN balances are
+    // institution-reported, customer-perspective signed decimals: deposit
+    // accounts positive-when-funded (stored as-is), cards NEGATIVE when owed —
+    // the opposite of Pare's as-printed convention (positive = owed; net worth
+    // applies the liability sign), so cards store the NEGATED value. Negation,
+    // not abs(): a genuine credit balance (+25.00) must store as -25.00 so net
+    // worth counts it as an asset. Same convention as the OFX LEDGERBAL path;
+    // the `<source>.sync` statement UPSERT corrects any mis-signed reading on
+    // the next sync.
     const balance = parseFloat(acct.balance);
-    const closing_balance =
-      isDeposit && Number.isFinite(balance) ? balance : null;
+    const closing_balance = Number.isFinite(balance)
+      ? kind === "card"
+        ? -balance
+        : balance
+      : null;
     const closing_date =
       closing_balance !== null && acct["balance-date"]
         ? epochToDate(acct["balance-date"])

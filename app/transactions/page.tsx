@@ -55,6 +55,9 @@ export default function TransactionsPage() {
   const [total, setTotal] = useState(0);
   const [categories, setCategories] = useState<string[]>([]);
   const [sources, setSources] = useState<string[]>([]);
+  // source → nickname-resolved label (from /api/accounts). Display only: the
+  // filter VALUE and query param stay the raw source string (dedup identity).
+  const [sourceLabels, setSourceLabels] = useState<Record<string, string>>({});
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState<string>("all");
@@ -111,6 +114,24 @@ export default function TransactionsPage() {
   useEffect(() => {
     setPage(1);
   }, [search, category, source, flow]);
+
+  // Once on mount: AccountInfo.label is already nickname-resolved server-side.
+  useEffect(() => {
+    fetch("/api/accounts")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: { accounts?: { source: string; label: string }[] } | null) => {
+        if (!data?.accounts) return;
+        setSourceLabels(
+          Object.fromEntries(data.accounts.map((a) => [a.source, a.label]))
+        );
+      })
+      .catch(() => {}); // labels fall back to the derived source string
+  }, []);
+
+  // Nickname if the map has one, else the derived label (also the pre-fetch
+  // and unknown-source fallback).
+  const sourceDisplay = (s: string) =>
+    sourceLabels[s] ?? s.replace(/_/g, " ").toUpperCase();
 
   const totalPages = Math.ceil(total / limit);
 
@@ -284,7 +305,7 @@ export default function TransactionsPage() {
           <SelectItem value="all" className="font-mono text-xs">ALL SOURCES</SelectItem>
           {sources.map((s) => (
             <SelectItem key={s} value={s} className="font-mono text-xs">
-              {s.replace(/_/g, " ").toUpperCase()}
+              {sourceDisplay(s)}
             </SelectItem>
           ))}
         </SelectContent>
@@ -508,7 +529,7 @@ export default function TransactionsPage() {
                       ) : null}
                     </span>
                     <span className="font-mono text-[10px] text-muted-foreground uppercase shrink-0">
-                      {tx.txn_date} · {tx.source.replace("_", " ")}
+                      {tx.txn_date} · {sourceDisplay(tx.source)}
                     </span>
                   </div>
                 </button>
@@ -569,7 +590,9 @@ export default function TransactionsPage() {
                         ) : null}
                       </span>
                     </TableCell>
-                    <TableCell className="font-mono text-xs uppercase">{tx.source}</TableCell>
+                    <TableCell className="font-mono text-xs uppercase">
+                      {sourceDisplay(tx.source)}
+                    </TableCell>
                     <TableCell className="font-mono text-sm text-right">
                       {formatCents(tx.amount)}
                     </TableCell>
@@ -621,7 +644,7 @@ export default function TransactionsPage() {
               <div className="border p-3">
                 <p className="text-sm font-medium break-words">{selected.description}</p>
                 <p className="font-mono text-xs text-muted-foreground mt-1">
-                  {selected.txn_date} · {selected.source.toUpperCase()} ·{" "}
+                  {selected.txn_date} · {sourceDisplay(selected.source)} ·{" "}
                   {formatCents(selected.amount)}
                 </p>
                 <div className="flex items-center gap-3 mt-2">

@@ -41,6 +41,16 @@ export const formatDayShort = (iso: string) => {
   return `${MONTH_NAMES[parseInt(m, 10) - 1]?.slice(0, 3)} ${parseInt(d, 10)}`;
 };
 
+// Relative recency for sync timestamps: "5m ago" / "3h ago" / "2d ago".
+// Shared by the SimpleFIN card (/upload) and the profile DATA HEALTH badges.
+export const timeAgo = (iso: string): string => {
+  const mins = Math.max(0, Math.round((Date.now() - Date.parse(iso)) / 60000));
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.round(mins / 60);
+  if (hours < 48) return `${hours}h ago`;
+  return `${Math.round(hours / 24)}d ago`;
+};
+
 // Y-axis dollars-in-thousands tick: 4000 -> "$4k", 2500 -> "$2.5k".
 // Keep one decimal for non-integer thousands — recharts often picks 500-step
 // ticks, and rounding those to whole k renders duplicate labels ($3k twice).

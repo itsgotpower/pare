@@ -196,3 +196,48 @@ test("a closed chequing account no longer anchors the cash-flow forecast", async
 
   await repo.accounts.setMeta("cibc_chequing", { closed: false });
 });
+
+test("net worth exposes nicknames as display labels; timeline keys stay the account name", async () => {
+  await repo.accounts.setMeta("old_visa", { nickname: "Retired card" });
+  const nw = await repo.netWorth.get();
+  const visa = nw.accounts.find((a) => a.name === "VISA")!;
+  assert.equal(visa.label, "Retired card");
+  assert.equal(nw.accounts.find((a) => a.name === "CHEQ")!.label, undefined);
+  // balances stay keyed by the account NAME — a nickname collision must never
+  // merge two accounts' histories.
+  const april = nw.series.find((p) => p.month === "2026-04")!;
+  assert.ok("VISA" in april.balances);
+  assert.ok(!("Retired card" in april.balances));
+  await repo.accounts.setMeta("old_visa", { nickname: null });
+});
+
+// NOTE: keep this test LAST — its inserts change totals the earlier tests
+// assert on (e.g. health.transactions).
+test("data health flags synced sources via the *.sync statement filename", async () => {
+  // A SimpleFIN-synced source: `<source>.sync` is the per-account statement
+  // filename the sync core UPSERTs (lib/simplefin/sync.ts).
+  await repo.transactions.insertMany([
+    txn("simplefin_abc123", "card", "2026-05-02", "STREAMING SUB", 12.99),
+  ]);
+  await repo.statements.insert({
+    filename: "simplefin_abc123.sync",
+    source: "simplefin_abc123",
+    account: "Cashback Card",
+    period: "2026-05-01 to 2026-05-31",
+    row_count: 1,
+    closing_balance: null,
+    closing_date: null,
+    account_kind: "card",
+  });
+
+  const health = await repo.profile.dataHealth();
+  const synced = health.sources.find((s) => s.source === "simplefin_abc123");
+  assert.ok(synced, "synced source must appear in data health");
+  assert.equal(synced.synced, true);
+
+  // Upload-fed sources (normal statement filenames) stay txn-clocked.
+  assert.equal(health.sources.find((s) => s.source === "cibc_chequing")!.synced, false);
+  assert.equal(health.sources.find((s) => s.source === "old_visa")!.synced, false);
+  // A source with no statement rows at all → not synced either.
+  assert.equal(health.sources.find((s) => s.source === "amex")!.synced, false);
+});
