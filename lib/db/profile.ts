@@ -13,6 +13,12 @@ export interface SourceHealth {
   last_txn_date: string | null;
   days_since_last: number | null; // days since last_txn_date (0 if in the future)
   coverage: boolean[]; // oldest→newest, one entry per month in coverage_window
+  // Fed by a sync (statement filename `<source>.sync`, written by the SimpleFIN
+  // sync core) rather than manual uploads — staleness keys off sync recency,
+  // not days-since-last-transaction (a quiet card syncs daily with no spend).
+  // The sync TIMESTAMP lives in the SimpleFIN config store, which this repo/DO
+  // layer can never read; the composition root (/api/profile) merges it.
+  synced: boolean;
 }
 
 export interface DataHealth {
@@ -112,9 +118,16 @@ export function getDataHealth(): DataHealth {
     (
       db
         .prepare(
-          "SELECT source, COUNT(*) AS n, MAX(closing_date) AS last_close FROM statements GROUP BY source"
+          `SELECT source, COUNT(*) AS n, MAX(closing_date) AS last_close,
+                  MAX(CASE WHEN filename LIKE '%.sync' THEN 1 ELSE 0 END) AS synced
+           FROM statements GROUP BY source`
         )
-        .all() as { source: string; n: number; last_close: string | null }[]
+        .all() as {
+        source: string;
+        n: number;
+        last_close: string | null;
+        synced: number;
+      }[]
     ).map((r) => [r.source, r])
   );
 
@@ -155,6 +168,7 @@ export function getDataHealth(): DataHealth {
         last_txn_date: row.last_txn_date,
         days_since_last: daysSince,
         coverage: window.map((m) => covered.has(m)),
+        synced: (stmt?.synced ?? 0) === 1,
       };
     });
 
