@@ -26,7 +26,7 @@ Almost every other difference in this comparison is downstream of that one choic
 
 Monarch is subscription-only — around **$14.99/month, or roughly $100/year** if you pay annually (check their site for the current number). There's a trial, but there is no free tier; when it ends, you pay or you lose access.
 
-Pare is **free to start**. Run it yourself from the open-source code and it's free, full stop — it's your machine and your database. The hosted version is in early access with a waitlist. There's no credit card to try it.
+Pare is **free to start**. Run it yourself from the open-source code and it's free, full stop — it's your machine and your database. The hosted version has a free tier — [sign up](/login?signup=1) and you're in. There's no credit card to try it.
 
 That's not automatically a point for Pare. A subscription funds a company that keeps the aggregator connections working across thousands of banks, staffs support, and ships features. Free-and-self-hosted means you're trading money for a little setup and the manual upload. Pick the currency you'd rather spend.
 
@@ -88,4 +88,4 @@ Choose Pare if:
 
 Monarch is a well-made subscription app for people who want automation and shared budgeting and accept an aggregator to get them. Pare is for people who want ownership and privacy and will trade a little manual effort for it. Neither is objectively correct.
 
-If the ownership argument lands, the practical next step is getting your history out of Monarch — we wrote a [switching guide](/blog/how-to-leave-mint-monarch-copilot) that walks through the export. And once you're set up, [the 10-minute monthly review](/blog/the-10-minute-monthly-review) is the habit that makes a statement-based tool pay off. Pare's hosted version is in early access; the waitlist is on the [home page](/).
+If the ownership argument lands, the practical next step is getting your history out of Monarch — we wrote a [switching guide](/blog/how-to-leave-mint-monarch-copilot) that walks through the export. And once you're set up, [the 10-minute monthly review](/blog/the-10-minute-monthly-review) is the habit that makes a statement-based tool pay off. Pare's hosted version is free to start — [create an account](/login?signup=1) and upload your first statement.

@@ -18,7 +18,7 @@ export const metadata: Metadata = {
 };
 
 const CONTACT_EMAIL = "terms@pare.money";
-const LAST_UPDATED = "June 21, 2026";
+const LAST_UPDATED = "July 17, 2026";
 
 const labelClass = "font-mono text-[10px] tracking-widest uppercase text-muted-foreground";
 
@@ -46,8 +46,8 @@ export default function TermsPage() {
 
         <p className="text-sm leading-relaxed text-foreground/90 mt-6">
           These terms are the agreement between you and Pare for using the hosted
-          service at this site. By joining the waitlist, creating an account, or
-          using Pare, you agree to them. If you don&apos;t agree, please don&apos;t
+          service at this site. By creating an account or using Pare, you agree
+          to them. If you don&apos;t agree, please don&apos;t
           use the service. Pare is a personal, open-source project — these terms
           are written in plain language, not legalese, but they still apply.
         </p>
@@ -175,8 +175,8 @@ export default function TermsPage() {
           <Section title="The service, as it is">
             <p>
               Pare is offered on an &ldquo;as is&rdquo; and &ldquo;as
-              available&rdquo; basis, and is still early — currently a waitlist and
-              an evolving product. We may add, change, pause, or discontinue
+              available&rdquo; basis, and is still early — an evolving
+              product. We may add, change, pause, or discontinue
               features, and we don&apos;t promise the service will always be
               available, uninterrupted, or error-free. We aren&apos;t a backup
               service: keep your own copies of important statements, and use the

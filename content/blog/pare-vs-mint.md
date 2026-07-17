@@ -45,7 +45,7 @@ Pare didn't try to rebuild Mint. It's built on the opposite bet about where your
 
 - **No bank connection.** Pare reads the PDF and OFX statements you already download. There's no aggregator, no stored bank password, nothing logging into your accounts in the background. We explain the reasoning in full in [why we don't connect to your bank](/blog/why-we-dont-connect-to-your-bank).
 - **Your data stays with you.** Everything lands in a single SQLite file on the machine running Pare. Nobody can sell it, show you offers against it, or shut it off from above, because it isn't sitting in their vault.
-- **No ads, ever.** There is no "offer" engine, because there's no business model that depends on your attention. Pare is free to run yourself and open source — the [code is on GitHub](https://github.com/itsgotpower/pare) — and the hosted version is a straightforward waitlist, not a data play.
+- **No ads, ever.** There is no "offer" engine, because there's no business model that depends on your attention. Pare is free to run yourself and open source — the [code is on GitHub](https://github.com/itsgotpower/pare) — and the hosted version is a straightforward subscription, not a data play.
 - **You can read the code.** Mint was a black box you had to trust. Pare is a box you can open, fork, and self-host.
 
 On top of that foundation, Pare does the analysis Mint did and then some: spending trends, category breakdowns, income vs. spend, net-worth history, cash-flow forecasts, subscription detection, and a local MCP server so you can ask Claude about your own numbers without the data leaving your machine.

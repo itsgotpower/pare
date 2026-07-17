@@ -31,7 +31,7 @@ const CONTACT_EMAIL = "privacy@pare.money";
 // lives on /security, which routes vuln reports to the same address.)
 const SECURITY_CONTACT = "security@pare.money";
 const REPO_URL = "https://github.com/itsgotpower/pare";
-const LAST_UPDATED = "July 1, 2026";
+const LAST_UPDATED = "July 17, 2026";
 
 const labelClass = "font-mono text-[10px] tracking-widest uppercase text-muted-foreground";
 
@@ -354,7 +354,7 @@ value.replace(EMAIL_RE, "[email]"); // mask any email that slips into a message`
               <span className="font-medium">Cloudflare</span> is our infrastructure
               provider (a data processor): the app, databases, storage, and the
               bot-protection step all run on Cloudflare. We use{" "}
-              <span className="font-medium">Cloudflare Turnstile</span> on the waitlist
+              <span className="font-medium">Cloudflare Turnstile</span> on the sign-up
               and sign-in forms to block bots; it may set a token in your browser
               solely to confirm you&apos;re human, and is not used to track you.
             </p>

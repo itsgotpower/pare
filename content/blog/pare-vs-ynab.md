@@ -84,4 +84,4 @@ Use **both** if you want the plan and the honest, private audit of whether you s
 
 YNAB and Pare aren't competitors so much as two answers to two different questions. "How do I decide what my money does?" is YNAB. "What did my money actually do, and where is it going?" is Pare. Figure out which question is keeping you up at night and the choice makes itself.
 
-If it's the second one, [the 10-minute monthly review](/blog/the-10-minute-monthly-review) is the routine Pare is built around, and the [switching guide](/blog/how-to-leave-mint-monarch-copilot) covers getting your history in. Pare's hosted version is in early access — the waitlist is on the [home page](/).
+If it's the second one, [the 10-minute monthly review](/blog/the-10-minute-monthly-review) is the routine Pare is built around, and the [switching guide](/blog/how-to-leave-mint-monarch-copilot) covers getting your history in. Pare's hosted version is free to start — [create an account](/login?signup=1), no card required.

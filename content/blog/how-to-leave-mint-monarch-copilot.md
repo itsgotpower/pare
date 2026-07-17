@@ -98,4 +98,4 @@ If all four are true, you're not locked into anything anymore — and that was t
 
 Once your history is in and your statements are flowing, the habit that makes it all worthwhile is a short, regular look — not obsessive balance-checking. We wrote up exactly that routine in [the 10-minute monthly review](/blog/the-10-minute-monthly-review).
 
-Pare's hosted version is in early access; the waitlist lives on the [home page](/). Export your data today regardless — future you will be glad the CSV is already sitting on your drive.
+Pare's hosted version is free to start — [create an account](/login?signup=1) whenever you're ready, no card needed. Export your data today regardless — future you will be glad the CSV is already sitting on your drive.
