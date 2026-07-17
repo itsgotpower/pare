@@ -435,7 +435,7 @@ export default function MarketingHome() {
               <p className="text-sm text-foreground/90 leading-relaxed mt-3">{p.sub}</p>
               <p className="mt-auto pt-4 text-xs text-muted-foreground leading-relaxed border-t border-border/60">
                 {p.proofHref ? (
-                  <Link href={p.proofHref} className="underline hover:text-foreground transition-colors">
+                  <Link href={p.proofHref} className="link">
                     {p.proof}
                   </Link>
                 ) : (

@@ -204,7 +204,7 @@ export default function SwitchPage() {
           Pare reads only files you export yourself — there is no scraping or
           automated login. Your data is parsed and stored on the machine running
           Pare. See the{" "}
-          <Link href="/privacy" className="underline">
+          <Link href="/privacy" className="link">
             Privacy Policy
           </Link>
           .

@@ -26,6 +26,7 @@
   --color-ring: var(--ring);
   --color-input: var(--input);
   --color-border: var(--border);
+  --color-link: var(--link);
   --color-destructive: var(--destructive);
   --color-accent-foreground: var(--accent-foreground);
   --color-accent: var(--accent);
@@ -64,6 +65,9 @@
   --accent: oklch(0.96 0 0);
   --accent-foreground: oklch(0.145 0 0);
   --destructive: oklch(0.577 0.245 27.325);
+  /* Inline text links — PALETTE.slate. The one place chrome gets colour:
+     links must read as links (AA contrast on --background). */
+  --link: #4d7691;
   --border: oklch(0.145 0 0);
   --input: oklch(0.8 0 0);
   --ring: oklch(0.145 0 0);
@@ -99,6 +103,8 @@
   --accent: oklch(0.2 0 0);
   --accent-foreground: oklch(0.93 0 0);
   --destructive: oklch(0.704 0.191 22.216);
+  /* PALETTE.dustyblue — the light-mode slate is too dim on a dark background. */
+  --link: #a6c0cd;
   --border: oklch(0.93 0 0);
   --input: oklch(0.3 0 0);
   --ring: oklch(0.93 0 0);
@@ -235,12 +241,15 @@
 .prose-pare p {
   color: color-mix(in oklch, var(--foreground) 90%, transparent);
 }
-.prose-pare a {
+.prose-pare a,
+.link {
+  color: var(--link);
   text-decoration: underline;
   text-underline-offset: 2px;
 }
-.prose-pare a:hover {
-  color: var(--muted-foreground);
+.prose-pare a:hover,
+.link:hover {
+  color: color-mix(in oklch, var(--link) 65%, var(--foreground));
 }
 .prose-pare strong {
   font-weight: 700;

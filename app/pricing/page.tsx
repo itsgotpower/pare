@@ -182,11 +182,11 @@ export default function PricingPage() {
           approximate and for reference only. Signing up on the free tier costs
           nothing and commits you to nothing.
           See the{" "}
-          <Link href="/privacy" className="underline">
+          <Link href="/privacy" className="link">
             Privacy Policy
           </Link>{" "}
           and{" "}
-          <Link href="/terms" className="underline">
+          <Link href="/terms" className="link">
             Terms
           </Link>
           .
