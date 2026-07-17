@@ -106,7 +106,22 @@ export function hostedAuthOptions(db: D1Like): BetterAuthOptions {
       ...(mcpBaseUrl ? { resource: `${mcpBaseUrl}/api/mcp` } : {}),
       // loginPage is duplicated because the OIDCOptions type requires it here;
       // at runtime the plugin overrides oidcConfig.loginPage with the outer one.
-      oidcConfig: { loginPage: "/login", consentPage: "/oauth/consent" },
+      oidcConfig: {
+        loginPage: "/login",
+        consentPage: "/oauth/consent",
+        // MCP is OAuth 2.1, NOT OIDC — advertise only what we can honor.
+        // The plugin's default advertises openid/profile/email, and claude.ai
+        // requests exactly what this document lists (documented behavior). An
+        // `openid` request makes the oidc-provider mint an id_token that is
+        // HS256 and MISSING the required `iss` claim, while our discovery doc
+        // claimed RS256 with a jwks_uri that 404s — Claude validated the
+        // id_token, hit the issuer mismatch (Anthropic's #1 documented cause
+        // for "Authorization failed"), and dropped the connection after a
+        // successful token exchange. offline_access alone keeps refresh
+        // tokens (no id_token is minted without `openid` — the token endpoint
+        // gates it on requestedScopes.includes("openid")).
+        metadata: { scopes_supported: ["offline_access"] },
+      },
     })
   );
 

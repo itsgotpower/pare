@@ -9,6 +9,7 @@ import { getRepoForUser } from "@/lib/repo";
 import { registerPareTools } from "@/mcp/tools";
 import { allowRequest, tooManyRequests } from "@/lib/ratelimit";
 import { requireFeature } from "@/cloud/billing/gate";
+import { withScopeChallenge } from "@/lib/auth/mcp-challenge";
 
 // Remote MCP endpoint for claude.ai Connectors (spec: internal/remote-mcp-spec.md).
 //
@@ -44,7 +45,7 @@ async function handler(request: Request): Promise<Response> {
   // Cast: hostedAuthOptions() returns the erased BetterAuthOptions type, so the
   // Auth type loses the mcp() plugin's getMcpSession endpoint that withMcpAuth
   // constrains on. It exists at runtime — mcp() is always in the plugin array.
-  return withMcpAuth(auth as unknown as Parameters<typeof withMcpAuth>[0], async (req, session) => {
+  const wrapped = withMcpAuth(auth as unknown as Parameters<typeof withMcpAuth>[0], async (req, session) => {
     // Per-USER rate limit (not per-IP — connector traffic egresses from
     // Anthropic's IPs, so IP-keying would pool every user into one bucket).
     // Fail-open like every limiter when the binding is unwired.
@@ -71,7 +72,8 @@ async function handler(request: Request): Promise<Response> {
     });
     await server.connect(transport);
     return transport.handleRequest(req);
-  })(request);
+  });
+  return withScopeChallenge(await wrapped(request));
 }
 
 export const GET = handler;

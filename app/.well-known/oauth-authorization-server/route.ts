@@ -30,5 +30,15 @@ export async function GET(request: Request): Promise<Response> {
   // well-known; issuer = baseURL), so rewriting here covers the flow.
   const metadata = (await upstream.json()) as Record<string, unknown>;
   metadata.authorization_endpoint = new URL("/api/mcp-authorize", request.url).toString();
+  // Honest OAuth 2.1, not OIDC. The plugin hard-codes an OIDC-shaped document:
+  // scopes_supported with openid/profile/email (which made claude.ai request
+  // an id_token our provider can't correctly mint — HS256, no `iss` claim),
+  // id_token_signing_alg_values_supported claiming RS256 (it signs HS256), and
+  // a jwks_uri that 404s (the JWKS route lives in better-auth's jwt plugin,
+  // which we don't mount). Advertise only what we honor: offline_access for
+  // refresh tokens; both OIDC fields removed (optional under RFC 8414).
+  metadata.scopes_supported = ["offline_access"];
+  delete metadata.jwks_uri;
+  delete metadata.id_token_signing_alg_values_supported;
   return Response.json(metadata, { headers: { "cache-control": "no-store" } });
 }
