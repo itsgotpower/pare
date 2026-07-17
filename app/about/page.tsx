@@ -60,7 +60,7 @@ const PRINCIPLES = [
   {
     color: PALETTE.dustyblue,
     title: "Open source",
-    body: "Pare is MIT-licensed and self-hostable. Don't want to trust a hosted service? Run your own copy — the code is all there, and the parser, database, and MCP server work the same locally.",
+    body: "Pare is AGPL-3.0-licensed and self-hostable. Don't want to trust a hosted service? Run your own copy — the code is all there, and the parser, database, and MCP server work the same locally.",
   },
 ];
 
@@ -177,7 +177,7 @@ export default function AboutPage() {
               ingestion, and Recharts for the visualizations — wrapped in a
               brutalist, monochrome interface where colour is reserved for data, not
               chrome. It&apos;s a personal, open-source project, released under the{" "}
-              <span className="font-medium">MIT License</span> and built to be run
+              <span className="font-medium">AGPL-3.0 License</span> and built to be run
               by one person, on their own hardware, for their own finances.
             </p>
             <p>

@@ -72,7 +72,7 @@ export default function TermsPage() {
               <li>
                 Don&apos;t want to rely on us at all? Pare is open source and{" "}
                 <span className="font-medium">self-hostable</span> — run your own
-                copy and only the MIT license applies.
+                copy and only the AGPL-3.0 license applies.
               </li>
             </ul>
           </Section>
@@ -187,9 +187,9 @@ export default function TermsPage() {
           <Section title="Open source and self-hosting">
             <p>
               Pare&apos;s source code is open and released under the{" "}
-              <span className="font-medium">MIT License</span>. These terms govern
+              <span className="font-medium">AGPL-3.0 License</span>. These terms govern
               the <span className="font-medium">hosted service</span> we run at this
-              site; the MIT License governs the code itself. If you self-host your
+              site; the AGPL-3.0 License governs the code itself. If you self-host your
               own copy, you do so under that license and at your own
               responsibility — these hosted terms, and our handling of your data,
               don&apos;t apply to an instance you run yourself.
