@@ -12,6 +12,9 @@ contracts, on-disk and crypto formats) may change between minor versions — see
 
 ### Added
 
+- **Blog in the footer** — the marketing footers (shared site footer and the
+  landing page) now link to the blog, which previously had no inbound nav
+  ([#118]).
 - **Bulk recategorize** — on `/transactions`, hit SELECT to enter selection
   mode, tick any number of rows (or the header box for the whole page), and
   assign one category to all of them at once ([#115]).
@@ -235,3 +238,4 @@ server exposing the local data to MCP clients. Ships open-source repo scaffoldin
 [#112]: https://github.com/itsgotpower/pare/pull/112
 [#113]: https://github.com/itsgotpower/pare/pull/113
 [#115]: https://github.com/itsgotpower/pare/pull/115
+[#118]: https://github.com/itsgotpower/pare/pull/118
