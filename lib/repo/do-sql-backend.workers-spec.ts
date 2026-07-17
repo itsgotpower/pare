@@ -259,6 +259,35 @@ describe("DoSqlBackend over real ctx.storage.sql (workerd)", () => {
     });
   });
 
+  it("rule mutations succeed in workerd despite node:fs being an unenv stub", async () => {
+    // Regression: addRule/deleteRule/importRules also persist a self-host
+    // wipe-survival JSON via node:fs. On Workers the unenv fs stub THROWS
+    // ("fs.mkdirSync is not implemented") AFTER the DB insert committed, so
+    // every hosted rule write (the /categories UI, rules import, and the MCP
+    // add_category_rule tool) reported failure while silently succeeding.
+    // The persist is now hosted-skipped and best-effort — these calls must
+    // complete in the real Workers runtime.
+    await withCtx(async (storage) => {
+      const repo = new SqliteRepo(new DoSqlBackend(storage));
+      await repo.categories.seed();
+
+      await repo.categories.addRule("Test category", "WORKERSPEC MERCHANT");
+      const rules = await repo.categories.listRules();
+      expect(rules.some((r) => r.keyword === "WORKERSPEC MERCHANT")).toBe(true);
+
+      await repo.categories.importRules([
+        { category: "Groceries", keyword: "WORKERSPEC IMPORT" },
+      ]);
+      const after = await repo.categories.listRules();
+      expect(after.some((r) => r.keyword === "WORKERSPEC IMPORT")).toBe(true);
+
+      const target = after.find((r) => r.keyword === "WORKERSPEC MERCHANT")!;
+      await repo.categories.deleteRule(target.id);
+      const gone = await repo.categories.listRules();
+      expect(gone.some((r) => r.keyword === "WORKERSPEC MERCHANT")).toBe(false);
+    });
+  });
+
   it("the existing Repo namespace methods work unchanged over DoSqlBackend", async () => {
     await withCtx(async (storage) => {
       const repo = new SqliteRepo(new DoSqlBackend(storage));
