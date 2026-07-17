@@ -12,6 +12,9 @@ contracts, on-disk and crypto formats) may change between minor versions — see
 
 ### Added
 
+- **Sitemap + robots.txt** — pare.money now serves `/sitemap.xml` (the public
+  marketing pages and every blog post) and `/robots.txt` instead of redirecting
+  crawlers to the login gate, so the public surface is indexable ([#117]).
 - **Blog in the footer** — the marketing footers (shared site footer and the
   landing page) now link to the blog, which previously had no inbound nav
   ([#118]).
@@ -238,4 +241,5 @@ server exposing the local data to MCP clients. Ships open-source repo scaffoldin
 [#112]: https://github.com/itsgotpower/pare/pull/112
 [#113]: https://github.com/itsgotpower/pare/pull/113
 [#115]: https://github.com/itsgotpower/pare/pull/115
+[#117]: https://github.com/itsgotpower/pare/pull/117
 [#118]: https://github.com/itsgotpower/pare/pull/118

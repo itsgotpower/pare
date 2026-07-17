@@ -132,11 +132,12 @@ export async function middleware(request: NextRequest) {
   return NextResponse.redirect(loginUrl);
 }
 
-// PWA surfaces (manifest, service worker, icons, offline fallback) are
-// excluded: the browser and the SW fetch them without a session, and the SW
-// must be able to precache /offline signed-out.
+// PWA surfaces (manifest, service worker, icons, offline fallback) and SEO
+// surfaces (sitemap.xml, robots.txt — served by app/sitemap.ts + app/robots.ts)
+// are excluded: browsers, the SW, and crawlers all fetch them without a
+// session, and the SW must be able to precache /offline signed-out.
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|icon.svg|apple-icon.png|manifest.webmanifest|sw.js|icon-192.png|icon-512.png|icon-512-maskable.png|offline|demo-data.json).*)",
+    "/((?!_next/static|_next/image|favicon.ico|icon.svg|apple-icon.png|manifest.webmanifest|sw.js|icon-192.png|icon-512.png|icon-512-maskable.png|offline|demo-data.json|sitemap.xml|robots.txt).*)",
   ],
 };
