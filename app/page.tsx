@@ -533,6 +533,12 @@ export default function MarketingHome() {
               Switching
             </Link>
             <Link
+              href="/blog"
+              className="font-mono text-[11px] tracking-wide uppercase text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Blog
+            </Link>
+            <Link
               href="/privacy"
               className="font-mono text-[11px] tracking-wide uppercase text-muted-foreground hover:text-foreground transition-colors"
             >

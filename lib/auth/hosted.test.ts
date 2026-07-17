@@ -188,3 +188,46 @@ async function withEnvAsync(
     }
   }
 }
+
+// MCP is OAuth 2.1, not OIDC. Advertising openid/profile/email in the
+// protected-resource metadata made claude.ai request `openid` (documented
+// client behavior: it requests exactly what scopes_supported lists), which
+// minted an id_token the provider can't correctly sign (HS256, missing `iss`,
+// while the discovery doc claimed RS256 + a dead jwks_uri) — Claude rejected
+// it after a fully successful token exchange. The PRM must advertise ONLY
+// offline_access; drives the real plugin endpoint like the resource tests.
+test("MCP protected-resource metadata advertises only offline_access", async () => {
+  await withEnvAsync({ BETTER_AUTH_URL: "https://pare.money" }, async () => {
+    const { createHostedAuth } = await import("./hosted");
+    const auth = createHostedAuth(FAKE_D1);
+    const meta = await (
+      auth.api as unknown as {
+        getMCPProtectedResource: (a: { asResponse: false }) => Promise<{ scopes_supported: string[] }>;
+      }
+    ).getMCPProtectedResource({ asResponse: false });
+    assert.deepEqual(
+      meta.scopes_supported,
+      ["offline_access"],
+      "openid/profile/email here re-trigger the broken id_token path"
+    );
+  });
+});
+
+test("withScopeChallenge appends the scope hint to 401 challenges only", async () => {
+  const { withScopeChallenge } = await import("./mcp-challenge");
+  const c = (status: number, www?: string) =>
+    new Response("x", { status, headers: www ? { "www-authenticate": www } : {} });
+
+  const hinted = withScopeChallenge(c(401, 'Bearer resource_metadata="https://x/.well-known/oauth-protected-resource"'));
+  assert.equal(
+    hinted.headers.get("www-authenticate"),
+    'Bearer resource_metadata="https://x/.well-known/oauth-protected-resource", scope="offline_access"'
+  );
+  // non-401 untouched
+  assert.equal(withScopeChallenge(c(200)).headers.get("www-authenticate"), null);
+  // an existing scope param is never clobbered
+  const pre = withScopeChallenge(c(401, 'Bearer scope="already"'));
+  assert.equal(pre.headers.get("www-authenticate"), 'Bearer scope="already"');
+  // 401 without a challenge header stays bare
+  assert.equal(withScopeChallenge(c(401)).headers.get("www-authenticate"), null);
+});

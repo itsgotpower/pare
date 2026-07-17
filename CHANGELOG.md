@@ -12,6 +12,12 @@ contracts, on-disk and crypto formats) may change between minor versions — see
 
 ### Added
 
+- **Sitemap + robots.txt** — pare.money now serves `/sitemap.xml` (the public
+  marketing pages and every blog post) and `/robots.txt` instead of redirecting
+  crawlers to the login gate, so the public surface is indexable ([#117]).
+- **Blog in the footer** — the marketing footers (shared site footer and the
+  landing page) now link to the blog, which previously had no inbound nav
+  ([#118]).
 - **Bulk recategorize** — on `/transactions`, hit SELECT to enter selection
   mode, tick any number of rows (or the header box for the whole page), and
   assign one category to all of them at once ([#115]).
@@ -47,6 +53,13 @@ contracts, on-disk and crypto formats) may change between minor versions — see
   / "SYNC OVERDUE" in Data Health based on the connection's last sync,
   instead of a false "upload" nudge when a quiet card simply had no spending
   ([#113]).
+
+### Fixed
+
+- **License copy on /about and /terms** — the marketing pages claimed Pare is
+  MIT-licensed; the code is released under AGPL-3.0 (open-core — everything
+  except the proprietary `cloud/` layer). All four stale mentions now say
+  AGPL-3.0 ([#119]).
 
 ## [0.3.0] - 2026-07-04
 
@@ -235,3 +248,6 @@ server exposing the local data to MCP clients. Ships open-source repo scaffoldin
 [#112]: https://github.com/itsgotpower/pare/pull/112
 [#113]: https://github.com/itsgotpower/pare/pull/113
 [#115]: https://github.com/itsgotpower/pare/pull/115
+[#117]: https://github.com/itsgotpower/pare/pull/117
+[#118]: https://github.com/itsgotpower/pare/pull/118
+[#119]: https://github.com/itsgotpower/pare/pull/119
