@@ -122,3 +122,26 @@ test("imported rules categorize existing rows on the following recategorize", as
 
   assert.equal(cat(id), "Groceries", "the imported rule tags the card row");
 });
+
+test("hosted mode never writes the user-rules.json redundancy file", async () => {
+  // The JSON file is self-host wipe-survival; hosted rules live in the per-user
+  // DO. In hosted mode the persist is skipped outright (a shared server file
+  // would also cross user boundaries).
+  const fs = await import("node:fs");
+  const path = await import("node:path");
+  const file = path.join(process.env.PARE_DATA_DIR!, "user-rules.json");
+  fs.rmSync(file, { force: true });
+
+  process.env.PARE_DEPLOY_TARGET = "hosted";
+  try {
+    await repo.categories.addRule("Hosted category", "HOSTED SKIP KEYWORD");
+    assert.equal(fs.existsSync(file), false, "no redundancy file in hosted mode");
+    const rules = await repo.categories.listRules();
+    assert.ok(
+      rules.some((r) => r.keyword === "HOSTED SKIP KEYWORD"),
+      "the DB row is still the source of truth"
+    );
+  } finally {
+    delete process.env.PARE_DEPLOY_TARGET;
+  }
+});

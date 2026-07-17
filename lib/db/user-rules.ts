@@ -74,6 +74,34 @@ function writeUserRules(rules: UserRule[]): void {
   fs.writeFileSync(FILE, JSON.stringify(rules, null, 2));
 }
 
+// The JSON file is a SELF-HOST redundancy layer (rules survive a DB wipe); the
+// DB row the caller just committed is the source of truth on BOTH targets. So:
+// (a) skip the file entirely in hosted mode — hosted rules live in the caller's
+//     per-user Durable Object, which is already durable, and a shared server
+//     file would cross user boundaries anyway;
+// (b) never let a redundancy write fail the mutation. On Workers, node:fs is an
+//     unenv stub whose methods THROW ("fs.mkdirSync is not implemented") — that
+//     throw fired AFTER the insert landed, so every hosted rule write (the
+//     /categories UI, rules import, and the MCP add_category_rule tool)
+//     reported failure while silently succeeding.
+function persistSkipped(): boolean {
+  return process.env.PARE_DEPLOY_TARGET === "hosted";
+}
+
+function bestEffort(op: string, fn: () => void): void {
+  try {
+    fn();
+  } catch (err) {
+    // Self-host only reaches here on a real I/O problem (permissions, disk):
+    // the DB write already committed, so surface loudly but don't fail the
+    // mutation over the redundancy copy.
+    console.error(
+      `user-rules.json ${op} failed (rule is saved in the database; the wipe-survival copy is stale): ` +
+        (err instanceof Error ? err.message : String(err))
+    );
+  }
+}
+
 export function saveUserRule(category: string, keyword: string): void {
   saveUserRules([{ category, keyword }]);
 }
@@ -82,17 +110,22 @@ export function saveUserRule(category: string, keyword: string): void {
 // calling saveUserRule per rule would reload+rewrite the file O(n) times). Later
 // entries win on a keyword collision, matching saveUserRule's last-write-wins.
 export function saveUserRules(incoming: UserRule[]): void {
-  if (!incoming.length) return;
-  const byKeyword = new Map<string, UserRule>();
-  for (const r of loadUserRulesForWrite()) byKeyword.set(r.keyword.toUpperCase(), r);
-  for (const r of incoming) byKeyword.set(r.keyword.toUpperCase(), r);
-  writeUserRules([...byKeyword.values()]);
+  if (!incoming.length || persistSkipped()) return;
+  bestEffort("write", () => {
+    const byKeyword = new Map<string, UserRule>();
+    for (const r of loadUserRulesForWrite()) byKeyword.set(r.keyword.toUpperCase(), r);
+    for (const r of incoming) byKeyword.set(r.keyword.toUpperCase(), r);
+    writeUserRules([...byKeyword.values()]);
+  });
 }
 
 export function removeUserRule(keyword: string): void {
-  const rules = loadUserRulesForWrite();
-  const filtered = rules.filter(
-    (r) => r.keyword.toUpperCase() !== keyword.toUpperCase()
-  );
-  if (filtered.length !== rules.length) writeUserRules(filtered);
+  if (persistSkipped()) return;
+  bestEffort("delete", () => {
+    const rules = loadUserRulesForWrite();
+    const filtered = rules.filter(
+      (r) => r.keyword.toUpperCase() !== keyword.toUpperCase()
+    );
+    if (filtered.length !== rules.length) writeUserRules(filtered);
+  });
 }
