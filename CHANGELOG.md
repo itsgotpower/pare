@@ -60,6 +60,10 @@ contracts, on-disk and crypto formats) may change between minor versions — see
   MIT-licensed; the code is released under AGPL-3.0 (open-core — everything
   except the proprietary `cloud/` layer). All four stale mentions now say
   AGPL-3.0 ([#119]).
+- **Pricing page caught up with launch** — `/pricing` still said hosted signup
+  was waitlist-gated and billing would start "at launch"; signup has been open
+  since 2026-07-05. The copy now says so, and every hosted CTA goes to account
+  creation instead of the waitlist ([#124]).
 
 ## [0.3.0] - 2026-07-04
 
@@ -251,3 +255,4 @@ server exposing the local data to MCP clients. Ships open-source repo scaffoldin
 [#117]: https://github.com/itsgotpower/pare/pull/117
 [#118]: https://github.com/itsgotpower/pare/pull/118
 [#119]: https://github.com/itsgotpower/pare/pull/119
+[#124]: https://github.com/itsgotpower/pare/pull/124
