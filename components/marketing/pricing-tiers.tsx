@@ -53,7 +53,7 @@ const TIERS = [
       CAD: "one time",
     },
     blurb:
-      "Pay once, hosted for good. Everything in Plus, for the life of the product — offered while hosted signup rolls out, then it's gone.",
+      "Pay once, hosted for good. Everything in Plus, for the life of the product — a launch-window offer; when the window closes, it's gone.",
     limits: ["2 accounts, unlimited uploads", "Everything in Plus, permanently", "No renewal, ever"],
     flag: "Launch offer",
   },
@@ -127,10 +127,10 @@ export function PricingTiers() {
               ))}
             </ul>
             <Link
-              href="/"
+              href="/login"
               className="mt-5 inline-flex items-center justify-center border border-border font-mono text-[11px] tracking-widest uppercase h-10 hover:bg-foreground hover:text-background transition-colors"
             >
-              Join the waitlist
+              Create an account
             </Link>
           </div>
         ))}

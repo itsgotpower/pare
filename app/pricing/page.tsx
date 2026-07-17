@@ -12,8 +12,8 @@ import { PricingTiers } from "@/components/marketing/pricing-tiers";
 // $160 one-time as a LAUNCH-WINDOW offer, not a permanent tier. Billing is in
 // USD; the tier grid (components/marketing/pricing-tiers.tsx) has a USD/CAD
 // display toggle. Every tier has every feature — you pay for capacity, never
-// for your own data (PRD non-goal N2). Hosted signup is still waitlist-gated,
-// so all hosted CTAs point at the waitlist; billing takes effect at launch.
+// for your own data (PRD non-goal N2). Hosted signup is OPEN (waitlist retired
+// 2026-07-05) and billing is live — hosted CTAs point at /login sign-up.
 
 export const metadata: Metadata = {
   title: "Pricing — Pare",
@@ -67,8 +67,8 @@ export default function PricingPage() {
           Every plan is the whole product — parsing, categories, subscriptions,
           forecasts, the Claude MCP server. The only question is who runs it: you,
           on your own machine, free forever; or us, with your account in its own
-          isolated database. Hosted signup opens from the waitlist; these prices
-          take effect at launch.
+          isolated database. Hosted signup is open — start on Free, and pay only
+          when you need the room.
         </p>
 
         {/* Self-host — the anchor tier, full width */}
@@ -164,10 +164,10 @@ export default function PricingPage() {
         {/* CTA */}
         <div className="border-t border-border mt-10 pt-8 flex flex-col sm:flex-row sm:items-center gap-3">
           <Link
-            href="/"
+            href="/login"
             className="inline-flex items-center justify-center bg-foreground text-background font-mono text-xs tracking-widest uppercase px-5 h-11 hover:opacity-90 transition-opacity"
           >
-            Join the waitlist
+            Create an account
           </Link>
           <Link
             href="/demo"
@@ -179,8 +179,8 @@ export default function PricingPage() {
 
         <p className="text-[11px] text-muted-foreground leading-relaxed mt-8">
           Prices in USD, shown before applicable taxes; CAD figures are
-          approximate and for reference only. Billing begins when hosted signup
-          opens; joining the waitlist costs nothing and commits you to nothing.
+          approximate and for reference only. The Free tier costs nothing and
+          commits you to nothing; paid plans bill from the day you upgrade.
           See the{" "}
           <Link href="/privacy" className="underline">
             Privacy Policy
