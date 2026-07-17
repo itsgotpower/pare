@@ -51,6 +51,7 @@ import {
   importRules,
   uncategorizedCount,
   ruleSuggestions,
+  dismissSuggestion,
   bulkAssignCategory,
 } from "../db/categories";
 import { getSplits, setSplits, clearSplits } from "../db/splits";
@@ -204,6 +205,7 @@ export class SqliteRepo implements Repo {
     importRules: (rules) => this.write(() => importRules(rules)),
     uncategorizedCount: () => this.read(() => uncategorizedCount()),
     ruleSuggestions: () => this.read(() => ruleSuggestions()),
+    dismissSuggestion: (keyword, category) => this.write(() => dismissSuggestion(keyword, category)),
     bulkOverride: (ids, category) => this.write(() => bulkAssignCategory(ids, category)),
   };
 
