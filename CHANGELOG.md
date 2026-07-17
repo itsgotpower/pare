@@ -39,16 +39,6 @@ contracts, on-disk and crypto formats) may change between minor versions — see
   branded high-contrast colour (slate in light mode, dusty blue in dark)
   instead of blending into the copy ([#126]).
 
-### Fixed
-
-- **Mobile: /categories header** — the action-button row wraps at phone
-  widths instead of clipping ADD RULE off-screen and dragging the page
-  sideways; rule-delete and goal EDIT/REMOVE tap areas are phone-sized
-  ([#126]).
-- **Goal averages honour their window** — "suggested limits from your 6-month
-  average" previously averaged the entire data history; the query now uses
-  the last 6 months with spend data ([#126]).
-
 - **Sitemap + robots.txt** — pare.money now serves `/sitemap.xml` (the public
   marketing pages and every blog post) and `/robots.txt` instead of redirecting
   crawlers to the login gate, so the public surface is indexable ([#117]).
@@ -93,6 +83,13 @@ contracts, on-disk and crypto formats) may change between minor versions — see
 
 ### Fixed
 
+- **Mobile: /categories header** — the action-button row wraps at phone
+  widths instead of clipping ADD RULE off-screen and dragging the page
+  sideways; rule-delete and goal EDIT/REMOVE tap areas are phone-sized
+  ([#126]).
+- **Goal averages honour their window** — "suggested limits from your 6-month
+  average" previously averaged the entire data history; the query now uses
+  the last 6 months with spend data ([#126]).
 - **License copy on /about and /terms** — the marketing pages claimed Pare is
   MIT-licensed; the code is released under AGPL-3.0 (open-core — everything
   except the proprietary `cloud/` layer). All four stale mentions now say
