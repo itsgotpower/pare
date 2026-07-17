@@ -65,7 +65,7 @@ Pare takes your data two ways, and you'll usually use both:
 
 The two are designed not to fight each other: if your CSV history overlaps with a statement you also upload, Pare deduplicates so a transaction isn't counted twice. Everything lands in a single database file on the machine running Pare — no bank connection, no aggregator. (If you're wondering why it works that way, that's the whole argument in [why we don't connect to your bank](/blog/why-we-dont-connect-to-your-bank).)
 
-A note on timing: Pare's hosted version is in early access, so the import runs once you're in. If you'd rather not wait, Pare is open source — you can [run it yourself from GitHub](https://github.com/itsgotpower/pare) today. Either way, do the exports now so the data is ready when you are.
+On timing: hosted signup is open, so the import runs as soon as you [create an account](/login). Pare is also open source — you can [run it yourself from GitHub](https://github.com/itsgotpower/pare) instead. Either way, do the exports now so the data is ready when you are.
 
 ## What you can't bring with you
 
@@ -98,4 +98,4 @@ If all four are true, you're not locked into anything anymore — and that was t
 
 Once your history is in and your statements are flowing, the habit that makes it all worthwhile is a short, regular look — not obsessive balance-checking. We wrote up exactly that routine in [the 10-minute monthly review](/blog/the-10-minute-monthly-review).
 
-Pare's hosted version is in early access; the waitlist lives on the [home page](/). Export your data today regardless — future you will be glad the CSV is already sitting on your drive.
+Hosted signup is open — [create an account](/login) when you're ready to land the data. Export it today regardless — future you will be glad the CSV is already sitting on your drive.

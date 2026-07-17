@@ -49,6 +49,8 @@ Here's the other path. Your bank already produces a perfect, authoritative recor
 
 Pare reads those. You drop in a PDF (or an OFX/QFX export, which most banks also offer), and it parses every transaction, categorizes it with rules you can edit, and builds the trends, forecasts, net-worth history, and subscription alerts on top. Everything lands in a single SQLite file on the machine running Pare. There's no aggregator, no stored bank password, and no background process logging into your accounts.
 
+One honest asterisk, because this post is arguing against blurry marketing: Pare does have an optional sync. It's off by default, and it works through SimpleFIN — a bridge service you sign up for and pay directly, so the connection answers to you, not to us. Pare never sees your bank login; it just reads the feed you've authorized at the bridge, and you can cut it off there any time. If you never turn it on, everything above describes Pare exactly as it comes: statements first.
+
 Because the data lives with you, the ownership question gets simple. Want to leave? Copy the file. Want to inspect what Pare knows? It's one database you can open. Want to run the whole thing yourself and trust no hosted service at all? The code is [open source on GitHub](https://github.com/itsgotpower/pare) and self-hostable.
 
 ## The honest trade-offs
@@ -67,4 +69,4 @@ Pare is built for people who would rather do a little manual work than hand a li
 
 It is not for people who want a hands-off feed that updates itself and pings them in real time. That's a real preference and we're not going to talk you out of it.
 
-If the trade sounds right, the next practical step is getting your history out of wherever it lives now — we wrote a plain [switching guide](/blog/how-to-leave-mint-monarch-copilot) for exactly that. Pare's hosted version is in early access; you can put your email on the list from the [home page](/), or clone the repo and run it yourself today.
+If the trade sounds right, the next practical step is getting your history out of wherever it lives now — we wrote a plain [switching guide](/blog/how-to-leave-mint-monarch-copilot) for exactly that. Hosted signup is open — [create an account](/login) and start on the free tier, or clone the repo and run it yourself today.
