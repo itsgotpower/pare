@@ -82,7 +82,8 @@ export default function AboutPage() {
           Pare the statements you already get every month — it reads every
           transaction, categorizes it, and builds spending trends, cash-flow
           forecasts, net-worth history, budget goals, and subscription alerts on
-          top. The whole thing runs on your own machine.
+          top. Run the whole thing on your own machine, or let us host it — your
+          account gets its own isolated database either way.
         </p>
 
         <div className="mt-8 space-y-8">
@@ -102,11 +103,11 @@ export default function AboutPage() {
               than rent visibility into it.
             </p>
             <p>
-              And if you do want automatic sync, it stays on your terms: self-hosted
+              And if you do want automatic sync, it stays on your terms:
               Pare has an opt-in{" "}
               <a
                 href="https://www.simplefin.org/"
-                className="underline"
+                className="link"
                 target="_blank"
                 rel="noreferrer"
               >
@@ -121,8 +122,8 @@ export default function AboutPage() {
           <Section title="What it does">
             <ul className="list-disc pl-5 space-y-1.5">
               <li>
-                Parses bank and credit-card PDF statements into clean, deduplicated
-                transactions.
+                Parses bank and credit-card PDF statements — and OFX/QFX exports
+                from any bank — into clean, deduplicated transactions.
               </li>
               <li>
                 Categorizes spending with first-match keyword rules you can edit,
@@ -141,11 +142,12 @@ export default function AboutPage() {
                 and double-bills.
               </li>
               <li>
-                Lets you ask questions in plain language through a local{" "}
-                <Link href="/mcp" className="underline">
+                Lets you ask questions in plain language through an{" "}
+                <Link href="/mcp" className="link">
                   MCP server for Claude
-                </Link>
-                .
+                </Link>{" "}
+                — a one-URL claude.ai connector on hosted, fully local when you
+                self-host.
               </li>
             </ul>
           </Section>
@@ -203,11 +205,11 @@ export default function AboutPage() {
               also lag the calendar, so the current month is always partial. Use
               Pare to understand your own spending; for decisions about your
               specific situation, talk to a qualified professional. See the{" "}
-              <Link href="/terms" className="underline">
+              <Link href="/terms" className="link">
                 Terms
               </Link>{" "}
               and{" "}
-              <Link href="/privacy" className="underline">
+              <Link href="/privacy" className="link">
                 Privacy Policy
               </Link>{" "}
               for the details.
