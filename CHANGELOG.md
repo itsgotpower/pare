@@ -54,6 +54,13 @@ contracts, on-disk and crypto formats) may change between minor versions — see
   instead of a false "upload" nudge when a quiet card simply had no spending
   ([#113]).
 
+### Fixed
+
+- **License copy on /about and /terms** — the marketing pages claimed Pare is
+  MIT-licensed; the code is released under AGPL-3.0 (open-core — everything
+  except the proprietary `cloud/` layer). All four stale mentions now say
+  AGPL-3.0 ([#119]).
+
 ## [0.3.0] - 2026-07-04
 
 ### Added
@@ -243,3 +250,4 @@ server exposing the local data to MCP clients. Ships open-source repo scaffoldin
 [#115]: https://github.com/itsgotpower/pare/pull/115
 [#117]: https://github.com/itsgotpower/pare/pull/117
 [#118]: https://github.com/itsgotpower/pare/pull/118
+[#119]: https://github.com/itsgotpower/pare/pull/119
