@@ -156,10 +156,10 @@ export default function HowItWorksPage() {
         {/* CTA */}
         <div className="border-t border-border mt-10 pt-8 flex flex-col sm:flex-row sm:items-center gap-3">
           <Link
-            href="/"
+            href="/login?signup=1"
             className="inline-flex items-center justify-center bg-foreground text-background font-mono text-xs tracking-widest uppercase px-5 h-11 hover:opacity-90 transition-opacity"
           >
-            Join the waitlist
+            Sign up
           </Link>
           <Link
             href="/privacy"

@@ -4,16 +4,10 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowRight, Menu, Moon, Sun, X } from "lucide-react";
 import { PALETTE } from "@/lib/colors";
-import { Turnstile } from "@/components/turnstile";
 import { LocalClock } from "@/components/local-clock";
 
 const REPO_URL = "https://github.com/itsgotpower/pare";
 const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION ?? "";
-
-// WAITLIST LAUNCH: when set at build time, hide every "Sign in" affordance so the
-// landing is a pure waitlist page (the Edge middleware also redirects /login and
-// the app routes to "/"). Unset it + rebuild to restore the full app.
-const WAITLIST_ONLY = process.env.NEXT_PUBLIC_WAITLIST_ONLY === "1";
 
 // lucide-react dropped its brand icons, so inline the GitHub mark.
 function GithubMark({ className }: { className?: string }) {
@@ -87,11 +81,9 @@ const FEATURES = [
   { label: "iOS app coming soon", color: PALETTE.celadon },
 ];
 
-type Status = "idle" | "loading" | "done" | "error";
-
 // Count up to `target` once on mount (easeOutCubic), to sync with the bento's
-// bar reveal. Deps are stable, so it does NOT replay when the page re-renders on
-// every waitlist-input keystroke. Honours prefers-reduced-motion (jumps to the
+// bar reveal. Deps are stable, so it does NOT replay on unrelated re-renders.
+// Honours prefers-reduced-motion (jumps to the
 // final value). SSR renders 0 and the client's first paint also renders 0, so
 // there's no hydration mismatch — the rAF effect animates after hydration.
 function useCountUp(target: number, durationMs = 900) {
@@ -116,13 +108,6 @@ function useCountUp(target: number, durationMs = 900) {
 }
 
 export default function MarketingHome() {
-  const [email, setEmail] = useState("");
-  const [status, setStatus] = useState<Status>("idle");
-  const [message, setMessage] = useState("");
-  // Turnstile token (empty until solved). The widget renders only when a public
-  // site key is configured; with no key the server skips verification, so an
-  // empty token is fine in dev/self-host.
-  const [turnstileToken, setTurnstileToken] = useState("");
   const [dark, setDark] = useState(false);
   // Mobile nav drawer (below `sm`). Desktop renders the full nav inline, so this
   // is only ever open on small screens.
@@ -175,33 +160,6 @@ export default function MarketingHome() {
     };
   }, [menuOpen]);
 
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (status === "loading") return;
-    setStatus("loading");
-    setMessage("");
-    try {
-      const res = await fetch("/api/waitlist", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, turnstileToken }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setStatus("error");
-        setMessage(data.error || "Something went wrong. Try again.");
-        return;
-      }
-      setStatus("done");
-      setMessage(
-        data.alreadyJoined ? "You're already on the list — sit tight." : "You're on the list. We'll be in touch."
-      );
-    } catch {
-      setStatus("error");
-      setMessage("Network error. Try again.");
-    }
-  };
-
   return (
     // The landing now SCROLLS: the hero is a full-height first screen (unchanged
     // at-a-glance), and the "what you don't have to do anymore" pain module sits
@@ -229,14 +187,12 @@ export default function MarketingHome() {
             <GithubMark className="size-4" />
             <span className="hidden sm:inline">GitHub</span>
           </a>
-          {!WAITLIST_ONLY && (
-            <Link
-              href="/login"
-              className="font-mono text-[10px] md:text-xs tracking-widest uppercase text-muted-foreground hover:text-foreground transition-colors"
-            >
-              Sign in
-            </Link>
-          )}
+          <Link
+            href="/login"
+            className="font-mono text-[10px] md:text-xs tracking-widest uppercase text-muted-foreground hover:text-foreground transition-colors"
+          >
+            Sign in
+          </Link>
           <button
             type="button"
             onClick={toggleDark}
@@ -305,15 +261,13 @@ export default function MarketingHome() {
               >
                 <GithubMark className="size-4" /> GitHub
               </a>
-              {!WAITLIST_ONLY && (
-                <Link
-                  href="/login"
-                  onClick={() => setMenuOpen(false)}
-                  className="flex items-center px-5 min-h-[3.25rem] border-b border-border text-muted-foreground hover:text-foreground hover:bg-secondary/50 transition-colors"
-                >
-                  Sign in
-                </Link>
-              )}
+              <Link
+                href="/login"
+                onClick={() => setMenuOpen(false)}
+                className="flex items-center px-5 min-h-[3.25rem] border-b border-border text-muted-foreground hover:text-foreground hover:bg-secondary/50 transition-colors"
+              >
+                Sign in
+              </Link>
               <button
                 type="button"
                 onClick={toggleDark}
@@ -349,38 +303,19 @@ export default function MarketingHome() {
             </span>
           </p>
 
-          {/* Waitlist form */}
-          <form onSubmit={submit} className="mt-6 max-w-md">
-            <div className="flex flex-row gap-[1px] bg-border border border-border">
-              <input
-                type="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                disabled={status === "done"}
-                placeholder="you@email.com"
-                aria-label="Email address"
-                className="flex-1 min-w-0 bg-card px-4 h-11 text-sm outline-none placeholder:text-muted-foreground disabled:opacity-60"
-              />
-              <button
-                type="submit"
-                disabled={status === "loading" || status === "done"}
-                className="shrink-0 bg-foreground text-background font-mono text-xs tracking-widest uppercase px-4 sm:px-5 h-11 hover:opacity-90 transition-opacity disabled:opacity-50 whitespace-nowrap"
-              >
-                {status === "loading" ? "…" : status === "done" ? "Joined ✓" : "Join waitlist"}
-              </button>
-            </div>
-            {/* Renders nothing unless NEXT_PUBLIC_TURNSTILE_SITE_KEY is set, so the
-                zero-scroll landing stays zero-scroll in dev / self-host. */}
-            <Turnstile onToken={setTurnstileToken} className="mt-2" />
-            <p
-              className={`text-xs mt-2 h-4 ${
-                status === "error" ? "text-[color:var(--destructive,#b3654a)]" : "text-muted-foreground"
-              }`}
+          {/* Primary CTA — hosted signup is open, so this replaces the old
+              waitlist email-capture form. */}
+          <div className="mt-6 max-w-md">
+            <Link
+              href="/login?signup=1"
+              className="inline-flex items-center justify-center bg-foreground text-background font-mono text-xs tracking-widest uppercase px-6 h-11 hover:opacity-90 transition-opacity"
             >
-              {message || "Free to start when the hosted version opens."}
+              Sign up
+            </Link>
+            <p className="text-xs mt-2 h-4 text-muted-foreground">
+              Free to start — no card, no bank login.
             </p>
-          </form>
+          </div>
 
           <div className="mt-3 flex items-center gap-5">
             <Link
@@ -389,14 +324,12 @@ export default function MarketingHome() {
             >
               See it with sample data <ArrowRight className="size-3.5" />
             </Link>
-            {!WAITLIST_ONLY && (
-              <Link
-                href="/login"
-                className="inline-flex items-center gap-1.5 font-mono text-[11px] tracking-widest uppercase text-muted-foreground hover:text-foreground transition-colors w-fit"
-              >
-                Already have access? Sign in <ArrowRight className="size-3.5" />
-              </Link>
-            )}
+            <Link
+              href="/login"
+              className="inline-flex items-center gap-1.5 font-mono text-[11px] tracking-widest uppercase text-muted-foreground hover:text-foreground transition-colors w-fit"
+            >
+              Already have an account? Sign in <ArrowRight className="size-3.5" />
+            </Link>
           </div>
         </div>
 

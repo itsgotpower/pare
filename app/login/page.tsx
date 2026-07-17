@@ -325,7 +325,9 @@ function HostedForm({
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [isSignUp, setIsSignUp] = useState(false);
+  // "Sign up" CTAs across the marketing pages deep-link here as /login?signup=1
+  // to land on the create-account form instead of sign-in.
+  const [isSignUp, setIsSignUp] = useState(searchParams.get("signup") === "1");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
