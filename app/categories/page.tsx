@@ -232,7 +232,7 @@ export default function CategoriesPage() {
             <p className="font-mono text-xs text-muted-foreground mt-1">{importMsg}</p>
           )}
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
           <input
             ref={fileInputRef}
             type="file"
@@ -394,10 +394,13 @@ export default function CategoriesPage() {
                     className="inline-flex items-center gap-1 px-2 py-1 border text-xs font-mono group"
                   >
                     {rule.keyword}
-                    {/* No hover on touch — keep the delete × visible there */}
+                    {/* No hover on touch — keep the delete × visible there.
+                        Padding + negative margin widen the tap area without
+                        changing the chip's visual size. */}
                     <button
                       onClick={() => handleDelete(rule.id)}
-                      className="opacity-100 md:opacity-0 md:group-hover:opacity-100 ml-1 px-1 -mr-1 text-muted-foreground hover:text-foreground transition-opacity"
+                      aria-label={`Delete rule ${rule.keyword}`}
+                      className="opacity-100 md:opacity-0 md:group-hover:opacity-100 ml-1 px-2.5 py-2 -my-2 -mr-2.5 text-muted-foreground hover:text-foreground transition-opacity"
                     >
                       ×
                     </button>

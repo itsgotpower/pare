@@ -317,15 +317,17 @@ export default function GoalsPage() {
                   </p>
                   {goal && (
                     <div className="flex gap-3">
+                      {/* py+negative-margin: phone-sized tap areas without
+                          changing the row's visual height (mobile-qa skill) */}
                       <button
                         onClick={() => handleEdit(goal)}
-                        className="text-xs text-muted-foreground hover:text-foreground font-mono"
+                        className="text-xs text-muted-foreground hover:text-foreground font-mono px-2 py-2 -my-2 -mx-2"
                       >
                         EDIT
                       </button>
                       <button
                         onClick={() => handleDelete(goal.id)}
-                        className="text-xs text-muted-foreground hover:text-foreground font-mono"
+                        className="text-xs text-muted-foreground hover:text-foreground font-mono px-2 py-2 -my-2 -mx-2"
                       >
                         REMOVE
                       </button>
