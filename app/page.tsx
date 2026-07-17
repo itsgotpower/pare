@@ -10,9 +10,11 @@ import { LocalClock } from "@/components/local-clock";
 const REPO_URL = "https://github.com/itsgotpower/pare";
 const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION ?? "";
 
-// WAITLIST LAUNCH: when set at build time, hide every "Sign in" affordance so the
-// landing is a pure waitlist page (the Edge middleware also redirects /login and
-// the app routes to "/"). Unset it + rebuild to restore the full app.
+// WAITLIST LAUNCH: when set at build time, hide every "Sign in" affordance and
+// swap the hero CTA back to the waitlist email capture, so the landing is a pure
+// waitlist page (the Edge middleware also redirects /login and the app routes to
+// "/"). Unset — the default since public signup opened — the hero CTA goes to
+// account creation; /api/waitlist and the form stay wired for the flag.
 const WAITLIST_ONLY = process.env.NEXT_PUBLIC_WAITLIST_ONLY === "1";
 
 // lucide-react dropped its brand icons, so inline the GitHub mark.
@@ -349,38 +351,53 @@ export default function MarketingHome() {
             </span>
           </p>
 
-          {/* Waitlist form */}
-          <form onSubmit={submit} className="mt-6 max-w-md">
-            <div className="flex flex-row gap-[1px] bg-border border border-border">
-              <input
-                type="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                disabled={status === "done"}
-                placeholder="you@email.com"
-                aria-label="Email address"
-                className="flex-1 min-w-0 bg-card px-4 h-11 text-sm outline-none placeholder:text-muted-foreground disabled:opacity-60"
-              />
-              <button
-                type="submit"
-                disabled={status === "loading" || status === "done"}
-                className="shrink-0 bg-foreground text-background font-mono text-xs tracking-widest uppercase px-4 sm:px-5 h-11 hover:opacity-90 transition-opacity disabled:opacity-50 whitespace-nowrap"
+          {WAITLIST_ONLY ? (
+            /* Waitlist capture — waitlist mode only (flag set at build). */
+            <form onSubmit={submit} className="mt-6 max-w-md">
+              <div className="flex flex-row gap-[1px] bg-border border border-border">
+                <input
+                  type="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  disabled={status === "done"}
+                  placeholder="you@email.com"
+                  aria-label="Email address"
+                  className="flex-1 min-w-0 bg-card px-4 h-11 text-sm outline-none placeholder:text-muted-foreground disabled:opacity-60"
+                />
+                <button
+                  type="submit"
+                  disabled={status === "loading" || status === "done"}
+                  className="shrink-0 bg-foreground text-background font-mono text-xs tracking-widest uppercase px-4 sm:px-5 h-11 hover:opacity-90 transition-opacity disabled:opacity-50 whitespace-nowrap"
+                >
+                  {status === "loading" ? "…" : status === "done" ? "Joined ✓" : "Join waitlist"}
+                </button>
+              </div>
+              {/* Renders nothing unless NEXT_PUBLIC_TURNSTILE_SITE_KEY is set, so the
+                  zero-scroll landing stays zero-scroll in dev / self-host. */}
+              <Turnstile onToken={setTurnstileToken} className="mt-2" />
+              <p
+                className={`text-xs mt-2 h-4 ${
+                  status === "error" ? "text-[color:var(--destructive,#b3654a)]" : "text-muted-foreground"
+                }`}
               >
-                {status === "loading" ? "…" : status === "done" ? "Joined ✓" : "Join waitlist"}
-              </button>
+                {message || "Free to start when the hosted version opens."}
+              </p>
+            </form>
+          ) : (
+            /* Signup is open — the /login page carries the create-account form. */
+            <div className="mt-6 max-w-md">
+              <Link
+                href="/login"
+                className="inline-flex items-center gap-2 bg-foreground text-background font-mono text-xs tracking-widest uppercase px-5 h-11 hover:opacity-90 transition-opacity"
+              >
+                Create an account <ArrowRight className="size-3.5" />
+              </Link>
+              <p className="text-xs mt-2 h-4 text-muted-foreground">
+                Free tier, no card needed. Or self-host — free forever.
+              </p>
             </div>
-            {/* Renders nothing unless NEXT_PUBLIC_TURNSTILE_SITE_KEY is set, so the
-                zero-scroll landing stays zero-scroll in dev / self-host. */}
-            <Turnstile onToken={setTurnstileToken} className="mt-2" />
-            <p
-              className={`text-xs mt-2 h-4 ${
-                status === "error" ? "text-[color:var(--destructive,#b3654a)]" : "text-muted-foreground"
-              }`}
-            >
-              {message || "Free to start when the hosted version opens."}
-            </p>
-          </form>
+          )}
 
           <div className="mt-3 flex items-center gap-5">
             <Link
@@ -394,7 +411,7 @@ export default function MarketingHome() {
                 href="/login"
                 className="inline-flex items-center gap-1.5 font-mono text-[11px] tracking-widest uppercase text-muted-foreground hover:text-foreground transition-colors w-fit"
               >
-                Already have access? Sign in <ArrowRight className="size-3.5" />
+                Sign in <ArrowRight className="size-3.5" />
               </Link>
             )}
           </div>
