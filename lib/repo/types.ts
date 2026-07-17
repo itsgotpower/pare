@@ -202,6 +202,8 @@ export interface CategoryRepo {
   uncategorizedCount(): Promise<number>;
   // Rule suggestions derived from recorded manual overrides.
   ruleSuggestions(): Promise<RuleSuggestion[]>;
+  // Reject a suggestion so it never resurfaces (persists like rules/goals).
+  dismissSuggestion(keyword: string, category: string): Promise<void>;
   // Bulk single-category assign: one override per id (original_category =
   // stored base, resolved server-side). Missing rows and SPLIT rows are
   // skipped, never clobbered. Max 500 ids per call.

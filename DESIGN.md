@@ -59,9 +59,16 @@ only chromatic theme colour.
 | `--muted` / `--muted-foreground` | `0.96` / `0.45` | `0.2` / `0.6` | subdued surfaces & text |
 | `--primary` | near-black | near-white | solid buttons/badges |
 | `--destructive` | `oklch(0.577 0.245 27.325)` | `oklch(0.704 0.191 22.216)` | errors only |
+| `--link` | `#4d7691` (PALETTE.slate) | `#a6c0cd` (PALETTE.dustyblue) | inline text links only |
 | `--chart-1…5` | grey ramp `0.145 → 0.85` | grey ramp `0.93 → 0.25` | monochrome chart fallback |
 
 Sidebar tokens mirror the same greyscale.
+
+**Inline links** are the second sanctioned chromatic exception (after `--destructive`):
+underlined body-text links use the `.link` class (`app/globals.css`), coloured by
+`--link` so they read as links instead of blending into copy. `.prose-pare a` gets the
+same treatment automatically. Nav/menu links and button-shaped links stay monochrome —
+the colour is for links *inside prose*, not chrome.
 
 ### Data palette — earth tones ([`lib/colors.ts`](lib/colors.ts))
 

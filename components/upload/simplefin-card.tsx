@@ -167,7 +167,7 @@ export function SimplefinCard() {
               href={BRIDGE_URL}
               target="_blank"
               rel="noopener noreferrer"
-              className="underline underline-offset-2"
+              className="link"
             >
               SimpleFIN Bridge
             </a>{" "}

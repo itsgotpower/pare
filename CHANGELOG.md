@@ -12,6 +12,19 @@ contracts, on-disk and crypto formats) may change between minor versions — see
 
 ### Added
 
+- **Reject rule suggestions** — each suggested rule on `/categories` now has a
+  REJECT button; a rejected suggestion never resurfaces (dismissals survive
+  data wipes, like rules and goals). The mining itself is far less noisy:
+  overrides are clustered per merchant (no more city-name keywords that would
+  re-tag hundreds of unrelated rows), and one category can now yield a
+  suggestion per merchant instead of going silent on the second one ([#126]).
+- **Export rules** — an EXPORT RULES button on `/categories` downloads your
+  keyword rules as JSON in exactly the shape IMPORT RULES accepts, so rules
+  round-trip between instances ([#126]).
+- **Savings-opportunity goal suggestions** — suggested goals on `/goals` now
+  propose a limit 10% under your 6-month average and show what sticking to it
+  keeps in your pocket per year ([#126]).
+
 - **Sitemap + robots.txt** — pare.money now serves `/sitemap.xml` (the public
   marketing pages and every blog post) and `/robots.txt` instead of redirecting
   crawlers to the login gate, so the public surface is indexable ([#117]).
@@ -53,9 +66,29 @@ contracts, on-disk and crypto formats) may change between minor versions — see
   / "SYNC OVERDUE" in Data Health based on the connection's last sync,
   instead of a false "upload" nudge when a quiet card simply had no spending
   ([#113]).
+### Changed
+
+- **Sign up, not "join the waitlist"** — every marketing CTA now leads to
+  account creation (`/login?signup=1` opens the create-account form directly);
+  the landing hero's email-capture form is replaced by a SIGN UP button
+  ([#126]).
+- **Marketing and legal pages match the shipped product** — SimpleFIN is
+  documented on both deploy targets, OFX/QFX appears alongside PDFs, /mcp
+  covers the hosted claude.ai connector, and /terms gains a
+  Plans-and-billing section ([#126]).
+- **Inline links are visibly links** — underlined body-text links now use a
+  branded high-contrast colour (slate in light mode, dusty blue in dark)
+  instead of blending into the copy ([#126]).
 
 ### Fixed
 
+- **Mobile: /categories header** — the action-button row wraps at phone
+  widths instead of clipping ADD RULE off-screen and dragging the page
+  sideways; rule-delete and goal EDIT/REMOVE tap areas are phone-sized
+  ([#126]).
+- **Goal averages honour their window** — "suggested limits from your 6-month
+  average" previously averaged the entire data history; the query now uses
+  the last 6 months with spend data ([#126]).
 - **License copy on /about and /terms** — the marketing pages claimed Pare is
   MIT-licensed; the code is released under AGPL-3.0 (open-core — everything
   except the proprietary `cloud/` layer). All four stale mentions now say
@@ -209,6 +242,7 @@ server exposing the local data to MCP clients. Ships open-source repo scaffoldin
 [0.2.0]: https://github.com/itsgotpower/pare/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/itsgotpower/pare/releases/tag/v0.1.0
 
+[#126]: https://github.com/itsgotpower/pare/pull/126
 [#25]: https://github.com/itsgotpower/pare/pull/25
 [#27]: https://github.com/itsgotpower/pare/pull/27
 [#29]: https://github.com/itsgotpower/pare/pull/29

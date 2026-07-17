@@ -114,19 +114,19 @@ export default async function BlogPostPage({
           dangerouslySetInnerHTML={{ __html: post.html }}
         />
 
-        {/* Soft CTA — no hard sell. On the hosted waitlist build "/" is the signup. */}
+        {/* Soft CTA — no hard sell. */}
         <section className="border border-border bg-card p-5 mt-12">
-          <p className={labelClass}>Early access</p>
+          <p className={labelClass}>Try Pare</p>
           <p className="text-sm leading-relaxed text-foreground/90 mt-2">
             Pare is a local-first personal-finance app that reads your statements instead of your
-            bank login. It&apos;s in early access — if any of this resonates, put your email on the
-            list and we&apos;ll let you know when it&apos;s your turn.
+            bank login. If any of this resonates, it&apos;s free to start — create an account and
+            drop in your first statement.
           </p>
           <Link
-            href="/"
+            href="/login?signup=1"
             className="inline-flex items-center gap-2 mt-4 font-mono text-[11px] tracking-widest uppercase border border-border bg-background px-4 h-10 text-foreground hover:bg-muted transition-colors"
           >
-            Join the waitlist →
+            Sign up →
           </Link>
         </section>
       </main>

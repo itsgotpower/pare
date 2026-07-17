@@ -159,7 +159,7 @@ export function ImportWizard() {
         <Card className="border-foreground">
           <CardContent className="py-4 text-sm">
             You need to be signed in to import.{" "}
-            <Link href="/login?from=/switch" className="underline font-medium">
+            <Link href="/login?from=/switch" className="link font-medium">
               Sign in
             </Link>{" "}
             and come back — your history and categories import in one pass.

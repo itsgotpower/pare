@@ -8,6 +8,7 @@ import {
   type UserRule,
 } from "./user-rules";
 import { isDepositKind, DEPOSIT_KINDS_SQL } from "./account-kinds";
+import { deriveKeyword } from "./derive-keyword";
 
 export interface CategoryRule {
   id: number;
@@ -205,9 +206,33 @@ export interface RuleSuggestion {
 }
 
 /**
- * Mine keyword→category rule suggestions from recorded manual overrides: for each
- * override category with ≥2 examples, take the longest common substring of the
- * overridden descriptions and count how many other rows it would (re)tag.
+ * Record that the user rejected a suggested rule so it never resurfaces.
+ * Keyed by (keyword, category); survives the /api/data wipe like rules/goals.
+ */
+export function dismissSuggestion(keyword: string, category: string): void {
+  const db = getDb();
+  db.prepare(
+    `INSERT OR IGNORE INTO suggestion_dismissals (keyword, category) VALUES (?, ?)`
+  ).run(keyword.toUpperCase(), category);
+}
+
+/**
+ * Mine keyword→category rule suggestions from recorded manual overrides.
+ *
+ * Overrides are clustered PER MERCHANT via deriveKeyword() (contiguous merchant
+ * prefix — processor junk, store numbers, and trailing city/province codes
+ * stripped), then clusters whose derived keywords share a ≥4-char token prefix
+ * are merged ("SPOTIFY P2ABC…" + "SPOTIFY P2DEF…" → "SPOTIFY"). A cluster with
+ * ≥2 overrides becomes a suggestion. This replaces the old one-LCS-per-category
+ * mining, which (a) surfaced trailing city tokens ("VANCOUVER") that would
+ * re-tag hundreds of unrelated rows, and (b) went silent the moment a category
+ * held overrides from two different merchants.
+ *
+ * Gates: user-rejected suggestions (suggestion_dismissals) and keywords already
+ * covered by a rule are excluded; a collateral gate drops any keyword that
+ * would raid rows already filed under several OTHER real categories. `count` is
+ * how many rows the rule would actually re-tag (effective category ≠ target, so
+ * rows already overridden to the target don't inflate it).
  */
 export function ruleSuggestions(): RuleSuggestion[] {
   const db = getDb();
@@ -221,57 +246,100 @@ export function ruleSuggestions(): RuleSuggestion[] {
 
   if (overrides.length < 2) return [];
 
-  const byCategory = new Map<string, string[]>();
+  const dismissed = new Set(
+    (
+      db.prepare(`SELECT keyword, category FROM suggestion_dismissals`).all() as {
+        keyword: string;
+        category: string;
+      }[]
+    ).map((d) => `${d.keyword} ${d.category}`)
+  );
+  const existingKeywords = new Set(
+    (db.prepare(`SELECT keyword FROM category_rules`).all() as { keyword: string }[]).map((r) =>
+      r.keyword.toUpperCase()
+    )
+  );
+
+  // Cluster override descriptions by derived merchant keyword, per category.
+  const byCategory = new Map<string, Map<string, number>>();
   for (const o of overrides) {
-    const descs = byCategory.get(o.new_category) || [];
-    descs.push(o.description.toUpperCase());
-    byCategory.set(o.new_category, descs);
+    const keyword = deriveKeyword(o.description);
+    if (!keyword) continue;
+    const clusters = byCategory.get(o.new_category) ?? new Map<string, number>();
+    clusters.set(keyword, (clusters.get(keyword) ?? 0) + 1);
+    byCategory.set(o.new_category, clusters);
   }
 
   const suggestions: RuleSuggestion[] = [];
 
-  for (const [category, descriptions] of byCategory) {
-    if (descriptions.length < 2) continue;
-
-    const common = longestCommonSubstring(descriptions);
-    if (common.length < 3) continue;
-
-    const matchCount = (
-      db
-        .prepare(
-          `SELECT COUNT(*) as count FROM transactions
-           WHERE UPPER(description) LIKE '%' || ? || '%'
-             AND category != ?`
-        )
-        .get(common, category) as { count: number }
-    ).count;
-
-    if (matchCount > 0) {
-      suggestions.push({ keyword: common, category, count: matchCount });
-    }
-  }
-
-  return suggestions;
-}
-
-function longestCommonSubstring(strings: string[]): string {
-  if (strings.length === 0) return "";
-  if (strings.length === 1) return strings[0];
-
-  let best = "";
-  const first = strings[0];
-
-  for (let i = 0; i < first.length; i++) {
-    for (let len = first.length - i; len > best.length; len--) {
-      const candidate = first.substring(i, i + len).trim();
-      if (candidate.length <= best.length) continue;
-      if (strings.every((s) => s.includes(candidate))) {
-        best = candidate;
+  for (const [category, clusters] of byCategory) {
+    // Merge clusters that share a token-prefix >=4 chars: sorting puts them
+    // adjacent, and the merged cluster keys on the common prefix.
+    const sorted = [...clusters.entries()].sort(([a], [b]) => (a < b ? -1 : 1));
+    const merged: { keyword: string; n: number }[] = [];
+    for (const [keyword, n] of sorted) {
+      const last = merged[merged.length - 1];
+      const prefix = last ? commonTokenPrefix(last.keyword, keyword) : "";
+      if (last && prefix.length >= 4) {
+        last.keyword = prefix;
+        last.n += n;
+      } else {
+        merged.push({ keyword, n });
       }
     }
+
+    for (const { keyword, n } of merged) {
+      if (n < 2) continue;
+      if (dismissed.has(`${keyword} ${category}`)) continue;
+      if (existingKeywords.has(keyword)) continue;
+
+      // Collateral gate: rows the keyword matches that are already filed under
+      // a DIFFERENT real category (not the target, not the fallbacks). A good
+      // merchant keyword claims uncategorized rows; one that would re-tag rows
+      // across several other categories is word noise.
+      const collateral = db
+        .prepare(
+          `SELECT effective_category AS cat, COUNT(*) AS n FROM v_transactions
+           WHERE UPPER(description) LIKE '%' || ? || '%'
+             AND effective_category NOT IN (?, 'Other / uncategorized', 'Banking')
+           GROUP BY effective_category`
+        )
+        .all(keyword, category) as { cat: string; n: number }[];
+      const collateralRows = collateral.reduce((s, c) => s + c.n, 0);
+      if (collateral.length >= 3 || collateralRows > 3 * n) continue;
+
+      // Rows the rule would re-tag today. Zero is still worth suggesting — the
+      // user may have overridden every current row, and the rule auto-tags the
+      // same merchant on every future statement.
+      const matchCount = (
+        db
+          .prepare(
+            `SELECT COUNT(*) as count FROM v_transactions
+             WHERE UPPER(description) LIKE '%' || ? || '%'
+               AND effective_category != ?`
+          )
+          .get(keyword, category) as { count: number }
+      ).count;
+
+      suggestions.push({ keyword, category, count: matchCount });
+    }
   }
 
-  return best;
+  return suggestions.sort((a, b) => b.count - a.count);
+}
+
+// Longest run of LEADING whole tokens two keywords share ("SPOTIFY P2ABC123",
+// "SPOTIFY P2DEF456" -> "SPOTIFY"). Whole tokens only - a character-level
+// prefix would merge "SUBWAY" and "SUBARU" into the nonsense keyword "SUB".
+function commonTokenPrefix(a: string, b: string): string {
+  const ta = a.split(" ");
+  const tb = b.split(" ");
+  const out: string[] = [];
+  for (let i = 0; i < Math.min(ta.length, tb.length); i++) {
+    if (ta[i] !== tb[i]) break;
+    out.push(ta[i]);
+  }
+  return out.join(" ");
 }
 
 export function addOverride(transactionId: number, originalCategory: string, newCategory: string): void {

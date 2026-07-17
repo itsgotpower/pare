@@ -127,10 +127,10 @@ export function PricingTiers() {
               ))}
             </ul>
             <Link
-              href="/"
+              href="/login?signup=1"
               className="mt-5 inline-flex items-center justify-center border border-border font-mono text-[11px] tracking-widest uppercase h-10 hover:bg-foreground hover:text-background transition-colors"
             >
-              Join the waitlist
+              Sign up
             </Link>
           </div>
         ))}

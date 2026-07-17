@@ -26,7 +26,7 @@ const STEPS = [
     n: "01",
     color: PALETTE.celadon,
     title: "Drop a PDF",
-    body: "Export a statement from your bank and drag it in. No login, no aggregator, no MFA. Tuned today for Amex Gold, CIBC Aeroplan Visa, and CIBC chequing — more banks ship as their parsers are verified.",
+    body: "Export a statement from your bank and drag it in. No login, no aggregator, no MFA. PDF parsing is tuned today for Amex Gold, CIBC Aeroplan Visa, and CIBC chequing — more banks ship as their parsers are verified — and any bank works via an OFX/QFX export.",
   },
   {
     n: "02",
@@ -76,7 +76,7 @@ export default function HowItWorksPage() {
           No &ldquo;connect your bank&rdquo; step, no aggregator sitting between you
           and your accounts. You hand Pare a statement you already have, and it does
           the reading, the math, and the categorizing. Here&apos;s the whole
-          pipeline, start to finish. (Self-hosting and want automatic sync anyway?
+          pipeline, start to finish. (Want automatic sync anyway?
           There&apos;s an opt-in SimpleFIN connection — off by default, read-only,
           and paid for and revocable by you.)
         </p>
@@ -129,7 +129,7 @@ export default function HowItWorksPage() {
             <p>
               For the curious: the whole thing runs on Cloudflare. Nothing here is
               proprietary black-box magic — it&apos;s the parser you can{" "}
-              <a href={REPO_URL} className="underline" target="_blank" rel="noreferrer">
+              <a href={REPO_URL} className="link" target="_blank" rel="noreferrer">
                 read on GitHub
               </a>{" "}
               and run on your own machine.
@@ -156,10 +156,10 @@ export default function HowItWorksPage() {
         {/* CTA */}
         <div className="border-t border-border mt-10 pt-8 flex flex-col sm:flex-row sm:items-center gap-3">
           <Link
-            href="/"
+            href="/login?signup=1"
             className="inline-flex items-center justify-center bg-foreground text-background font-mono text-xs tracking-widest uppercase px-5 h-11 hover:opacity-90 transition-opacity"
           >
-            Join the waitlist
+            Sign up
           </Link>
           <Link
             href="/privacy"

@@ -15,7 +15,7 @@ import { MarketingFooter, MarketingHeader } from "@/components/marketing/site-ch
 export const metadata: Metadata = {
   title: "MCP for Claude — PARE",
   description:
-    "Pare ships a local Model Context Protocol server so you can ask Claude about your spending in plain language. It runs on your machine, reads only your local database, and makes no network calls.",
+    "Pare speaks the Model Context Protocol so you can ask Claude about your spending in plain language — a one-URL claude.ai connector on the hosted service, or a fully local server if you self-host.",
 };
 
 const labelClass = "font-mono text-[10px] tracking-widest uppercase text-muted-foreground";
@@ -76,36 +76,43 @@ export default function McpPage() {
         </h1>
 
         <p className="text-sm leading-relaxed text-foreground/90 mt-6">
-          Pare ships a local{" "}
+          Pare speaks the{" "}
           <a
             href="https://modelcontextprotocol.io"
             target="_blank"
             rel="noopener noreferrer"
-            className="underline"
+            className="link"
           >
             Model Context Protocol
-          </a>{" "}
-          server that exposes your finance data as {READ_TOOLS.length + WRITE_TOOLS.length} tools an MCP client — Claude
-          Code or Claude Desktop — can call. Connect it once and you can ask Claude
-          about your spending, budgets, and subscriptions in plain language, with
-          the answers grounded in your actual transactions.
+          </a>
+          , exposing your finance data as {READ_TOOLS.length + WRITE_TOOLS.length} tools an MCP client can call.
+          On the hosted service that&apos;s a one-URL connector you add to claude.ai
+          (web, desktop, or mobile); self-host ships a fully local server for Claude
+          Code and Claude Desktop. Connect it once and you can ask Claude about your
+          spending, budgets, and subscriptions in plain language, with the answers
+          grounded in your actual transactions.
         </p>
 
         <div className="mt-8 space-y-8">
           <Section title="How it works">
             <p>
               MCP is an open standard for giving an AI assistant access to tools and
-              data. Pare&apos;s server speaks it over stdio: Claude calls a tool like{" "}
-              <span className="font-mono text-xs">spending_summary</span>, the server
-              reads your local SQLite database, and hands back the numbers. Claude
-              then explains them in conversation.
+              data. Claude calls a tool like{" "}
+              <span className="font-mono text-xs">spending_summary</span>, Pare reads
+              your database, and hands back the numbers. Claude then explains them
+              in conversation.
             </p>
             <p>
-              The server runs on your own machine and{" "}
+              <span className="font-medium">Hosted:</span> add Pare as a custom
+              connector in claude.ai — one URL, an OAuth sign-in with explicit
+              consent, no terminal. Every tool call runs against your own isolated
+              database and nothing else; you can revoke access at any time.
+            </p>
+            <p>
+              <span className="font-medium">Self-host:</span> the server runs on
+              your own machine over stdio and{" "}
               <span className="font-medium">makes no network calls</span> — it reads
-              and writes only the local database. The Python parser and this MCP
-              server both bypass the web app entirely, so they work the same whether
-              you self-host or run Pare locally.
+              and writes only the local database, bypassing the web app entirely.
             </p>
           </Section>
 
@@ -128,7 +135,7 @@ export default function McpPage() {
 
           <Section title="The tools">
             <p>
-              Ten read tools answer questions; six write tools let Claude set goals,
+              Ten read tools answer questions; eight write tools let Claude set goals,
               tune categorization rules, and re-tag transactions — so you can keep
               your data organized by asking, not clicking.
             </p>
@@ -172,23 +179,26 @@ export default function McpPage() {
 
           <Section title="Privacy">
             <p>
-              The server touches only your local database and uploads nothing on its
-              own. Be aware, though, that whatever an AI client reads through these
-              tools is sent to that client&apos;s model provider as conversation
-              context — so connect only clients you trust with your financial data.
+              The tools touch only your own database — local when you self-host,
+              your isolated per-account store on hosted — and upload nothing on
+              their own. Be aware, though, that whatever an AI client reads through
+              these tools is sent to that client&apos;s model provider as
+              conversation context — so connect only clients you trust with your
+              financial data.
             </p>
           </Section>
 
           <Section title="Setting it up">
             <p>
-              Setup is a small block of JSON added to your Claude Code or Claude
-              Desktop config. Because the paths have to be absolute for your machine,
-              Pare generates the exact, copy-paste-ready snippet for you on the{" "}
-              <Link href="/connect" className="underline">
+              Hosted: paste one URL into claude.ai&apos;s Settings → Connectors.
+              Self-host: add a small block of JSON to your Claude Code or Claude
+              Desktop config. Either way, the{" "}
+              <Link href="/connect" className="link">
                 Connect page
               </Link>{" "}
-              once you&apos;re signed in — along with a one-line smoke test to verify
-              the server before you wire it into a client.
+              shows the exact, copy-paste-ready setup for your account once
+              you&apos;re signed in — including a one-line smoke test for the local
+              server.
             </p>
           </Section>
         </div>

@@ -36,8 +36,6 @@ const DemoIncomeSpendBar = dynamic(
 // month-anchored figures are shown; today-relative surfaces (forecast,
 // insights, safe-to-spend) would rot in a frozen snapshot.
 
-const WAITLIST_ONLY = process.env.NEXT_PUBLIC_WAITLIST_ONLY === "1";
-
 interface MonthlyTotal { month: string; total: number }
 interface CategoryBreakdown { category: string; total: number; count: number }
 interface TopMerchant { description: string; total: number; count: number }
@@ -127,19 +125,17 @@ export default function DemoPage() {
         {/* Desktop nav — inline from `sm` up. Below `sm` it collapses into the
             hamburger so the SAMPLE DATA pill + CTA stop crowding on phones. */}
         <div className="hidden sm:flex items-center gap-4">
-          {!WAITLIST_ONLY && (
-            <Link
-              href="/login"
-              className="font-mono text-xs tracking-widest uppercase text-muted-foreground hover:text-foreground"
-            >
-              Sign in
-            </Link>
-          )}
           <Link
-            href="/"
+            href="/login"
+            className="font-mono text-xs tracking-widest uppercase text-muted-foreground hover:text-foreground"
+          >
+            Sign in
+          </Link>
+          <Link
+            href="/login?signup=1"
             className="font-mono text-xs tracking-widest uppercase border border-input px-3 py-1.5 hover:bg-accent"
           >
-            Join waitlist
+            Sign up
           </Link>
         </div>
 
@@ -198,21 +194,19 @@ export default function DemoPage() {
               >
                 Home
               </Link>
-              {!WAITLIST_ONLY && (
-                <Link
-                  href="/login"
-                  onClick={() => setMenuOpen(false)}
-                  className="flex items-center px-4 min-h-[3.25rem] border-b border-border text-muted-foreground hover:text-foreground hover:bg-secondary/50 transition-colors"
-                >
-                  Sign in
-                </Link>
-              )}
               <Link
-                href="/"
+                href="/login"
+                onClick={() => setMenuOpen(false)}
+                className="flex items-center px-4 min-h-[3.25rem] border-b border-border text-muted-foreground hover:text-foreground hover:bg-secondary/50 transition-colors"
+              >
+                Sign in
+              </Link>
+              <Link
+                href="/login?signup=1"
                 onClick={() => setMenuOpen(false)}
                 className="flex items-center justify-between gap-3 px-4 min-h-[3.25rem] text-foreground hover:bg-secondary/50 transition-colors"
               >
-                Join waitlist <ArrowRight className="size-4" />
+                Sign up <ArrowRight className="size-4" />
               </Link>
             </nav>
           </div>
@@ -375,19 +369,17 @@ export default function DemoPage() {
           </div>
           <div className="flex items-center gap-3 shrink-0">
             <Link
-              href="/"
+              href="/login?signup=1"
               className="inline-flex items-center gap-1.5 font-mono text-xs tracking-widest uppercase bg-foreground text-background px-4 py-2 hover:opacity-90"
             >
-              Join the waitlist <ArrowRight className="size-3.5" />
+              Sign up <ArrowRight className="size-3.5" />
             </Link>
-            {!WAITLIST_ONLY && (
-              <Link
-                href="/login"
-                className="font-mono text-xs tracking-widest uppercase border border-input px-4 py-2 hover:bg-accent"
-              >
-                Sign in
-              </Link>
-            )}
+            <Link
+              href="/login"
+              className="font-mono text-xs tracking-widest uppercase border border-input px-4 py-2 hover:bg-accent"
+            >
+              Sign in
+            </Link>
           </div>
         </div>
       </main>
