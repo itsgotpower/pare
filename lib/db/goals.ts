@@ -47,6 +47,9 @@ export interface CategoryAverage {
 // suggested goal limits.
 export function getCategoryAverages(): CategoryAverage[] {
   const db = getDb();
+  // Averages over the LAST 6 MONTHS WITH SPEND DATA (not the whole history, and
+  // not calendar months — statements lag). Every "suggested limit" surface
+  // advertises a 6-month average, so the window is load-bearing copy.
   return db
     .prepare(
       `SELECT effective_category AS category,
@@ -55,6 +58,10 @@ export function getCategoryAverages(): CategoryAverage[] {
          SELECT effective_category, substr(txn_date, 1, 7) AS month, SUM(amount) AS monthly_total
          FROM v_category_slices
          WHERE ${SPEND_WHERE}
+           AND substr(txn_date, 1, 7) IN (
+             SELECT DISTINCT substr(txn_date, 1, 7) AS m FROM v_category_slices
+             WHERE ${SPEND_WHERE} ORDER BY m DESC LIMIT 6
+           )
          GROUP BY effective_category, month
        )
        GROUP BY category
