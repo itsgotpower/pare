@@ -126,3 +126,65 @@ test("google is a trusted account-linking provider", () => {
     }
   );
 });
+
+// The MCP protected-resource `resource` field MUST be the canonical URI of the
+// MCP SERVER (RFC 9728 §2 / MCP authorization spec) — the endpoint the client
+// POSTs to, NOT the origin. The better-auth mcp plugin defaults it to
+// `new URL(baseURL).origin`; that default reached prod and broke the claude.ai
+// connector: the client fetched the doc named in our 401 challenge, saw
+// `https://pare.money` where it expected `https://pare.money/api/mcp`, and
+// silently discarded a freshly-issued token (register 201 → consent 200 →
+// token 200, then zero calls to /api/mcp). This drives the REAL plugin endpoint
+// through createHostedAuth, so it fails if the `resource` option is ever
+// dropped from hostedAuthOptions(). The metadata endpoint reads baseURL +
+// options only, so the dummy D1 is never touched.
+type ProtectedResourceApi = {
+  getMCPProtectedResource: (a: { asResponse: false }) => Promise<{ resource: string }>;
+};
+
+test("MCP protected-resource metadata names the /api/mcp endpoint, not the origin", async () => {
+  await withEnvAsync({ BETTER_AUTH_URL: "https://pare.money" }, async () => {
+    const { createHostedAuth } = await import("./hosted");
+    const auth = createHostedAuth(FAKE_D1);
+    const meta = await (auth.api as unknown as ProtectedResourceApi).getMCPProtectedResource({
+      asResponse: false,
+    });
+    assert.equal(
+      meta.resource,
+      "https://pare.money/api/mcp",
+      "resource must be the MCP server URI — on mismatch claude.ai discards the token it just obtained"
+    );
+  });
+});
+
+test("MCP resource tracks BETTER_AUTH_URL and tolerates a trailing slash", async () => {
+  await withEnvAsync({ BETTER_AUTH_URL: "https://staging.example.com/" }, async () => {
+    const { createHostedAuth } = await import("./hosted");
+    const auth = createHostedAuth(FAKE_D1);
+    const meta = await (auth.api as unknown as ProtectedResourceApi).getMCPProtectedResource({
+      asResponse: false,
+    });
+    assert.equal(meta.resource, "https://staging.example.com/api/mcp");
+  });
+});
+
+async function withEnvAsync(
+  vars: Record<string, string | undefined>,
+  fn: () => Promise<void>
+) {
+  const saved = new Map(
+    Object.keys(vars).map((k) => [k, process.env[k]] as const)
+  );
+  for (const [k, v] of Object.entries(vars)) {
+    if (v === undefined) delete process.env[k];
+    else process.env[k] = v;
+  }
+  try {
+    await fn();
+  } finally {
+    for (const [k, v] of saved) {
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+    }
+  }
+}

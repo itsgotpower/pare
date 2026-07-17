@@ -85,9 +85,25 @@ export function hostedAuthOptions(db: D1Like): BetterAuthOptions {
   // prompt=consent, so /api/mcp-authorize (the endpoint our discovery document
   // advertises) forces that prompt and this page renders the ALLOW/DENY step.
   // Spec: internal/remote-mcp-spec.md (finding #2).
+  // `resource` MUST be the canonical URI of the MCP SERVER (RFC 9728 §2 +
+  // the MCP authorization spec), i.e. the endpoint the client actually POSTs
+  // to — NOT the origin. The plugin defaults it to `new URL(baseURL).origin`,
+  // which advertised `https://pare.money` while the server lives at
+  // `https://pare.money/api/mcp`. claude.ai fetches the protected-resource doc
+  // named in our 401 challenge, compares `resource` against the endpoint it is
+  // connecting to, and on mismatch discards the token it just obtained —
+  // surfacing as "Authorization with pare.money failed" with NO second request
+  // to /api/mcp. Verified against prod 2026-07-16: every server step returned
+  // 2xx (register 201 → consent 200 → token 200) and the client then went
+  // silent. Setting this fixes BOTH metadata routes at once, since our
+  // /.well-known copy proxies the same getMCPProtectedResource endpoint.
+  // Omitted when BETTER_AUTH_URL is unset (dev/self-host) so the plugin's
+  // origin default still applies rather than an "undefined/api/mcp" string.
+  const mcpBaseUrl = process.env.BETTER_AUTH_URL?.replace(/\/$/, "");
   plugins.push(
     mcp({
       loginPage: "/login",
+      ...(mcpBaseUrl ? { resource: `${mcpBaseUrl}/api/mcp` } : {}),
       // loginPage is duplicated because the OIDCOptions type requires it here;
       // at runtime the plugin overrides oidcConfig.loginPage with the outer one.
       oidcConfig: { loginPage: "/login", consentPage: "/oauth/consent" },
