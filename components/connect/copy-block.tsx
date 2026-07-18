@@ -23,7 +23,11 @@ export function CopyBlock({ label, text }: { label?: string; text: string }) {
           onClick={copy}
           className="flex items-center gap-1.5 font-mono text-[10px] tracking-widest text-muted-foreground hover:text-foreground transition-colors uppercase"
         >
-          {copied ? <Check className="size-3" /> : <Copy className="size-3" />}
+          {copied ? (
+            <Check className="size-3 pare-pop" />
+          ) : (
+            <Copy className="size-3" />
+          )}
           {copied ? "COPIED" : "COPY"}
         </button>
       </div>
