@@ -18,7 +18,7 @@ export const metadata: Metadata = {
 };
 
 const CONTACT_EMAIL = "terms@pare.money";
-const LAST_UPDATED = "June 21, 2026";
+const LAST_UPDATED = "July 17, 2026";
 
 const labelClass = "font-mono text-[10px] tracking-widest uppercase text-muted-foreground";
 
@@ -46,7 +46,7 @@ export default function TermsPage() {
 
         <p className="text-sm leading-relaxed text-foreground/90 mt-6">
           These terms are the agreement between you and Pare for using the hosted
-          service at this site. By joining the waitlist, creating an account, or
+          service at this site. By creating an account or
           using Pare, you agree to them. If you don&apos;t agree, please don&apos;t
           use the service. Pare is a personal, open-source project — these terms
           are written in plain language, not legalese, but they still apply.
@@ -134,7 +134,7 @@ export default function TermsPage() {
               drawing your charts. We don&apos;t sell it, share it for advertising,
               or use it to train anything. How we collect, store, and delete data is
               described in the{" "}
-              <Link href="/privacy" className="underline">
+              <Link href="/privacy" className="link">
                 Privacy Policy
               </Link>
               , which is part of these terms.
@@ -175,12 +175,28 @@ export default function TermsPage() {
           <Section title="The service, as it is">
             <p>
               Pare is offered on an &ldquo;as is&rdquo; and &ldquo;as
-              available&rdquo; basis, and is still early — currently a waitlist and
-              an evolving product. We may add, change, pause, or discontinue
+              available&rdquo; basis, and is still early — an evolving product.
+              We may add, change, pause, or discontinue
               features, and we don&apos;t promise the service will always be
               available, uninterrupted, or error-free. We aren&apos;t a backup
               service: keep your own copies of important statements, and use the
               in-app export if you want your data offline.
+            </p>
+          </Section>
+
+          <Section title="Plans and billing">
+            <p>
+              Pare has a free tier and paid plans that lift capacity caps (accounts
+              and uploads) — every plan has every feature. Current prices are on the{" "}
+              <Link href="/pricing" className="link">
+                pricing page
+              </Link>
+              . Paid subscriptions are billed through Stripe, our payment processor;
+              we never see your full card details. You can cancel at any time from
+              your profile — you keep access for the period you&apos;ve paid for,
+              your account then moves to the free tier, and your data stays yours
+              (export it, keep using it, or self-host). If prices change, we&apos;ll
+              give account holders notice before it affects them.
             </p>
           </Section>
 
@@ -206,9 +222,10 @@ export default function TermsPage() {
               To the fullest extent allowed by law, Pare and its maintainer
               won&apos;t be liable for any indirect, incidental, special, or
               consequential damages, or for any lost data, lost profits, or
-              decisions made in reliance on the service. Because Pare is currently
-              offered free of charge, our total liability to you for any claim is
-              limited accordingly. Some jurisdictions don&apos;t allow certain
+              decisions made in reliance on the service. Our total liability to you
+              for any claim is limited to the amount you paid us for the service in
+              the twelve months before the claim arose — which, on the free tier,
+              is nothing. Some jurisdictions don&apos;t allow certain
               limitations, so parts of this may not apply to you.
             </p>
           </Section>
@@ -216,7 +233,7 @@ export default function TermsPage() {
           <Section title="Ending things">
             <p>
               You can stop using Pare and{" "}
-              <Link href="/profile" className="underline">
+              <Link href="/profile" className="link">
                 permanently delete your account
               </Link>{" "}
               at any time — it&apos;s a real, hard delete with no recovery. We may
@@ -243,7 +260,7 @@ export default function TermsPage() {
               at the top and, for material changes, let account holders know.
               Continuing to use Pare after a change means you accept the updated
               terms. Questions or concerns:{" "}
-              <a href={`mailto:${CONTACT_EMAIL}`} className="underline">
+              <a href={`mailto:${CONTACT_EMAIL}`} className="link">
                 {CONTACT_EMAIL}
               </a>
               .

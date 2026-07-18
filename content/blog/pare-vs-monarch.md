@@ -18,7 +18,7 @@ If you're reading this, you're probably paying Monarch about a hundred dollars a
 
 Monarch connects to your bank. Pare reads your statements.
 
-Monarch uses aggregators (Plaid and MX) to pull your transactions automatically. You link your accounts once, and the feed updates itself. Pare has no bank connection at all — you download the PDF or OFX statements you already get and drop them in, and Pare parses, categorizes, and charts them locally.
+Monarch uses aggregators (Plaid and MX) to pull your transactions automatically. You link your accounts once, and the feed updates itself. Pare is statements-first — you download the PDF or OFX statements you already get and drop them in, and Pare parses, categorizes, and charts them locally. There is an optional SimpleFIN sync for accounts you'd rather not hand-feed, but it's off by default and built the same way around: you pay the bridge directly, and Pare never sees your bank login.
 
 Almost every other difference in this comparison is downstream of that one choice, so it's worth being clear about the trade before the feature grid: Monarch buys you automation at the cost of a live line into your accounts held by a third party. Pare buys you privacy and ownership at the cost of a few minutes a month. We made the full case for the statement-first approach in [why we don't connect to your bank](/blog/why-we-dont-connect-to-your-bank).
 
@@ -26,7 +26,7 @@ Almost every other difference in this comparison is downstream of that one choic
 
 Monarch is subscription-only — around **$14.99/month, or roughly $100/year** if you pay annually (check their site for the current number). There's a trial, but there is no free tier; when it ends, you pay or you lose access.
 
-Pare is **free to start**. Run it yourself from the open-source code and it's free, full stop — it's your machine and your database. The hosted version is in early access with a waitlist. There's no credit card to try it.
+Pare is **free to start**. Run it yourself from the open-source code and it's free, full stop — it's your machine and your database. The hosted version has a free tier, with paid plans if you outgrow its caps — current numbers are on the [pricing page](/pricing). There's no credit card to try it.
 
 That's not automatically a point for Pare. A subscription funds a company that keeps the aggregator connections working across thousands of banks, staffs support, and ships features. Free-and-self-hosted means you're trading money for a little setup and the manual upload. Pick the currency you'd rather spend.
 
@@ -88,4 +88,4 @@ Choose Pare if:
 
 Monarch is a well-made subscription app for people who want automation and shared budgeting and accept an aggregator to get them. Pare is for people who want ownership and privacy and will trade a little manual effort for it. Neither is objectively correct.
 
-If the ownership argument lands, the practical next step is getting your history out of Monarch — we wrote a [switching guide](/blog/how-to-leave-mint-monarch-copilot) that walks through the export. And once you're set up, [the 10-minute monthly review](/blog/the-10-minute-monthly-review) is the habit that makes a statement-based tool pay off. Pare's hosted version is in early access; the waitlist is on the [home page](/).
+If the ownership argument lands, the practical next step is getting your history out of Monarch — we wrote a [switching guide](/blog/how-to-leave-mint-monarch-copilot) that walks through the export. And once you're set up, [the 10-minute monthly review](/blog/the-10-minute-monthly-review) is the habit that makes a statement-based tool pay off. Hosted signup is open — [create an account](/login) whenever you're ready.

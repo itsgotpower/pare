@@ -104,6 +104,23 @@ export default function CategoriesPage() {
     fetchRules();
   };
 
+  const handleRejectSuggestion = async (s: Suggestion) => {
+    // Optimistic: drop it from the list immediately; the dismissal persists
+    // server-side so it never comes back.
+    setSuggestions((prev) =>
+      prev.filter((x) => !(x.keyword === s.keyword && x.category === s.category))
+    );
+    await fetch("/api/categories", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "dismiss_suggestion",
+        keyword: s.keyword,
+        category: s.category,
+      }),
+    });
+  };
+
   const [recategorizing, setRecategorizing] = useState(false);
 
   const handleRecategorizeAll = async () => {
@@ -120,6 +137,23 @@ export default function CategoriesPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [importing, setImporting] = useState(false);
   const [importMsg, setImportMsg] = useState<string | null>(null);
+
+  // Download the current rules as JSON in the exact shape IMPORT RULES accepts
+  // ({ category_rules: [...] } — the same key as the full /api/data export), so
+  // export → import round-trips between instances.
+  const handleExportRules = () => {
+    const payload = JSON.stringify(
+      { category_rules: rules.map((r) => ({ category: r.category, keyword: r.keyword })) },
+      null,
+      2
+    );
+    const url = URL.createObjectURL(new Blob([payload], { type: "application/json" }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "pare-rules.json";
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -198,7 +232,7 @@ export default function CategoriesPage() {
             <p className="font-mono text-xs text-muted-foreground mt-1">{importMsg}</p>
           )}
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
           <input
             ref={fileInputRef}
             type="file"
@@ -215,8 +249,16 @@ export default function CategoriesPage() {
             {importing ? "IMPORTING..." : "IMPORT RULES"}
           </button>
           <button
+            onClick={handleExportRules}
+            title="Download your rules as JSON — the file IMPORT RULES accepts on any Pare instance"
+            className="inline-flex items-center justify-center border border-input bg-background px-4 py-2 font-mono text-xs tracking-widest uppercase hover:bg-accent hover:text-accent-foreground"
+          >
+            EXPORT RULES
+          </button>
+          <button
             onClick={handleRecategorizeAll}
             disabled={recategorizing}
+            title="Re-apply every rule to all transactions (your manual overrides are never touched)"
             className="inline-flex items-center justify-center border border-input bg-background px-4 py-2 font-mono text-xs tracking-widest uppercase hover:bg-accent hover:text-accent-foreground disabled:opacity-50"
           >
             {recategorizing ? "WORKING..." : "RECATEGORIZE ALL"}
@@ -293,17 +335,29 @@ export default function CategoriesPage() {
                   <span className="font-mono text-sm font-medium">"{s.keyword}"</span>
                   <span className="text-muted-foreground text-sm"> → {s.category}</span>
                   <span className="text-xs text-muted-foreground ml-2">
-                    (would match {s.count} more)
+                    {s.count > 0
+                      ? `(would match ${s.count} more)`
+                      : "(covers future charges)"}
                   </span>
                 </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleAcceptSuggestion(s)}
-                  className="font-mono text-xs"
-                >
-                  ACCEPT
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleAcceptSuggestion(s)}
+                    className="font-mono text-xs"
+                  >
+                    ACCEPT
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleRejectSuggestion(s)}
+                    className="font-mono text-xs text-muted-foreground"
+                  >
+                    REJECT
+                  </Button>
+                </div>
               </div>
             ))}
           </CardContent>
@@ -340,10 +394,13 @@ export default function CategoriesPage() {
                     className="inline-flex items-center gap-1 px-2 py-1 border text-xs font-mono group"
                   >
                     {rule.keyword}
-                    {/* No hover on touch — keep the delete × visible there */}
+                    {/* No hover on touch — keep the delete × visible there.
+                        Padding + negative margin widen the tap area without
+                        changing the chip's visual size. */}
                     <button
                       onClick={() => handleDelete(rule.id)}
-                      className="opacity-100 md:opacity-0 md:group-hover:opacity-100 ml-1 px-1 -mr-1 text-muted-foreground hover:text-foreground transition-opacity"
+                      aria-label={`Delete rule ${rule.keyword}`}
+                      className="opacity-100 md:opacity-0 md:group-hover:opacity-100 ml-1 px-2.5 py-2 -my-2 -mr-2.5 text-muted-foreground hover:text-foreground transition-opacity"
                     >
                       ×
                     </button>

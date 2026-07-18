@@ -5,7 +5,6 @@ import Link from "next/link";
 import { ArrowRight, Menu, Moon, Sun, X } from "lucide-react";
 import { PALETTE } from "@/lib/colors";
 import { LocalClock } from "@/components/local-clock";
-import { Wordmark } from "@/components/layout/wordmark";
 
 const REPO_URL = "https://github.com/itsgotpower/pare";
 const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION ?? "";
@@ -82,10 +81,9 @@ const FEATURES = [
   { label: "iOS app coming soon", color: PALETTE.celadon },
 ];
 
-
 // Count up to `target` once on mount (easeOutCubic), to sync with the bento's
-// bar reveal. Deps are stable, so it does NOT replay on unrelated re-renders
-// (e.g. the dark-mode toggle). Honours prefers-reduced-motion (jumps to the
+// bar reveal. Deps are stable, so it does NOT replay on unrelated re-renders.
+// Honours prefers-reduced-motion (jumps to the
 // final value). SSR renders 0 and the client's first paint also renders 0, so
 // there's no hydration mismatch — the rAF effect animates after hydration.
 function useCountUp(target: number, durationMs = 900) {
@@ -162,7 +160,6 @@ export default function MarketingHome() {
     };
   }, [menuOpen]);
 
-
   return (
     // The landing now SCROLLS: the hero is a full-height first screen (unchanged
     // at-a-glance), and the "what you don't have to do anymore" pain module sits
@@ -172,7 +169,9 @@ export default function MarketingHome() {
       {/* Top bar */}
       <header className="shrink-0 flex items-center justify-between px-5 md:px-8 h-[calc(3.5rem+env(safe-area-inset-top))] pt-[env(safe-area-inset-top)] border-b border-border">
         <div className="flex items-center gap-4 md:gap-5">
-          <Wordmark className="font-mono text-sm font-bold tracking-tight" />
+          <span className="font-mono text-sm font-bold tracking-tight">
+            <span aria-hidden="true">🍐</span> PARE
+          </span>
           <span className="block h-6 w-px bg-border" aria-hidden="true" />
           <LocalClock className="flex" />
         </div>
@@ -304,47 +303,40 @@ export default function MarketingHome() {
             </span>
           </p>
 
-          {/* Primary CTA — start a free account. The sample-data link lives under
-              the preview bento on desktop; on phones (bento hidden) it rides here. */}
-          <div className="mt-6 flex flex-wrap items-center gap-3">
+          {/* Primary CTA — hosted signup is open, so this replaces the old
+              waitlist email-capture form. */}
+          <div className="mt-6 max-w-md">
             <Link
               href="/login?signup=1"
-              className="inline-flex items-center gap-1.5 bg-foreground text-background font-mono text-xs tracking-widest uppercase px-5 h-11 hover:opacity-90 transition-opacity"
+              className="inline-flex items-center justify-center bg-foreground text-background font-mono text-xs tracking-widest uppercase px-6 h-11 hover:opacity-90 transition-opacity"
             >
-              Get started — it&apos;s free <ArrowRight className="size-3.5" />
+              Sign up
             </Link>
+            <p className="text-xs mt-2 h-4 text-muted-foreground">
+              Free to start — no card, no bank login.
+            </p>
+          </div>
+
+          <div className="mt-3 flex items-center gap-5">
             <Link
               href="/demo"
-              className="md:hidden inline-flex items-center gap-1.5 font-mono text-[11px] tracking-widest uppercase text-muted-foreground hover:text-foreground transition-colors w-fit"
+              className="inline-flex items-center gap-1.5 font-mono text-[11px] tracking-widest uppercase text-muted-foreground hover:text-foreground transition-colors w-fit"
             >
               See it with sample data <ArrowRight className="size-3.5" />
             </Link>
-          </div>
-
-          <p className="mt-3 text-xs text-muted-foreground">
-            <a
-              href={REPO_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="underline underline-offset-2 hover:text-foreground transition-colors"
-            >
-              Open source
-            </a>
-            , and{" "}
             <Link
-              href="/security"
-              className="underline underline-offset-2 hover:text-foreground transition-colors"
+              href="/login"
+              className="inline-flex items-center gap-1.5 font-mono text-[11px] tracking-widest uppercase text-muted-foreground hover:text-foreground transition-colors w-fit"
             >
-              encrypted at rest
-            </Link>{" "}
-            — your data stays yours.
-          </p>
+              Already have an account? Sign in <ArrowRight className="size-3.5" />
+            </Link>
+          </div>
         </div>
 
         {/* Product preview — an interactive echo of the app's bento. Hover, focus
             or tap a bar to scrub through months; the figures react. Hidden on
             phones so the hero stays zero-scroll on small screens. */}
-        <div className="hidden md:flex flex-col items-center justify-center gap-4 border-l border-border bg-secondary/40 p-10 min-h-0">
+        <div className="hidden md:flex items-center justify-center border-l border-border bg-secondary/40 p-10 min-h-0">
           <div className="w-full max-w-sm grid grid-cols-2 grid-rows-2 gap-[1px] bg-border border border-border shadow-sm">
             {/* THIS MONTH + scrubable bars */}
             <div className="col-span-2 bg-card p-5 flex flex-col">
@@ -417,12 +409,6 @@ export default function MarketingHome() {
               ))}
             </div>
           </div>
-          <Link
-            href="/demo"
-            className="inline-flex items-center gap-1.5 font-mono text-[11px] tracking-widest uppercase text-muted-foreground hover:text-foreground transition-colors"
-          >
-            See it with sample data <ArrowRight className="size-3.5" />
-          </Link>
         </div>
       </main>
 
@@ -449,7 +435,7 @@ export default function MarketingHome() {
               <p className="text-sm text-foreground/90 leading-relaxed mt-3">{p.sub}</p>
               <p className="mt-auto pt-4 text-xs text-muted-foreground leading-relaxed border-t border-border/60">
                 {p.proofHref ? (
-                  <Link href={p.proofHref} className="underline hover:text-foreground transition-colors">
+                  <Link href={p.proofHref} className="link">
                     {p.proof}
                   </Link>
                 ) : (

@@ -190,7 +190,7 @@ function HostedConnect() {
               href="https://github.com/itsgotpower/pare"
               target="_blank"
               rel="noreferrer"
-              className="underline hover:text-foreground"
+              className="link"
             >
               the open-source repo
             </a>{" "}
@@ -259,7 +259,7 @@ function SelfHostConnect() {
               href="https://modelcontextprotocol.io"
               target="_blank"
               rel="noreferrer"
-              className="underline hover:text-foreground"
+              className="link"
             >
               Model Context Protocol
             </a>{" "}

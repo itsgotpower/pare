@@ -31,7 +31,7 @@ const CONTACT_EMAIL = "privacy@pare.money";
 // lives on /security, which routes vuln reports to the same address.)
 const SECURITY_CONTACT = "security@pare.money";
 const REPO_URL = "https://github.com/itsgotpower/pare";
-const LAST_UPDATED = "July 1, 2026";
+const LAST_UPDATED = "July 17, 2026";
 
 const labelClass = "font-mono text-[10px] tracking-widest uppercase text-muted-foreground";
 
@@ -95,8 +95,8 @@ export default function PrivacyPage() {
               </li>
               <li>
                 We never ask for bank logins. By default nothing connects to your
-                bank — you upload statement PDFs yourself. The only exception is
-                opt-in: self-hosted Pare can sync through SimpleFIN, a read-only
+                bank — you upload statement PDFs or OFX exports yourself. The only
+                exception is opt-in: Pare can sync through SimpleFIN, a read-only
                 bridge you pay and control directly.
               </li>
               <li>Uploaded PDFs are deleted right after they&apos;re parsed.</li>
@@ -168,11 +168,11 @@ await deletePdfBestEffort(pdfStore, r2Key, jobId); // -> pdfStore.delete(r2Key)
               standing connection for anyone to abuse or resell.
             </p>
             <p>
-              The one exception is explicitly yours to choose: self-hosted Pare can
+              The one exception is explicitly yours to choose: Pare can
               optionally sync through{" "}
               <a
                 href="https://www.simplefin.org/"
-                className="underline"
+                className="link"
                 target="_blank"
                 rel="noreferrer"
               >
@@ -194,7 +194,7 @@ await deletePdfBestEffort(pdfStore, r2Key, jobId); // -> pdfStore.delete(r2Key)
             <p>
               Mint shut down and took its users&apos; workflow with it. Pare
               can&apos;t do that to you: the whole app is{" "}
-              <a href={REPO_URL} className="underline" target="_blank" rel="noreferrer">
+              <a href={REPO_URL} className="link" target="_blank" rel="noreferrer">
                 public on GitHub
               </a>{" "}
               and self-hostable. If the hosted service ever goes away, you run the
@@ -213,7 +213,8 @@ await deletePdfBestEffort(pdfStore, r2Key, jobId); // -> pdfStore.delete(r2Key)
             </p>
             <p>
               <span className="font-medium">Financial data you give us.</span> The
-              statement PDFs you upload, and everything parsed from them: transactions
+              statement PDFs and OFX/QFX exports you upload, and everything parsed
+              from them: transactions
               (date, description, amount), account balances, and the categories,
               rules, goals, and notes you create. This is your data; we process it
               only to show you your own dashboards.
@@ -276,7 +277,7 @@ await deletePdfBestEffort(pdfStore, r2Key, jobId); // -> pdfStore.delete(r2Key)
               works with your data in the clear, in memory, during that processing.
               The real isolation guarantee is the per-account database above, not a
               key only you hold. We spell this trade-off out on the{" "}
-              <Link href="/security" className="underline">
+              <Link href="/security" className="link">
                 security page
               </Link>{" "}
               rather than paper over it.
@@ -326,7 +327,7 @@ value.replace(EMAIL_RE, "[email]"); // mask any email that slips into a message`
           <Section title="Deleting your data">
             <p>
               You can permanently delete your account from your{" "}
-              <Link href="/profile" className="underline">
+              <Link href="/profile" className="link">
                 profile page
               </Link>{" "}
               (Danger zone → Delete account). It&apos;s a real, hard delete: we drop
@@ -342,7 +343,7 @@ value.replace(EMAIL_RE, "[email]"); // mask any email that slips into a message`
             <p>
               If you&apos;d rather we handle a deletion or have a question about your
               data, email{" "}
-              <a href={`mailto:${CONTACT_EMAIL}`} className="underline">
+              <a href={`mailto:${CONTACT_EMAIL}`} className="link">
                 {CONTACT_EMAIL}
               </a>
               .
@@ -354,13 +355,16 @@ value.replace(EMAIL_RE, "[email]"); // mask any email that slips into a message`
               <span className="font-medium">Cloudflare</span> is our infrastructure
               provider (a data processor): the app, databases, storage, and the
               bot-protection step all run on Cloudflare. We use{" "}
-              <span className="font-medium">Cloudflare Turnstile</span> on the waitlist
+              <span className="font-medium">Cloudflare Turnstile</span> on the sign-up
               and sign-in forms to block bots; it may set a token in your browser
               solely to confirm you&apos;re human, and is not used to track you.
             </p>
             <p>
               <span className="font-medium">Resend</span> sends transactional email
-              (such as password resets) when that feature is enabled. We don&apos;t use
+              (such as password resets) when that feature is enabled.{" "}
+              <span className="font-medium">SimpleFIN Bridge</span> is involved only
+              if you opt in to bank sync — you contract and pay them directly, and
+              can revoke Pare&apos;s access token at any time. We don&apos;t use
               any other third parties to process your data, and we never sell or share
               it for advertising.
             </p>
@@ -377,14 +381,14 @@ value.replace(EMAIL_RE, "[email]"); // mask any email that slips into a message`
           <Section title="Reporting a security issue">
             <p>
               Found something that looks like a data-exposure or security bug? Email{" "}
-              <a href={`mailto:${SECURITY_CONTACT}`} className="underline">
+              <a href={`mailto:${SECURITY_CONTACT}`} className="link">
                 {SECURITY_CONTACT}
               </a>{" "}
               with the details and how to reproduce it, and please don&apos;t test
               against other people&apos;s accounts — self-host an instance to probe
               instead. More on the security posture, and the limits we&apos;re honest
               about, on the{" "}
-              <Link href="/security" className="underline">
+              <Link href="/security" className="link">
                 security page
               </Link>
               .
@@ -396,7 +400,7 @@ value.replace(EMAIL_RE, "[email]"); // mask any email that slips into a message`
               If this policy changes in a meaningful way, we&apos;ll update the date at
               the top and, for material changes, let account holders know. Questions,
               requests, or concerns:{" "}
-              <a href={`mailto:${CONTACT_EMAIL}`} className="underline">
+              <a href={`mailto:${CONTACT_EMAIL}`} className="link">
                 {CONTACT_EMAIL}
               </a>
               .

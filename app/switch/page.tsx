@@ -187,10 +187,10 @@ export default function SwitchPage() {
         {/* CTA */}
         <div className="border-t border-border mt-10 pt-8 flex flex-col sm:flex-row sm:items-center gap-3">
           <Link
-            href="/"
+            href="/login?signup=1"
             className="inline-flex items-center justify-center bg-foreground text-background font-mono text-xs tracking-widest uppercase px-5 h-11 hover:opacity-90 transition-opacity"
           >
-            Join the waitlist
+            Sign up
           </Link>
           <Link
             href="/how-it-works"
@@ -204,7 +204,7 @@ export default function SwitchPage() {
           Pare reads only files you export yourself — there is no scraping or
           automated login. Your data is parsed and stored on the machine running
           Pare. See the{" "}
-          <Link href="/privacy" className="underline">
+          <Link href="/privacy" className="link">
             Privacy Policy
           </Link>
           .

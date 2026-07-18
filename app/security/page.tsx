@@ -23,7 +23,7 @@ export const metadata: Metadata = {
 
 const SECURITY_EMAIL = "security@pare.money";
 const REPO_URL = "https://github.com/itsgotpower/pare";
-const LAST_UPDATED = "June 16, 2026";
+const LAST_UPDATED = "July 17, 2026";
 
 const labelClass = "font-mono text-[10px] tracking-widest uppercase text-muted-foreground";
 
@@ -65,9 +65,9 @@ export default function SecurityPage() {
                 the app that can reach another account&apos;s data.
               </li>
               <li>
-                We never ask for your bank login. You hand us a PDF; nothing
-                connects to your bank — unless you opt in to SimpleFIN sync on a
-                self-hosted install, a read-only bridge you pay and control, where
+                We never ask for your bank login. You hand us a PDF or OFX
+                export; nothing connects to your bank — unless you opt in to
+                SimpleFIN sync, a read-only bridge you pay and control, where
                 your login still never touches Pare.
               </li>
               <li>Uploaded PDFs are deleted the moment they&apos;re parsed.</li>
@@ -79,7 +79,7 @@ export default function SecurityPage() {
               </li>
               <li>
                 The whole app is{" "}
-                <a href={REPO_URL} className="underline" target="_blank" rel="noreferrer">
+                <a href={REPO_URL} className="link" target="_blank" rel="noreferrer">
                   open source
                 </a>{" "}
                 — you can read exactly what it does, and self-host it if you&apos;d
@@ -117,11 +117,12 @@ export default function SecurityPage() {
               standing connection for anyone to abuse.
             </p>
             <p>
-              Self-hosted Pare offers one explicit exception: an opt-in SimpleFIN
-              sync. It&apos;s read-only, you pay and control the bridge directly,
+              Pare offers one explicit exception: an opt-in SimpleFIN sync
+              (available self-hosted, and on hosted plans that include it).
+              It&apos;s read-only, you pay and control the bridge directly,
               and your bank credentials live there — Pare stores only a
-              revocable access token, kept out of the database and its backups. Off
-              by default, and a{" "}
+              revocable access token, kept out of your data exports and backups.
+              Off by default, and on self-host a{" "}
               <code className="font-mono text-xs">PARE_SIMPLEFIN_DISABLED</code>{" "}
               flag hides it entirely.
             </p>
@@ -182,7 +183,7 @@ export default function SecurityPage() {
           <Section title="Delete everything, yourself">
             <p>
               From your{" "}
-              <Link href="/profile" className="underline">
+              <Link href="/profile" className="link">
                 profile
               </Link>{" "}
               you can permanently delete your account. It&apos;s a real, hard
@@ -196,7 +197,7 @@ export default function SecurityPage() {
           <Section title="Open source &amp; self-hostable">
             <p>
               Pare&apos;s source is{" "}
-              <a href={REPO_URL} className="underline" target="_blank" rel="noreferrer">
+              <a href={REPO_URL} className="link" target="_blank" rel="noreferrer">
                 public on GitHub
               </a>
               . You don&apos;t have to take any of the above on faith — you can read
@@ -243,7 +244,7 @@ export default function SecurityPage() {
           <Section title="Reporting a vulnerability">
             <p>
               Found a security issue? Please email{" "}
-              <a href={`mailto:${SECURITY_EMAIL}`} className="underline">
+              <a href={`mailto:${SECURITY_EMAIL}`} className="link">
                 {SECURITY_EMAIL}
               </a>{" "}
               with the details and how to reproduce it. We&apos;ll acknowledge it,

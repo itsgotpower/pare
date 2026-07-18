@@ -80,7 +80,7 @@ export default function BlogIndexPage() {
         <p className="text-[11px] text-muted-foreground leading-relaxed mt-8">
           Pare is a local-first personal-finance app that reads your bank and credit-card
           statements — no bank connection, no aggregator.{" "}
-          <Link href="/about" className="underline">
+          <Link href="/about" className="link">
             More about Pare
           </Link>
           .

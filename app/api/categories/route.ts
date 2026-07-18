@@ -19,6 +19,14 @@ export async function POST(request: NextRequest) {
   await repo.categories.seed();
   const body = await request.json();
 
+  if (body.action === "dismiss_suggestion") {
+    if (typeof body.keyword !== "string" || typeof body.category !== "string") {
+      return Response.json({ error: "keyword and category required" }, { status: 400 });
+    }
+    await repo.categories.dismissSuggestion(body.keyword, body.category);
+    return Response.json({ success: true });
+  }
+
   if (body.action === "recategorize_all") {
     const changed = await repo.categories.recategorizeAll();
     return Response.json({ success: true, changed });

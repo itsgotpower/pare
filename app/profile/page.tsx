@@ -606,7 +606,7 @@ export default function ProfilePage() {
                 )}
                 <Link
                   href="/pricing"
-                  className="underline hover:text-foreground transition-colors"
+                  className="link"
                 >
                   See pricing
                 </Link>
@@ -624,7 +624,7 @@ export default function ProfilePage() {
               )}
               {!billing.configured && (
                 <span className="font-mono text-[10px] tracking-widest uppercase border border-border px-2 py-1 text-muted-foreground">
-                  Billing opens at launch
+                  Upgrades coming soon
                 </span>
               )}
               {billing.manageable && (
@@ -1152,7 +1152,7 @@ export default function ProfilePage() {
             </p>
             <p className="text-muted-foreground text-xs">
               There is no recovery and no soft-delete. See our{" "}
-              <Link href="/privacy" className="underline">
+              <Link href="/privacy" className="link">
                 privacy policy
               </Link>{" "}
               for what we hold and how deletion works.

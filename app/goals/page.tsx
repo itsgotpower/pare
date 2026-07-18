@@ -220,7 +220,7 @@ export default function GoalsPage() {
                   <p className="text-xs text-muted-foreground mt-1">
                     Your 6-month average: {formatCurrency(getSuggestedLimit(newCategory)!)}/mo
                     <button
-                      className="ml-2 underline hover:text-foreground"
+                      className="ml-2 link"
                       onClick={() =>
                         setNewLimit(String(getSuggestedLimit(newCategory)!))
                       }
@@ -317,15 +317,17 @@ export default function GoalsPage() {
                   </p>
                   {goal && (
                     <div className="flex gap-3">
+                      {/* py+negative-margin: phone-sized tap areas without
+                          changing the row's visual height (mobile-qa skill) */}
                       <button
                         onClick={() => handleEdit(goal)}
-                        className="text-xs text-muted-foreground hover:text-foreground font-mono"
+                        className="text-xs text-muted-foreground hover:text-foreground font-mono px-2 py-2 -my-2 -mx-2"
                       >
                         EDIT
                       </button>
                       <button
                         onClick={() => handleDelete(goal.id)}
-                        className="text-xs text-muted-foreground hover:text-foreground font-mono"
+                        className="text-xs text-muted-foreground hover:text-foreground font-mono px-2 py-2 -my-2 -mx-2"
                       >
                         REMOVE
                       </button>
@@ -340,44 +342,67 @@ export default function GoalsPage() {
 
       {categoriesWithoutGoals.length > 0 && (
         <div className="mt-8">
-          <h2 className="font-mono text-xs tracking-widest uppercase text-muted-foreground mb-4">
+          <h2 className="font-mono text-xs tracking-widest uppercase text-muted-foreground mb-1">
             SUGGESTED GOALS
           </h2>
+          <p className="text-xs text-muted-foreground mb-4">
+            Recomputed from your last 6 months of spend every time this page
+            loads. Each suggestion trims 10% off your average — the yearly figure
+            is what sticking to it would keep in your pocket.
+          </p>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             {averages
               .filter((a) => categoriesWithoutGoals.includes(a.category))
               .slice(0, 6)
-              .map((a) => (
-                <Card key={a.category}>
-                  <CardContent className="py-4">
-                    <p className="font-mono text-xs">{a.category}</p>
-                    <p className="font-mono text-lg font-bold">
-                      {formatCurrency(a.avg_monthly)}
-                      <span className="text-xs text-muted-foreground font-normal">
-                        /mo avg
-                      </span>
-                    </p>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="mt-2 font-mono text-xs w-full"
-                      onClick={async () => {
-                        await fetch("/api/goals", {
-                          method: "POST",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({
-                            category: a.category,
-                            monthly_limit: Math.round(a.avg_monthly),
-                          }),
-                        });
-                        fetchGoals();
-                      }}
-                    >
-                      SET AS GOAL
-                    </Button>
-                  </CardContent>
-                </Card>
-              ))}
+              .map((a) => {
+                // Suggested limit = 90% of the 6-month average, rounded to a
+                // clean $10 — a goal equal to your average changes nothing.
+                const suggested = Math.max(10, Math.round((a.avg_monthly * 0.9) / 10) * 10);
+                const yearlySaving = Math.round((a.avg_monthly - suggested) * 12);
+                return (
+                  <Card key={a.category}>
+                    <CardContent className="py-4">
+                      <p className="font-mono text-xs">{a.category}</p>
+                      <p className="font-mono text-lg font-bold">
+                        {formatCurrency(suggested)}
+                        <span className="text-xs text-muted-foreground font-normal">
+                          /mo limit
+                        </span>
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {formatCurrency(a.avg_monthly)}/mo average now
+                        {yearlySaving > 0 && (
+                          <>
+                            {" "}
+                            · keeps ~
+                            <span className="text-foreground font-medium">
+                              {formatCurrency(yearlySaving)}/yr
+                            </span>
+                          </>
+                        )}
+                      </p>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="mt-2 font-mono text-xs w-full"
+                        onClick={async () => {
+                          await fetch("/api/goals", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                              category: a.category,
+                              monthly_limit: suggested,
+                            }),
+                          });
+                          fetchGoals();
+                        }}
+                      >
+                        SET AS GOAL
+                      </Button>
+                    </CardContent>
+                  </Card>
+                );
+              })}
           </div>
         </div>
       )}
