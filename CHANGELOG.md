@@ -87,6 +87,11 @@ contracts, on-disk and crypto formats) may change between minor versions — see
   December purchases on a January-closing statement landed in the *next*
   December (e.g. Dec 2025 → Dec 2026). It now rolls December back to the prior
   year like the Amex and card engines already did ([#128]).
+- **Mobile PWA: bottom-nav overlap on iOS** — the app shell now sizes to the
+  dynamic viewport (`100dvh`, falling back to `100%`) instead of `height:100%`,
+  which mis-sized the flex column on iOS standalone PWAs (`viewport-fit=cover`)
+  and let the bottom tab bar drift over scrollable content. Desktop is
+  unaffected ([#131]).
 - **Mobile: /categories header** — the action-button row wraps at phone
   widths instead of clipping ADD RULE off-screen and dragging the page
   sideways; rule-delete and goal EDIT/REMOVE tap areas are phone-sized
@@ -247,6 +252,7 @@ server exposing the local data to MCP clients. Ships open-source repo scaffoldin
 [0.2.0]: https://github.com/itsgotpower/pare/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/itsgotpower/pare/releases/tag/v0.1.0
 
+[#131]: https://github.com/itsgotpower/pare/pull/131
 [#126]: https://github.com/itsgotpower/pare/pull/126
 [#25]: https://github.com/itsgotpower/pare/pull/25
 [#27]: https://github.com/itsgotpower/pare/pull/27
