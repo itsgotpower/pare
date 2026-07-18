@@ -58,6 +58,21 @@ Total balance                                                       =           
 Amount Due1                                                                      $8,381.31
 """
 
+# A December-January statement: December transactions must roll back to the
+# prior year (closing year is 2026, but the period crosses into December 2025).
+CIBC_VISA_DEC = """\
+CIBC Aeroplan Visa
+Account statement for the period December 28 to January 27, 2026
+Your new charges and credits
+Trans date     Post date     Description                  Spend Categories            Amount($)
+Dec 30         Dec 31        WOODFIRE BAKERY         KELOWNA  BC       Restaurants                24.05
+Jan 05         Jan 06        SKOGIES ON CLEMENT      KELOWNA  BC       Restaurants                11.00
+Total for 4500 XXXX XXXX 1003
+Previous balance                                                                     $0.00
+Total balance                                                       =               $35.05
+Amount Due1                                                                         $35.05
+"""
+
 CIBC_CHEQUING = """\
 CIBC Account Statement
 For Mar 1 to Mar 31, 2026
@@ -242,6 +257,22 @@ class TestCibcVisa(unittest.TestCase):
 
     def test_amounts_positive(self):
         self.assertTrue(all(r[5] > 0 for r in self.rows))
+
+
+class TestCibcVisaYearInference(unittest.TestCase):
+    def setUp(self):
+        self.rows = _rows(P.parse_cibc_visa, CIBC_VISA_DEC)
+
+    def test_dec_rolls_back_to_prior_year(self):
+        # Regression: parse_cibc_visa dated every txn with the closing year, so
+        # a December purchase on a January-closing statement was stamped in the
+        # FUTURE (2026-12 instead of 2025-12). It must roll back like Amex/card.
+        dec = next(r for r in self.rows if "WOODFIRE" in r[4])
+        self.assertEqual(dec[3], "2025-12-30")
+
+    def test_jan_stays_closing_year(self):
+        jan = next(r for r in self.rows if "SKOGIES" in r[4])
+        self.assertEqual(jan[3], "2026-01-05")
 
 
 class TestCibcChequing(unittest.TestCase):

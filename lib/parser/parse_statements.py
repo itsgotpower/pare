@@ -185,6 +185,13 @@ def parse_cibc_visa(path):
     rows, t = [], text(path)
     period = _visa_period(t)
     ref_year = extract_year(period)
+    # Closing month drives Dec->prior-year inference (a Dec-Jan statement closes
+    # in January). The Visa period is "Opening to Closing, YEAR" with full month
+    # names, so period_end() gives the CLOSING date; a leading-month match would
+    # grab the opening month and mis-date December. Falls back to 1 like the
+    # other engines when the period regex missed.
+    _pe = period_end(period)
+    closing_month = int(_pe[5:7]) if _pe else 1
     rx = re.compile(rf'^({DATE})\s+({DATE})\s+(?:Q\s+)?(.*?)\s+({CIBC_CATS})\s+({MONEY})(\s*CR)?\s*$')
     cap = False
     for ln in t.splitlines():
@@ -198,7 +205,7 @@ def parse_cibc_visa(path):
                 continue  # note line (e.g. interest disclosure), not a transaction
             amt = float(monies[-1].replace(',', ''))
             dm = re.match(rf'({DATE})', ln.strip())
-            txn_date = parse_date(dm.group(1), ref_year) if dm else ''
+            txn_date = parse_date(dm.group(1), _infer_txn_year(dm.group(1), ref_year, closing_month)) if dm else ''
             if 'BALANCE TRANSFER' in u:
                 rows.append(('cibc_visa', 'CIBC Aeroplan Visa', period, txn_date or '', 'BALANCE TRANSFER', amt, 'Cash advance / fees', 'transfer'))
             else:
@@ -213,7 +220,7 @@ def parse_cibc_visa(path):
         is_credit = amt_raw.strip().startswith('-') or bool(cr)
         amt = abs(float(amt_raw.replace(',', '')))
         desc = desc.strip()
-        txn_date = parse_date(txn_date_raw, ref_year)
+        txn_date = parse_date(txn_date_raw, _infer_txn_year(txn_date_raw, ref_year, closing_month))
         cat = categorize(desc)
         if is_credit and 'PAYMENT' in desc.upper():
             flow = 'payment'
