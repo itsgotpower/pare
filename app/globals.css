@@ -127,12 +127,25 @@
   * {
     @apply border-border outline-ring/50;
   }
-  body {
-    @apply bg-background text-foreground;
-  }
+  /* App-shell height. The shell is a flex column (top bar / scrolling main /
+     bottom tab bar); `main` scrolls internally, so the shell needs a DEFINITE
+     height. Plain `height: 100%` mis-sizes on iOS standalone PWAs with
+     viewport-fit=cover — the flex column overshoots and the bottom nav drifts,
+     letting content sit under the tab bar. The dynamic viewport unit tracks the
+     real standalone viewport; `100%` is the fallback for engines without `dvh`
+     (desktop is unaffected — dvh == vh == 100% there). Keep these on the
+     elements, NOT via `.h-full` utilities: a utility class would out-specify
+     this rule and reintroduce `height: 100%`. */
   html {
     @apply font-sans;
     -webkit-tap-highlight-color: transparent;
+    height: 100%;
+    height: 100dvh;
+  }
+  body {
+    @apply bg-background text-foreground;
+    height: 100%;
+    height: 100dvh;
   }
   /* Brand text selection — sage (PALETTE.sage, lib/colors.ts) instead of the
      OS default blue. Espresso text keeps contrast on the light-green wash in
