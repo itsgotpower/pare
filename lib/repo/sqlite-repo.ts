@@ -38,7 +38,7 @@ import {
   listTransactions,
   getCategories,
 } from "../db/transactions";
-import { insertStatement, listStatements } from "../db/statements";
+import { insertStatement, listStatements, deleteStatement } from "../db/statements";
 import {
   seedCategoryRules,
   listRules,
@@ -189,6 +189,7 @@ export class SqliteRepo implements Repo {
   statements: StatementRepo = {
     insert: (stmt) => this.write(() => insertStatement(stmt)),
     list: () => this.read(() => listStatements()),
+    deleteById: (id) => this.write(() => deleteStatement(id)),
   };
 
   categories: CategoryRepo = {

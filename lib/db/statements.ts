@@ -51,3 +51,35 @@ export function listStatements(): StatementRow[] {
     .prepare("SELECT * FROM statements ORDER BY uploaded_at DESC")
     .all() as StatementRow[];
 }
+
+/**
+ * Delete a statement and every transaction parsed from it (plus each of those
+ * rows' category overrides and splits). Unlike deleteManualTransaction — which
+ * refuses statement-backed rows — this is the deliberate path for removing a
+ * whole mis-parsed statement (e.g. one whose dates landed in the wrong year).
+ * Returns 0/1 for the statement and the number of transactions removed. Rules,
+ * goals, and manual/imported rows (statement_id NULL) are untouched.
+ */
+export function deleteStatement(id: number): { deleted: number; transactions: number } {
+  const db = getDb();
+  const tx = db.transaction(() => {
+    const stmt = db.prepare("SELECT id FROM statements WHERE id = ?").get(id) as
+      | { id: number }
+      | undefined;
+    if (!stmt) return { deleted: 0, transactions: 0 };
+    // Children first — overrides and splits both carry a FK to transactions(id),
+    // and transactions carry a FK to statements(id) (no ON DELETE CASCADE).
+    db.prepare(
+      "DELETE FROM category_overrides WHERE transaction_id IN (SELECT id FROM transactions WHERE statement_id = ?)"
+    ).run(id);
+    db.prepare(
+      "DELETE FROM transaction_splits WHERE transaction_id IN (SELECT id FROM transactions WHERE statement_id = ?)"
+    ).run(id);
+    const transactions = db
+      .prepare("DELETE FROM transactions WHERE statement_id = ?")
+      .run(id).changes;
+    const deleted = db.prepare("DELETE FROM statements WHERE id = ?").run(id).changes;
+    return { deleted, transactions };
+  });
+  return tx();
+}

@@ -19,6 +19,7 @@ const READ_TOOLS = [
   ["goals_status", "goal progress for the latest data month"],
   ["insights", "auto tips: over-budget, MoM moves, one-offs"],
   ["list_categories", "categories in use + keyword rules"],
+  ["list_statements", "uploaded/synced statements with ids + balances"],
 ] as const;
 
 const WRITE_TOOLS = [
@@ -30,6 +31,7 @@ const WRITE_TOOLS = [
   ["tag_transaction", "override one transaction's category"],
   ["add_manual_transaction", "record a cash / off-statement purchase"],
   ["delete_manual_transaction", "delete a manually recorded transaction"],
+  ["delete_statement", "delete a statement + all its transactions"],
 ] as const;
 
 const EXAMPLE_PROMPTS = [
