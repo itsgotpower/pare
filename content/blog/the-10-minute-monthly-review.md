@@ -72,4 +72,4 @@ Once a quarter, give yourself twenty minutes instead of ten and zoom out. The mo
 
 The trick to keeping this up is to make it small and scheduled. Pick a day — the first Sunday of the month, payday, whatever sticks — put it on the calendar for ten minutes, and don't let it grow. The moment a "review" becomes an hour of spreadsheet archaeology, you'll stop doing it. Ten minutes on the questions above, once a month, beats an anxious daily glance every single time, because it ends in understanding instead of dread.
 
-If you're just getting set up, the [switching guide](/blog/how-to-leave-mint-monarch-copilot) covers getting your history in so your first review has something to chew on. Pare's hosted version is in early access — put your email on the list from the [home page](/), and the first thing worth doing once you're in is exactly these ten minutes.
+If you're just getting set up, the [switching guide](/blog/how-to-leave-mint-monarch-copilot) covers getting your history in so your first review has something to chew on. Hosted signup is open — [create an account](/login), and the first thing worth doing once you're in is exactly these ten minutes.
