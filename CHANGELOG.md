@@ -12,6 +12,13 @@ contracts, on-disk and crypto formats) may change between minor versions — see
 
 ### Added
 
+- **Delete a statement** — two new MCP tools: `list_statements` (every
+  uploaded/synced statement with its id, period, and closing balance) and
+  `delete_statement`, which removes a statement and every transaction parsed
+  from it (plus their overrides and splits) in one go. For cleaning up a
+  mis-parsed upload; rules, goals, and manual/imported rows are untouched
+  ([#129]).
+
 - **Reject rule suggestions** — each suggested rule on `/categories` now has a
   REJECT button; a rejected suggestion never resurfaces (dismissals survive
   data wipes, like rules and goals). The mining itself is far less noisy:
@@ -82,6 +89,9 @@ contracts, on-disk and crypto formats) may change between minor versions — see
 
 ### Fixed
 
+- **Sign-up name field no longer shows a hardcoded example name** — the NAME
+  input on the create-account form had a `placeholder="Scott"`; it's now empty
+  ([#130]).
 - **CIBC Visa: December transactions dated a year in the future** — the CIBC
   Visa parser stamped every transaction with the statement's closing year, so
   December purchases on a January-closing statement landed in the *next*
@@ -296,4 +306,6 @@ server exposing the local data to MCP clients. Ships open-source repo scaffoldin
 [#117]: https://github.com/itsgotpower/pare/pull/117
 [#118]: https://github.com/itsgotpower/pare/pull/118
 [#119]: https://github.com/itsgotpower/pare/pull/119
+[#130]: https://github.com/itsgotpower/pare/pull/130
 [#128]: https://github.com/itsgotpower/pare/pull/128
+[#129]: https://github.com/itsgotpower/pare/pull/129

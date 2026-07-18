@@ -100,7 +100,7 @@ export const REPO_CATALOGUE: RepoCatalogue = {
     insertManual: "write",
     deleteManual: "write",
   },
-  statements: { insert: "write", list: "read" },
+  statements: { insert: "write", list: "read", deleteById: "write" },
   categories: {
     seed: "write",
     listRules: "read",

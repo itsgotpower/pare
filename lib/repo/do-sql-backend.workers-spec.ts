@@ -383,6 +383,36 @@ describe("DoSqlBackend over real ctx.storage.sql (workerd)", () => {
     });
   });
 
+  it("statements.deleteById removes the statement + its transactions and overrides", async () => {
+    await withCtx(async (storage) => {
+      const backend = new DoSqlBackend(storage);
+      const repo = new SqliteRepo(backend);
+
+      const stmtId = await repo.statements.insert({
+        filename: "visa-2026-05.pdf", source: "cibc_visa", account: "card", account_kind: "card",
+        period: "2026-05", row_count: 1,
+      });
+      await repo.transactions.insert({
+        statement_id: stmtId, source: "cibc_visa", account: "card", account_kind: "card", period: "2026-05",
+        txn_date: "2026-05-09", description: "PARSED CHARGE", amount: 20, category: "Other / uncategorized",
+        flow: "spend", dedup_key: "del-stmt-1",
+      });
+      const [target] = (await repo.transactions.list()).rows;
+      await repo.categories.addOverride(target.id, target.category, "Coffee");
+
+      const res = await repo.statements.deleteById(stmtId);
+      expect(res.deleted).toBe(1);
+      expect(res.transactions).toBe(1);
+      expect((await repo.statements.list()).length).toBe(0);
+      expect((await repo.transactions.list()).total).toBe(0);
+
+      // Unknown id is a no-op.
+      const none = await repo.statements.deleteById(stmtId);
+      expect(none.deleted).toBe(0);
+      expect(none.transactions).toBe(0);
+    });
+  });
+
   it("destroy() hard-deletes every app table + view (account deletion)", async () => {
     await withCtx(async (storage) => {
       const backend = new DoSqlBackend(storage);

@@ -19,6 +19,7 @@ It reuses the app's `lib/db` query layer (no duplicated SQL) and talks **stdio**
 - `goals_status` — goal progress for the latest data month
 - `insights` — auto tips (over-budget, MoM moves, surplus/deficit, one-offs)
 - `list_categories` — categories in use + keyword rules
+- `list_statements` — uploaded/synced statements with ids, periods, closing balances
 
 **Write**
 - `set_goal` / `delete_goal` — manage a category's monthly limit
@@ -27,6 +28,7 @@ It reuses the app's `lib/db` query layer (no duplicated SQL) and talks **stdio**
 - `tag_transaction` — override one transaction's category by id
 - `add_manual_transaction` — record a cash / off-statement purchase (date, description, amount, category)
 - `delete_manual_transaction` — delete a manually recorded transaction by id (statement rows refused)
+- `delete_statement` — delete a statement and every transaction parsed from it, by id (find via `list_statements`)
 
 ## Run
 
