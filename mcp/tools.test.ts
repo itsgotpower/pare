@@ -40,6 +40,14 @@ function makeFakeRepo() {
     categories: {
       addOverride: async (...a: unknown[]) => record("addOverride", a),
     },
+    statements: {
+      list: async () => [{ id: 36, source: "cibc_visa", account: "CIBC Aeroplan Visa", period: "cibc_visa" }],
+      deleteById: async (...a: unknown[]) => {
+        record("deleteStatement", a);
+        // id 36 exists (removes 4 rows); anything else is unknown.
+        return a[0] === 36 ? { deleted: 1, transactions: 4 } : { deleted: 0, transactions: 0 };
+      },
+    },
   };
   return { repo: repo as unknown as Repo, calls };
 }
@@ -56,13 +64,15 @@ async function connect(repo: Repo, options?: RegisterPareToolsOptions) {
 const READ_TOOLS = [
   "spending_summary", "list_transactions", "category_breakdown", "income_summary",
   "cashflow", "baseline", "subscriptions", "goals_status", "insights", "list_categories",
+  "list_statements",
 ];
 const WRITE_TOOLS = [
   "set_goal", "delete_goal", "add_category_rule", "delete_category_rule",
   "recategorize_all", "tag_transaction", "add_manual_transaction", "delete_manual_transaction",
+  "delete_statement",
 ];
 
-test("registry exposes all 18 tools by default", async () => {
+test("registry exposes all 20 tools by default", async () => {
   const { repo } = makeFakeRepo();
   const client = await connect(repo);
   const { tools } = await client.listTools();
@@ -116,5 +126,30 @@ test("tag_transaction refuses an unknown transaction id", async () => {
   })) as { content: Array<{ text: string }> };
   assert.equal(JSON.parse(res.content[0].text).ok, false);
   assert.equal(calls.addOverride, undefined);
+  await client.close();
+});
+
+test("delete_statement removes a statement and reports the txn count", async () => {
+  const { repo, calls } = makeFakeRepo();
+  const client = await connect(repo);
+  const res = (await client.callTool({
+    name: "delete_statement",
+    arguments: { statement_id: 36 },
+  })) as { content: Array<{ text: string }> };
+  const payload = JSON.parse(res.content[0].text);
+  assert.equal(payload.ok, true);
+  assert.equal(payload.transactions_removed, 4);
+  assert.deepEqual(calls.deleteStatement[0], [36]);
+  await client.close();
+});
+
+test("delete_statement refuses an unknown statement id", async () => {
+  const { repo } = makeFakeRepo();
+  const client = await connect(repo);
+  const res = (await client.callTool({
+    name: "delete_statement",
+    arguments: { statement_id: 999 },
+  })) as { content: Array<{ text: string }> };
+  assert.equal(JSON.parse(res.content[0].text).ok, false);
   await client.close();
 });

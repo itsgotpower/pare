@@ -156,6 +156,16 @@ export function registerPareTools(
     async () => json({ categories: await repo.transactions.categories(), rules: await repo.categories.listRules() })
   );
 
+  server.registerTool(
+    "list_statements",
+    {
+      title: "List statements",
+      description: "Every uploaded/synced statement with its id, source, account, period, row count, and closing balance. Use the id with delete_statement to remove a mis-parsed statement.",
+      inputSchema: {},
+    },
+    async () => json(await repo.statements.list())
+  );
+
   if (!writeTools) return;
 
   // ---- Write tools ----------------------------------------------------------
@@ -270,6 +280,20 @@ export function registerPareTools(
       const { deleted } = await repo.transactions.deleteManual(transaction_id);
       if (!deleted) return json({ ok: false, error: `No manual transaction ${transaction_id}` });
       return json({ ok: true });
+    }
+  );
+
+  server.registerTool(
+    "delete_statement",
+    {
+      title: "Delete statement",
+      description: "Delete a statement AND every transaction parsed from it (plus their overrides and splits), by id (find it via list_statements). Use to remove a mis-parsed statement; rules, goals, and manual/imported rows are untouched. This cannot be undone.",
+      inputSchema: { statement_id: z.number().int() },
+    },
+    async ({ statement_id }) => {
+      const { deleted, transactions } = await repo.statements.deleteById(statement_id);
+      if (!deleted) return json({ ok: false, error: `No statement ${statement_id}` });
+      return json({ ok: true, transactions_removed: transactions });
     }
   );
 }

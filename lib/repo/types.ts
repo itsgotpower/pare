@@ -174,6 +174,10 @@ export interface TransactionRepo {
 export interface StatementRepo {
   insert(stmt: NewStatement): Promise<number>;
   list(): Promise<StatementRow[]>;
+  // Delete a statement and every transaction parsed from it (plus their
+  // overrides and splits). `deleted` is 0/1 for the statement; `transactions`
+  // is how many rows were removed. Unknown id → both 0.
+  deleteById(id: number): Promise<{ deleted: number; transactions: number }>;
 }
 
 // A keyword→category rule suggestion mined from manual overrides, plus how many
