@@ -56,13 +56,13 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${jetbrainsMono.variable} h-full`}
+      className={`${geistSans.variable} ${jetbrainsMono.variable}`}
       // The theme-seed script below may add `.dark` before hydration.
       suppressHydrationWarning
     >
       {/* Column on phones (top bar / content / tab bar via order classes),
           row on desktop (sidebar / content). */}
-      <body className="h-full flex flex-col md:flex-row">
+      <body className="flex flex-col md:flex-row">
         {/* Pre-paint theme seed. Installed-PWA launches (standalone) default
             to dark on first run — the preferred installed look alongside the
             black-translucent status bar. Seeding localStorage — not just the
