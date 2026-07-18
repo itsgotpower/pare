@@ -222,7 +222,6 @@ function SelfHostForm({
             <Input
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value)}
-              placeholder="Scott"
               autoComplete="name"
             />
           </div>
@@ -574,7 +573,6 @@ function HostedForm({
             <Input
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Scott"
               autoComplete="name"
             />
           </div>
