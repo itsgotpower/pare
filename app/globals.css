@@ -207,6 +207,49 @@
   animation-play-state: paused;
 }
 
+/* Success-surface reveal — the upload RESULTS block and its opt-in cards mount
+   the instant a statement finishes parsing (the app's one rare, high-emotion
+   moment). A mount-time keyframe fires once on appear (same idiom as the landing
+   bento): fade + a small lift into place. Stagger is supplied per-element via
+   inline animation-delay. `both` fill-mode holds the start frame so nothing
+   flashes at final position first. transform + opacity only (GPU-friendly). */
+@keyframes pare-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.pare-reveal {
+  animation: pare-reveal 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Confirmation pop — the copy-button checkmark scaling in once the copy lands.
+   Feedback for a rare setup action; center-origin scale from a visible size
+   (never scale(0)). A small overshoot past 1 gives the tiny (12px) icon enough
+   travel to actually register — a plain 0.8→1 fade is below the perception
+   threshold at this size and reads as no animation at all. */
+@keyframes pare-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.5);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(1.12);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+.pare-pop {
+  animation: pare-pop 0.18s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .pare-rise,
   .pare-grow {
@@ -214,6 +257,20 @@
   }
   .pare-marquee {
     animation: none;
+  }
+  /* Reduced motion: keep a gentle fade (aids comprehension) but drop the
+     movement/scale. */
+  .pare-reveal,
+  .pare-pop {
+    animation: pare-fade-in 0.2s ease both;
+  }
+}
+@keyframes pare-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
   }
 }
 

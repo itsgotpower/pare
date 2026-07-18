@@ -1,8 +1,12 @@
 import path from "node:path";
+import { headers } from "next/headers";
 import { CopyBlock } from "@/components/connect/copy-block";
 import { Card, CardContent } from "@/components/ui/card";
 import { PALETTE } from "@/lib/colors";
-import { isHostedMode } from "@/lib/auth/resolve";
+import { isHostedMode, resolveUserHosted } from "@/lib/auth/resolve";
+import { getD1 } from "@/lib/auth/d1";
+import { createHostedAuth } from "@/lib/auth/hosted";
+import { getMcpConnection, type McpConnectionStatus } from "@/lib/auth/mcp-connection";
 
 // Paths (self-host) / the connector URL (hosted) are computed per-request so
 // the snippets always reflect this deployment.
@@ -107,17 +111,142 @@ function ExamplePrompts() {
 // Hosted: the remote MCP connector — claude.ai Settings → Connectors, one URL,
 // zero terminal. OAuth (better-auth mcp plugin) handles sign-in + consent; the
 // per-user Durable Object keeps tool calls scoped to the caller's own data.
-function HostedConnect() {
+const CONNECT_STEPS = [
+  ["1", "Open Claude", "claude.ai → Settings → Connectors (web, desktop, or mobile)"],
+  ["2", "Add custom connector", "paste the URL below and confirm"],
+  ["3", "Approve access", "sign in to Pare if asked, review the consent screen, ALLOW"],
+] as const;
+
+// The 3-step grid + connector URL + scoped-token blurb. Rendered inline when
+// disconnected, and behind a disclosure once connected (so re-linking on another
+// device stays one click away).
+function SetupSteps({ connectorUrl }: { connectorUrl: string }) {
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-[1px] bg-border border border-border">
+        {CONNECT_STEPS.map(([n, title, detail]) => (
+          <div key={n} className="bg-card p-4">
+            <div className="font-mono text-xs tracking-widest uppercase mb-1">
+              <span className="text-muted-foreground">{n} · </span>
+              {title}
+            </div>
+            <p className="text-xs text-muted-foreground leading-relaxed">{detail}</p>
+          </div>
+        ))}
+      </div>
+      <CopyBlock label="CONNECTOR URL" text={connectorUrl} />
+      <p className="text-xs text-muted-foreground leading-relaxed">
+        Claude connects with its own scoped access token — it never sees your
+        Pare password. Every write tool call still asks for your approval inside
+        Claude, and you can disconnect anytime from Claude&apos;s connector
+        settings.
+      </p>
+    </div>
+  );
+}
+
+// Compact CONNECTED state: collapse the setup instructions, confirm the link,
+// and give a one-click way back into Claude. The setup steps stay reachable
+// behind a native <details> for reconnecting elsewhere.
+function ConnectedCard({
+  connection,
+  connectorUrl,
+}: {
+  connection: McpConnectionStatus;
+  connectorUrl: string;
+}) {
+  const since = connection.connectedAt
+    ? new Date(connection.connectedAt).toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      })
+    : null;
+
+  return (
+    <div className="border border-border mb-8">
+      <div className="border-b border-border px-4 h-9 flex items-center justify-between gap-2">
+        <span className="font-mono text-[10px] tracking-widest uppercase flex items-center gap-2">
+          <span
+            className="inline-block w-2 h-2 shrink-0"
+            style={{ backgroundColor: PALETTE.sage }}
+          />
+          CONNECTED{connection.clientName ? ` · ${connection.clientName.toUpperCase()}` : ""}
+        </span>
+        {since && (
+          <span className="font-mono text-[10px] tracking-widest uppercase text-muted-foreground">
+            SINCE {since}
+          </span>
+        )}
+      </div>
+      <div className="p-4 space-y-4">
+        <p className="text-sm leading-relaxed">
+          Claude is connected to your Pare data. Ask it about your spending,
+          budgets, subscriptions, and more — every write still asks for your
+          approval inside Claude.
+        </p>
+        <div className="flex flex-wrap gap-2">
+          <a
+            href="https://claude.ai/new"
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center px-4 py-2 border border-foreground bg-foreground text-background font-mono text-xs tracking-widest uppercase hover:bg-background hover:text-foreground transition-colors"
+          >
+            OPEN CLAUDE ↗
+          </a>
+          <a
+            href="https://claude.ai/settings/connectors"
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center px-4 py-2 border border-border font-mono text-xs tracking-widest uppercase text-muted-foreground hover:text-foreground hover:border-foreground transition-colors"
+          >
+            MANAGE / DISCONNECT ↗
+          </a>
+        </div>
+        <details className="border-t border-border pt-4">
+          <summary className="cursor-pointer select-none font-mono text-[10px] tracking-widest uppercase text-muted-foreground hover:text-foreground">
+            SHOW SETUP STEPS — reconnect on another device
+          </summary>
+          <div className="pt-4">
+            <SetupSteps connectorUrl={connectorUrl} />
+          </div>
+        </details>
+      </div>
+    </div>
+  );
+}
+
+// Best-effort connection lookup for the current request. Any failure (missing
+// D1 binding in a non-Worker preview, session not resolvable, query error)
+// degrades to "disconnected" so the page always renders the instructions.
+async function loadConnection(): Promise<McpConnectionStatus> {
+  const disconnected: McpConnectionStatus = {
+    connected: false,
+    connectedAt: null,
+    clientName: null,
+  };
+  try {
+    const d1 = await getD1();
+    const auth = createHostedAuth(d1);
+    const incoming = await headers();
+    const request = new Request("https://pare.money/connect", {
+      headers: new Headers(incoming as unknown as HeadersInit),
+    });
+    const user = await resolveUserHosted(request, auth);
+    if (!user) return disconnected;
+    return await getMcpConnection(d1, user.userId);
+  } catch {
+    return disconnected;
+  }
+}
+
+async function HostedConnect() {
   // BETTER_AUTH_URL is the deployment's canonical origin (required in hosted
   // prod for cookie/passkey config); the connector endpoint lives under it.
   const base = process.env.BETTER_AUTH_URL ?? "https://pare.money";
   const connectorUrl = `${base.replace(/\/$/, "")}/api/mcp`;
 
-  const steps = [
-    ["1", "Open Claude", "claude.ai → Settings → Connectors (web, desktop, or mobile)"],
-    ["2", "Add custom connector", "paste the URL below and confirm"],
-    ["3", "Approve access", "sign in to Pare if asked, review the consent screen, ALLOW"],
-  ] as const;
+  const connection = await loadConnection();
 
   return (
     <div className="p-6 max-w-4xl">
@@ -128,34 +257,21 @@ function HostedConnect() {
         </p>
       </div>
 
-      {/* ADD TO CLAUDE hero */}
-      <div className="border border-border mb-8">
-        <div className="border-b border-border px-4 h-9 flex items-center">
-          <span className="font-mono text-[10px] tracking-widest uppercase">
-            ADD TO CLAUDE
-          </span>
-        </div>
-        <div className="p-4 space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-[1px] bg-border border border-border">
-            {steps.map(([n, title, detail]) => (
-              <div key={n} className="bg-card p-4">
-                <div className="font-mono text-xs tracking-widest uppercase mb-1">
-                  <span className="text-muted-foreground">{n} · </span>
-                  {title}
-                </div>
-                <p className="text-xs text-muted-foreground leading-relaxed">{detail}</p>
-              </div>
-            ))}
+      {connection.connected ? (
+        <ConnectedCard connection={connection} connectorUrl={connectorUrl} />
+      ) : (
+        /* ADD TO CLAUDE hero */
+        <div className="border border-border mb-8">
+          <div className="border-b border-border px-4 h-9 flex items-center">
+            <span className="font-mono text-[10px] tracking-widest uppercase">
+              ADD TO CLAUDE
+            </span>
           </div>
-          <CopyBlock label="CONNECTOR URL" text={connectorUrl} />
-          <p className="text-xs text-muted-foreground leading-relaxed">
-            Claude connects with its own scoped access token — it never sees your
-            Pare password. Every write tool call still asks for your approval
-            inside Claude, and you can disconnect anytime from Claude&apos;s
-            connector settings.
-          </p>
+          <div className="p-4">
+            <SetupSteps connectorUrl={connectorUrl} />
+          </div>
         </div>
-      </div>
+      )}
 
       <ToolsGrid />
 
