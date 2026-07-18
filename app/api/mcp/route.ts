@@ -9,7 +9,7 @@ import { getRepoForUser } from "@/lib/repo";
 import { registerPareTools } from "@/mcp/tools";
 import { allowRequest, tooManyRequests } from "@/lib/ratelimit";
 import { requireFeature } from "@/cloud/billing/gate";
-import { withScopeChallenge } from "@/lib/auth/mcp-challenge";
+import { withScopeChallenge, withMcpCors, mcpCorsPreflight } from "@/lib/auth/mcp-challenge";
 
 // Remote MCP endpoint for claude.ai Connectors (spec: internal/remote-mcp-spec.md).
 //
@@ -34,9 +34,11 @@ import { withScopeChallenge } from "@/lib/auth/mcp-challenge";
 async function handler(request: Request): Promise<Response> {
   // Self-host has no OAuth provider; its MCP story is the local stdio server.
   if (!isHostedMode()) {
-    return Response.json(
-      { error: "The remote MCP connector is a hosted feature. Self-host uses the local stdio server (npm run mcp)." },
-      { status: 404 }
+    return withMcpCors(
+      Response.json(
+        { error: "The remote MCP connector is a hosted feature. Self-host uses the local stdio server (npm run mcp)." },
+        { status: 404 }
+      )
     );
   }
 
@@ -73,7 +75,15 @@ async function handler(request: Request): Promise<Response> {
     await server.connect(transport);
     return transport.handleRequest(req);
   });
-  return withScopeChallenge(await wrapped(request));
+  return withMcpCors(withScopeChallenge(await wrapped(request)));
+}
+
+// CORS preflight: claude.ai's web client sends OPTIONS from the https://claude.ai
+// origin before its POST. Answer it directly (no auth) with the allow-methods/
+// headers set, or the browser blocks the real request → "Couldn't connect to
+// the server." See withMcpCors in lib/auth/mcp-challenge.ts.
+export function OPTIONS(): Response {
+  return mcpCorsPreflight();
 }
 
 export const GET = handler;

@@ -27,3 +27,44 @@ export function withScopeChallenge(response: Response): Response {
   headers.set("www-authenticate", `${existing}, scope="${MCP_SCOPE}"`);
   return new Response(response.body, { status: response.status, headers });
 }
+
+// CORS for the /api/mcp endpoint. claude.ai's web client probes the server from
+// the https://claude.ai browser origin, so WITHOUT these headers the browser's
+// same-origin policy blocks the cross-origin request before the 401 OAuth
+// challenge can be read — surfacing as "Couldn't connect to the server. Check
+// that the URL points to a valid MCP server." at add-connector time, with no
+// OAuth ever started. The discovery (.well-known) responses already carry CORS
+// (better-auth's metadata helper adds it); the endpoint itself did not.
+//
+// `WWW-Authenticate` MUST be in Expose-Headers or the browser can read the
+// challenge's status but not the header that points at the auth server. The
+// Mcp-* headers cover the Streamable-HTTP transport's session/version headers.
+// Allow-Origin `*` is safe here: the connector authenticates with a Bearer
+// token (a header), never cookies, so no credentialed-CORS constraint applies —
+// same posture as the `*` on the discovery routes.
+const MCP_CORS_BASE: Readonly<Record<string, string>> = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Expose-Headers": "WWW-Authenticate, Mcp-Session-Id, Mcp-Protocol-Version",
+};
+
+const MCP_CORS_PREFLIGHT: Readonly<Record<string, string>> = {
+  ...MCP_CORS_BASE,
+  "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
+  "Access-Control-Allow-Headers":
+    "Content-Type, Authorization, Mcp-Session-Id, Mcp-Protocol-Version, Last-Event-ID",
+  "Access-Control-Max-Age": "86400",
+};
+
+// Add CORS headers to any MCP endpoint response (including the 401 challenge and
+// the self-host 404). Re-wraps so the header set survives — same pattern as
+// withScopeChallenge; the body stream is transferred, not consumed.
+export function withMcpCors(response: Response): Response {
+  const headers = new Headers(response.headers);
+  for (const [k, v] of Object.entries(MCP_CORS_BASE)) headers.set(k, v);
+  return new Response(response.body, { status: response.status, headers });
+}
+
+// The OPTIONS preflight response: 204 + the full allow-methods/headers set.
+export function mcpCorsPreflight(): Response {
+  return new Response(null, { status: 204, headers: { ...MCP_CORS_PREFLIGHT } });
+}

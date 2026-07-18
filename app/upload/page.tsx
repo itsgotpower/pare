@@ -315,7 +315,7 @@ export default function UploadPage() {
       <SimplefinCard />
 
       {results.length > 0 && installPrompt && (
-        <Card className="mt-6">
+        <Card className="mt-6 pare-reveal" style={{ animationDelay: "220ms" }}>
           <CardContent className="py-4 flex items-center justify-between gap-4">
             <div>
               <p className="font-mono text-sm font-medium uppercase tracking-wide">
@@ -339,7 +339,7 @@ export default function UploadPage() {
       )}
 
       {results.length > 0 && pushState !== "unavailable" && (
-        <Card className="mt-6">
+        <Card className="mt-6 pare-reveal" style={{ animationDelay: "280ms" }}>
           <CardContent className="py-4 flex items-center justify-between gap-4">
             <div>
               <p className="font-mono text-sm font-medium uppercase tracking-wide">
@@ -370,7 +370,11 @@ export default function UploadPage() {
             RESULTS
           </h2>
           {results.map((r, i) => (
-            <Card key={i}>
+            <Card
+              key={i}
+              className="pare-reveal"
+              style={{ animationDelay: `${i * 60}ms` }}
+            >
               <CardContent className="py-4">
                 <div className="flex items-center justify-between">
                   <div>

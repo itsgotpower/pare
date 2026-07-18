@@ -12,6 +12,15 @@ contracts, on-disk and crypto formats) may change between minor versions — see
 
 ### Added
 
+- **See when Claude is connected** — the hosted `/connect` page now detects a
+  live connector link (an active OAuth token) and collapses the setup steps into
+  a compact CONNECTED card with an OPEN CLAUDE shortcut and a manage/disconnect
+  link; the full instructions stay one click away behind a disclosure for
+  re-linking on another device ([#132]).
+- **Subtle motion on connect + upload** — parsed-upload results and their
+  post-upload opt-in cards now reveal with a staggered fade-in, and the
+  copy-button checkmark gets a small confirmation pop. Transform/opacity only,
+  and all of it respects `prefers-reduced-motion` ([#132]).
 - **Delete a statement** — two new MCP tools: `list_statements` (every
   uploaded/synced statement with its id, period, and closing balance) and
   `delete_statement`, which removes a statement and every transaction parsed
@@ -89,6 +98,12 @@ contracts, on-disk and crypto formats) may change between minor versions — see
 
 ### Fixed
 
+- **The Claude connector wouldn't connect** — the remote MCP endpoint
+  (`/api/mcp`) sent no CORS headers, so claude.ai's browser probe was blocked by
+  the same-origin policy before it could read the 401 OAuth challenge, failing
+  with "Couldn't connect to the server. Check that the URL points to a valid MCP
+  server." The endpoint now answers the CORS preflight and exposes
+  `WWW-Authenticate` cross-origin, so the connector links correctly ([#132]).
 - **Sign-up name field no longer shows a hardcoded example name** — the NAME
   input on the create-account form had a `placeholder="Scott"`; it's now empty
   ([#130]).
@@ -262,6 +277,7 @@ server exposing the local data to MCP clients. Ships open-source repo scaffoldin
 [0.2.0]: https://github.com/itsgotpower/pare/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/itsgotpower/pare/releases/tag/v0.1.0
 
+[#132]: https://github.com/itsgotpower/pare/pull/132
 [#131]: https://github.com/itsgotpower/pare/pull/131
 [#126]: https://github.com/itsgotpower/pare/pull/126
 [#25]: https://github.com/itsgotpower/pare/pull/25
