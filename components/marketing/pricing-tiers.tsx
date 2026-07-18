@@ -53,7 +53,7 @@ const TIERS = [
       CAD: "one time",
     },
     blurb:
-      "Pay once, hosted for good. Everything in Plus, for the life of the product — offered while hosted signup rolls out, then it's gone.",
+      "Pay once, hosted for good. Everything in Plus, for the life of the product — a launch-window offer; when the window closes, it's gone.",
     limits: ["2 accounts, unlimited uploads", "Everything in Plus, permanently", "No renewal, ever"],
     flag: "Launch offer",
   },
