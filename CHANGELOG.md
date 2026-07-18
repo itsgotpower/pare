@@ -82,6 +82,11 @@ contracts, on-disk and crypto formats) may change between minor versions — see
 
 ### Fixed
 
+- **CIBC Visa: December transactions dated a year in the future** — the CIBC
+  Visa parser stamped every transaction with the statement's closing year, so
+  December purchases on a January-closing statement landed in the *next*
+  December (e.g. Dec 2025 → Dec 2026). It now rolls December back to the prior
+  year like the Amex and card engines already did ([#128]).
 - **Mobile: /categories header** — the action-button row wraps at phone
   widths instead of clipping ADD RULE off-screen and dragging the page
   sideways; rule-delete and goal EDIT/REMOVE tap areas are phone-sized
@@ -285,3 +290,4 @@ server exposing the local data to MCP clients. Ships open-source repo scaffoldin
 [#117]: https://github.com/itsgotpower/pare/pull/117
 [#118]: https://github.com/itsgotpower/pare/pull/118
 [#119]: https://github.com/itsgotpower/pare/pull/119
+[#128]: https://github.com/itsgotpower/pare/pull/128
