@@ -2,10 +2,11 @@
 
 import { useEffect, useState } from "react";
 
-// Scroll-spy table of contents, shown as a fixed rail in the left gutter on wide
-// (xl) screens only — a sticky/highlighting TOC is only useful if it stays visible
-// while you read, which a single centered column can't do inline. On smaller
-// screens the page's inline TOC box is used instead (this renders hidden there).
+// Scroll-spy table of contents. Rendered by the page inside a sticky <aside> that
+// sits in the article's left gutter on wide (xl) screens — an in-flow flex column,
+// NOT a viewport-positioned fixed element, so it always aligns to the article even
+// when the blog is nested in the app shell (sidebar + content). On smaller screens
+// the page's inline TOC box is used instead and this isn't rendered.
 
 interface TocEntry {
   id: string;
@@ -49,10 +50,7 @@ export function BlogTocRail({ items }: { items: TocEntry[] }) {
   if (items.length < 4) return null;
 
   return (
-    <nav
-      aria-label="On this page"
-      className="hidden xl:block fixed top-28 w-52 left-[max(1.5rem,calc(50%-30rem))]"
-    >
+    <nav aria-label="On this page">
       <p className="font-mono text-[10px] tracking-widest uppercase text-muted-foreground mb-3">
         On this page
       </p>

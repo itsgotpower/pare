@@ -83,7 +83,6 @@ export default async function BlogPostPage({
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(buildStructuredData(post)) }}
       />
-      {showToc && <BlogTocRail items={h2s.map((t) => ({ id: t.id, text: t.text }))} />}
       <header className="shrink-0 flex items-center justify-between px-5 md:px-8 h-[calc(3.5rem+env(safe-area-inset-top))] pt-[env(safe-area-inset-top)] border-b border-border">
         <Link href="/" className="font-mono text-sm font-bold tracking-tight">
           PARE
@@ -96,7 +95,19 @@ export default async function BlogPostPage({
         </Link>
       </header>
 
-      <main className="flex-1 w-full max-w-2xl mx-auto px-5 md:px-8 py-10">
+      {/* On xl the TOC becomes a sticky column in the article's left gutter; the
+          [aside + article] group is centered together, so it stays aligned to the
+          article whether or not the app shell adds a sidebar. Below xl the aside is
+          hidden and the inline TOC box inside <main> is used. */}
+      <div className="flex-1 w-full xl:flex xl:justify-center xl:gap-10">
+        {showToc && (
+          <aside className="hidden xl:block w-52 shrink-0 pt-10">
+            <div className="sticky top-24">
+              <BlogTocRail items={h2s.map((t) => ({ id: t.id, text: t.text }))} />
+            </div>
+          </aside>
+        )}
+        <main className="w-full max-w-2xl mx-auto xl:mx-0 px-5 md:px-8 py-10">
         <p className={labelClass}>Blog</p>
         <h1 className="font-mono text-2xl md:text-3xl font-bold tracking-tight mt-2 leading-tight">
           {post.title}
@@ -233,7 +244,8 @@ export default async function BlogPostPage({
             </div>
           </section>
         )}
-      </main>
+        </main>
+      </div>
 
       <footer className="shrink-0 border-t border-border px-5 md:px-8 py-4 flex items-center justify-between">
         <Link
