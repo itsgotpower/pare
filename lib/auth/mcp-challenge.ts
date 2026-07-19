@@ -28,20 +28,30 @@ export function withScopeChallenge(response: Response): Response {
   return new Response(response.body, { status: response.status, headers });
 }
 
-// CORS for the /api/mcp endpoint. claude.ai's web client probes the server from
-// the https://claude.ai browser origin, so WITHOUT these headers the browser's
-// same-origin policy blocks the cross-origin request before the 401 OAuth
-// challenge can be read — surfacing as "Couldn't connect to the server. Check
-// that the URL points to a valid MCP server." at add-connector time, with no
-// OAuth ever started. The discovery (.well-known) responses already carry CORS
-// (better-auth's metadata helper adds it); the endpoint itself did not.
+// CORS for the /api/mcp endpoint AND the OAuth discovery/token chain it points
+// at. claude.ai's web client probes the server from the https://claude.ai
+// browser origin, so WITHOUT these headers the browser's same-origin policy
+// blocks the cross-origin request before it can be read — surfacing as
+// "Couldn't connect to the server. Check that the URL points to a valid MCP
+// server." at add-connector time.
+//
+// The full browser-side chain that needs CORS: (1) the 401 on /api/mcp — the
+// endpoint itself; (2) the resource-metadata fetch the challenge points at
+// (/api/auth/.well-known/oauth-protected-resource); (3) the authorization-server
+// metadata (/.well-known/oauth-authorization-server, RFC 8414 issuer-root); and
+// (4) the dynamic-client-registration + token endpoints (/api/auth/mcp/*). An
+// earlier fix assumed better-auth's metadata helper already emitted CORS on the
+// discovery docs — it does NOT (verified against production), and the root
+// oauth-authorization-server route re-wraps the body in a fresh Response, which
+// would strip any header the plugin set anyway. So each of those surfaces has to
+// carry the headers explicitly; isMcpOAuthPath below selects them in the shared
+// better-auth catch-all.
 //
 // `WWW-Authenticate` MUST be in Expose-Headers or the browser can read the
 // challenge's status but not the header that points at the auth server. The
 // Mcp-* headers cover the Streamable-HTTP transport's session/version headers.
 // Allow-Origin `*` is safe here: the connector authenticates with a Bearer
-// token (a header), never cookies, so no credentialed-CORS constraint applies —
-// same posture as the `*` on the discovery routes.
+// token (a header), never cookies, so no credentialed-CORS constraint applies.
 const MCP_CORS_BASE: Readonly<Record<string, string>> = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Expose-Headers": "WWW-Authenticate, Mcp-Session-Id, Mcp-Protocol-Version",
@@ -67,4 +77,17 @@ export function withMcpCors(response: Response): Response {
 // The OPTIONS preflight response: 204 + the full allow-methods/headers set.
 export function mcpCorsPreflight(): Response {
   return new Response(null, { status: 204, headers: { ...MCP_CORS_PREFLIGHT } });
+}
+
+// Which /api/auth/* sub-paths belong to the browser-side MCP OAuth flow and so
+// need the same cross-origin CORS as /api/mcp. Scoped deliberately: the rest of
+// the better-auth surface (sign-in/up/reset) is same-origin app traffic and
+// must NOT advertise `Allow-Origin: *`. Matches the discovery docs
+// (/api/auth/.well-known/oauth-*) and every MCP OAuth endpoint (/api/auth/mcp/*:
+// register, token, jwks, userinfo, authorize).
+export function isMcpOAuthPath(pathname: string): boolean {
+  return (
+    pathname.includes("/.well-known/oauth-") ||
+    pathname.includes("/mcp/")
+  );
 }
