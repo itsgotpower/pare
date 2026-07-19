@@ -308,6 +308,32 @@
   margin-top: 1.75rem;
   scroll-margin-top: 5rem;
 }
+/* Hover-reveal heading anchor links (injected in lib/blog.ts renderMarkdown).
+   Server-rendered so they're crawlable + shareable; hidden until hover to keep
+   the brutalist headings clean. */
+.prose-pare h2,
+.prose-pare h3 {
+  position: relative;
+}
+.prose-pare a.heading-anchor {
+  position: absolute;
+  left: -1.15em;
+  color: var(--muted-foreground);
+  text-decoration: none;
+  font-weight: 400;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+.prose-pare h2:hover a.heading-anchor,
+.prose-pare h3:hover a.heading-anchor,
+.prose-pare a.heading-anchor:focus-visible {
+  opacity: 0.55;
+}
+@media (max-width: 640px) {
+  .prose-pare a.heading-anchor {
+    display: none;
+  }
+}
 .prose-pare p {
   color: color-mix(in oklch, var(--foreground) 90%, transparent);
 }

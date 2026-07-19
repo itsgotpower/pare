@@ -31,7 +31,7 @@ const MARKETING_PATHS = [
 export default function sitemap(): MetadataRoute.Sitemap {
   const posts: MetadataRoute.Sitemap = getAllPostMeta().map((post) => ({
     url: `${ORIGIN}/blog/${post.slug}`,
-    lastModified: post.publishedAt,
+    lastModified: post.updatedAt || post.publishedAt,
     changeFrequency: "monthly",
     priority: 0.6,
   }));

@@ -10,6 +10,19 @@ keywords:
   - "financial check-in habit"
   - "review spending monthly"
 canonical: "https://pare.money/blog/the-10-minute-monthly-review"
+updatedAt: "2026-07-18"
+howto: true
+tldr:
+  - "Checking your balance daily teaches you nothing; a monthly review on closed data is the honest cadence."
+  - "Ten minutes covers five questions: did you net positive, what moved, any subscription surprises, trend or one-off, and are you on track."
+  - "Keep your bank's real-time fraud alerts on — a monthly review is for steering money, not catching theft."
+faq:
+  - q: "How often should you review your finances?"
+    a: "Once a month, after the month has closed enough to be legible. Daily balance-checking is noise — it swings with paycheck and bill timing and drives anxiety with no decision attached. Your financial life runs on a monthly clock, so a monthly review on finished data is the honest unit."
+  - q: "Will a monthly review catch a fraudulent charge?"
+    a: "No, and that isn't its job. A monthly review can't flag a skimmed card the day it happens. Keep your bank's own real-time transaction alerts on for fraud — they're free, instant, and better at it. The monthly review is for understanding and steering your money."
+  - q: "What should a 10-minute monthly review cover?"
+    a: "Five questions: did you spend less than you made (net cash flow), what changed by category, any new or crept-up subscriptions, whether a big month was a trend or a one-off, and whether you're on track for next month against your forecast and goals."
 ---
 
 There are two ways people check their money, and both are broken. The first is compulsive: refreshing the banking app, watching the balance twitch, feeling a little worse each time and learning nothing. The second is avoidance: not looking at all until a card gets declined or a bill lands wrong. Neither tells you anything useful, and both feel bad.
@@ -27,6 +40,22 @@ This lines up with how statement-based tools work anyway. Statements lag the cal
 ## The routine, minute by minute
 
 Here's the ten minutes. Each step maps to something Pare puts on one screen, but the questions are what matter — you're looking for a small number of answers, not admiring charts.
+
+:::pare-widget
+{
+  "component": "Stepper",
+  "props": {
+    "title": "The ten minutes, step by step",
+    "steps": [
+      { "title": "Did you spend less than you made?", "body": "Net cash flow: income minus everything that went out. Positive and you got a little richer last month; negative, a little poorer. Note green or red and move on." },
+      { "title": "What moved, and why?", "body": "Scan the category breakdown for what changed versus a normal month — a category that doubled or one you don't recognize. Spend attention only on the one or two that jumped." },
+      { "title": "Any subscription surprises?", "body": "Check recurring charges for anything new, forgotten, double-billed, or quietly raised in price. Cancelling one forgotten subscription a year pays for the other nine minutes forever." },
+      { "title": "Trend or one-off?", "body": "Separate one-time charges — a flight, a fridge — from your real rhythm before concluding you overspent. A scary total that was one appliance means you can relax." },
+      { "title": "On track for next month?", "body": "Glance at the cash-flow forecast and any spending goals. You're just checking there's no cliff coming and no goal already blown. Ten minutes, done." }
+    ]
+  }
+}
+:::
 
 ### Minutes 1–2: Did you spend less than you made?
 
