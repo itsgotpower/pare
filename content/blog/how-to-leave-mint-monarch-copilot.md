@@ -10,11 +10,40 @@ keywords:
   - "migrate financial data"
   - "personal finance app switching guide"
 canonical: "https://pare.money/blog/how-to-leave-mint-monarch-copilot"
+updatedAt: "2026-07-18"
+howto: true
+tldr:
+  - "The lock-in is your history, not the features — export it now, even before you've picked a new app."
+  - "Download your PDF/OFX statements from each bank; they're the authoritative copy no company can revoke."
+  - "Overlap the old app for a month and verify before you cancel; categories and app-specific extras won't transfer perfectly."
+faq:
+  - q: "How do I export my data from Monarch?"
+    a: "On the Monarch web app, go to Settings → Data → Export (or use the export option in a transactions view) and download the transactions CSV — it includes your categories, the part worth keeping. Monarch's export is the most complete of the three."
+  - q: "Can I still get my Mint data after the shutdown?"
+    a: "If you exported a Mint CSV before March 2024, that's your best copy. Otherwise your Mint-era data landed in Credit Karma, whose export is more limited — pull what it gives you and treat your downloaded bank statements as the real source of truth."
+  - q: "What won't transfer when switching finance apps?"
+    a: "History older than your records, perfectly-mapped categories, and app-specific extras like budgets, goals, and split-transaction quirks. Your transactions and categories travel; the scaffolding around them usually doesn't. That's the physics of moving between finance tools, not a Pare limitation."
 ---
 
 The thing that keeps you locked into a finance app isn't the features — it's your history. Years of categorized transactions feel too painful to abandon, so you stay. This guide is about breaking that lock: how to get your data out of Mint, Monarch, and Copilot, what to grab from your banks directly, and how it comes into Pare. It's practical and it's honest about the parts you can't bring with you.
 
 Do the export step **now**, even if you haven't decided where you're going. Access to your old app can lapse, and a CSV sitting on your drive costs nothing to keep.
+
+:::pare-widget
+{
+  "component": "Stepper",
+  "props": {
+    "title": "The switch, end to end",
+    "steps": [
+      { "title": "Grab your statements first", "body": "Download PDF or OFX/QFX statements from each bank and card, as far back as they let you. This is the authoritative copy no company can revoke." },
+      { "title": "Export from your old app", "body": "While you still have access, pull the transactions export from Monarch, Mint (or Credit Karma), or Copilot. It carries the categorization work worth keeping." },
+      { "title": "Bring it into Pare", "body": "Load your history, then drop in the statements going forward. Everything lands in one file on your own machine — no bank connection, no aggregator." },
+      { "title": "Overlap for a month", "body": "Don't cancel the old app yet. Run one real monthly review in Pare and confirm the history, categories, and totals match what you remember." },
+      { "title": "Verify, then cut the cord", "body": "Check you have every export, your statements, and your account types noted, with totals that roughly match. Only then close the old account." }
+    ]
+  }
+}
+:::
 
 ## First principle: statements are the durable copy
 

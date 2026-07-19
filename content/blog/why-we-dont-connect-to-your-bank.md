@@ -10,6 +10,18 @@ keywords:
   - "PDF statement finance app"
   - "privacy personal finance app"
 canonical: "https://pare.money/blog/why-we-dont-connect-to-your-bank"
+updatedAt: "2026-07-18"
+tldr:
+  - "\"Connecting your bank\" usually means handing your login to a data aggregator that logs in as you on a schedule."
+  - "Once linked, three parties can see your history — you, the app, and the aggregator — and the connection often outlives the app."
+  - "Pare reads statements you download instead; data lives in a file you own, with an optional bridge sync you control."
+faq:
+  - q: "What does a finance app do with your bank login?"
+    a: "It usually hands your credentials to a data aggregator (Plaid, MX, Finicity, Yodlee) that logs in as you on a schedule to scrape transactions. Sometimes it's a scoped OAuth token instead of your raw password — better, but still a standing automated line into your account held by a company you never signed up with directly."
+  - q: "Is a Plaid bank connection safe?"
+    a: "The good aggregators are careful and spend heavily on security. The narrower point is that a live connection to your bank exists, held by someone other than you, for every app you've linked — and it often outlives the app you deleted. You can accept that trade; you just deserve to make it on purpose."
+  - q: "How does Pare work without connecting to my bank?"
+    a: "It reads the PDF or OFX/QFX statements you already download — authoritative records that reconcile to a real closing balance — and parses, categorizes, and charts them locally in a single file you own. No aggregator, no stored password. An optional SimpleFIN sync exists that you turn on and pay the bridge for directly."
 ---
 
 Every personal-finance app opens the same way: a screen that asks you to pick your bank and type in the username and password you use for everything. It feels normal now. You do it, a spinner runs, and your transactions appear. The question nobody makes you ask is: where did that login just go, and who is holding it now?
@@ -32,6 +44,21 @@ The problem is that you rarely get to choose, and the marketing copy blurs the t
 Follow the actual path. You give your login to App A. App A doesn't want to build bank integrations, so it uses Aggregator B under the hood. Aggregator B connects to your bank. Now three parties can see your transaction history: you, the app, and the aggregator — and the aggregator can see it for every app you've ever linked, not just this one.
 
 That aggregator is now a concentrated target. It holds live access to millions of people's accounts in one place. You didn't choose it, you can't audit it, and when you delete the app, the aggregator connection often outlives it — sitting in a dashboard you've never seen, quietly pulling data until someone remembers to cut it off.
+
+:::pare-widget
+{
+  "component": "Stepper",
+  "props": {
+    "title": "Follow the actual path",
+    "steps": [
+      { "title": "You hand over your login", "body": "You type your bank username and password into the app's connect screen, the same credentials you use for everything." },
+      { "title": "The app passes it to an aggregator", "body": "The app doesn't build bank integrations itself — it uses a middle company (Plaid, MX, Finicity, Yodlee) under the hood." },
+      { "title": "The aggregator logs into your bank", "body": "Now three parties can see your transaction history: you, the app, and the aggregator — and the aggregator sees it for every app you've ever linked." },
+      { "title": "The connection outlives the app", "body": "Delete the app and the aggregator connection often lives on in a dashboard you've never seen, quietly pulling data until someone cuts it off." }
+    ]
+  }
+}
+:::
 
 None of this means aggregators are reckless. The good ones are careful and spend heavily on security. The point is narrower: **a live connection to your bank is a thing that exists, held by someone other than you, whether or not you ever think about it again.** You can decide that's an acceptable trade. You just deserve to make that decision on purpose.
 
