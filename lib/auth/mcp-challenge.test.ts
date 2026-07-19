@@ -4,6 +4,7 @@ import {
   withScopeChallenge,
   withMcpCors,
   mcpCorsPreflight,
+  isMcpOAuthPath,
   MCP_SCOPE,
 } from "./mcp-challenge";
 
@@ -54,4 +55,29 @@ test("mcpCorsPreflight is a 204 advertising the MCP methods + headers", () => {
   const allowed = res.headers.get("access-control-allow-headers") ?? "";
   assert.ok(allowed.includes("Authorization"), "preflight must allow the Authorization header");
   assert.ok(res.headers.get("access-control-max-age"), "preflight should cache");
+});
+
+test("isMcpOAuthPath matches the discovery + MCP OAuth sub-paths", () => {
+  // The browser-side connector chain that needs cross-origin CORS.
+  for (const p of [
+    "/api/auth/.well-known/oauth-protected-resource",
+    "/api/auth/.well-known/oauth-authorization-server",
+    "/api/auth/mcp/register",
+    "/api/auth/mcp/token",
+    "/api/auth/mcp/jwks",
+  ]) {
+    assert.ok(isMcpOAuthPath(p), `${p} must be treated as an MCP OAuth path`);
+  }
+});
+
+test("isMcpOAuthPath does NOT match the same-origin auth surface", () => {
+  // sign-in/up/reset must stay CORS-free (no Allow-Origin: *).
+  for (const p of [
+    "/api/auth/sign-in/email",
+    "/api/auth/sign-up/email",
+    "/api/auth/request-password-reset",
+    "/api/auth/get-session",
+  ]) {
+    assert.equal(isMcpOAuthPath(p), false, `${p} must NOT be treated as an MCP OAuth path`);
+  }
 });
