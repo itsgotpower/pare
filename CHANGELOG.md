@@ -12,6 +12,12 @@ contracts, on-disk and crypto formats) may change between minor versions — see
 
 ### Added
 
+- **Six new blog posts** — head-to-heads with Copilot and with budgeting
+  spreadsheets (Tiller), a piece on what connecting your bank through an
+  aggregator actually shares, a guide to asking Claude about your money via the
+  local finance MCP server, a 15-minute subscription-audit walkthrough, and a
+  self-hosting guide. Also corrects stale "no bank connection" wording in the
+  Mint and YNAB comparisons now that the opt-in SimpleFIN sync exists ([#135]).
 - **See when Claude is connected** — the hosted `/connect` page now detects a
   live connector link (an active OAuth token) and collapses the setup steps into
   a compact CONNECTED card with an OPEN CLAUDE shortcut and a manage/disconnect
@@ -285,6 +291,7 @@ server exposing the local data to MCP clients. Ships open-source repo scaffoldin
 [0.2.0]: https://github.com/itsgotpower/pare/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/itsgotpower/pare/releases/tag/v0.1.0
 
+[#135]: https://github.com/itsgotpower/pare/pull/135
 [#134]: https://github.com/itsgotpower/pare/pull/134
 [#132]: https://github.com/itsgotpower/pare/pull/132
 [#131]: https://github.com/itsgotpower/pare/pull/131
