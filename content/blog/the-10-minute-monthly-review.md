@@ -38,7 +38,7 @@ Now the category breakdown. You're not auditing every line — you're scanning f
 
 ### Minutes 5–6: Any subscription surprises?
 
-Recurring charges are where money leaks quietly. Check the subscription view for anything new, anything you forgot you were paying for, and — this is the sneaky one — anything charged twice or that crept up in price. Pare detects recurring merchants and flags double-bills and variable amounts. Cancel one forgotten subscription a year and this step pays for the other nine minutes forever.
+Recurring charges are where money leaks quietly. Check the subscription view for anything new, anything you forgot you were paying for, and — this is the sneaky one — anything charged twice or that crept up in price. Pare detects recurring merchants and flags double-bills and variable amounts. Cancel one forgotten subscription a year and this step pays for the other nine minutes forever. (For a deeper pass, [how to audit your subscriptions](/blog/how-to-audit-your-subscriptions) is the 15-minute version.)
 
 ### Minutes 7–8: Was it a trend or a one-off?
 
@@ -50,7 +50,7 @@ End by looking forward, briefly. Glance at the cash-flow forecast and any spendi
 
 ## The optional eleventh minute: just ask
 
-If you'd rather not click through views, Pare runs a local MCP server, so you can ask Claude about your own numbers in plain language — "what did I spend on restaurants last month versus the month before?" or "which subscriptions went up this year?" The data stays on your machine; the assistant just reads it and answers. For a lot of people this *is* the review: three questions, three answers, done. (This is a real feature about talking to your data, not marketing gloss — the answers come from your actual transactions.)
+If you'd rather not click through views, Pare runs a local MCP server, so you can [ask Claude about your own numbers](/blog/ask-claude-about-your-money) in plain language — "what did I spend on restaurants last month versus the month before?" or "which subscriptions went up this year?" The data stays on your machine; the assistant just reads it and answers. For a lot of people this *is* the review: three questions, three answers, done. (This is a real feature about talking to your data, not marketing gloss — the answers come from your actual transactions.)
 
 ## The honest limit of a monthly cadence
 
