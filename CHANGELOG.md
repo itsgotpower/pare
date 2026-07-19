@@ -12,6 +12,17 @@ contracts, on-disk and crypto formats) may change between minor versions — see
 
 ### Added
 
+- **Interactive modules in blog posts** — posts can now embed a chart, a
+  comparison, or a click-through widget inline: annual-cost comparison bars on
+  the Mint/Monarch pricing sections, a step-by-step for the 10-minute review and
+  the switching guide, and a credential-chain walkthrough on the
+  bank-connection post. Handmade SVG, theme-aware, and lazy-loaded so they add
+  almost nothing to the page bundle ([#137]).
+- **Blog posts are now readable by search and AI answer engines** — every post
+  ships JSON-LD structured data (article, breadcrumbs, FAQ, and how-to steps
+  derived from its widget), a generated per-post social/share image, and
+  freshness dates. Readers also get a TL;DR summary, an FAQ accordion, a "Read
+  next" block, and a scroll-spy table of contents on wide screens ([#137]).
 - **See when Claude is connected** — the hosted `/connect` page now detects a
   live connector link (an active OAuth token) and collapses the setup steps into
   a compact CONNECTED card with an OPEN CLAUDE shortcut and a manage/disconnect
@@ -325,3 +336,4 @@ server exposing the local data to MCP clients. Ships open-source repo scaffoldin
 [#130]: https://github.com/itsgotpower/pare/pull/130
 [#128]: https://github.com/itsgotpower/pare/pull/128
 [#129]: https://github.com/itsgotpower/pare/pull/129
+[#137]: https://github.com/itsgotpower/pare/pull/137
