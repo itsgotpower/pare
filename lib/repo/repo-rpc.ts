@@ -99,6 +99,7 @@ export const REPO_CATALOGUE: RepoCatalogue = {
     categoryOf: "read",
     insertManual: "write",
     deleteManual: "write",
+    exportAll: "read",
   },
   statements: { insert: "write", list: "read", deleteById: "write" },
   categories: {
@@ -116,7 +117,7 @@ export const REPO_CATALOGUE: RepoCatalogue = {
     dismissSuggestion: "write",
     bulkOverride: "write",
   },
-  splits: { list: "read", set: "write", clear: "write" },
+  splits: { list: "read", listAll: "read", set: "write", clear: "write" },
   goals: {
     list: "read",
     upsert: "write",

@@ -779,12 +779,17 @@ export default function ProfilePage() {
                 Export JSON
               </Button>
             </a>
-            <a href="/api/data?format=backup" download>
-              <Button variant="outline" className="rounded-none font-mono text-xs tracking-widest uppercase">
-                <Database data-icon="inline-start" />
-                Backup DB
-              </Button>
-            </a>
+            {/* .db backup is a self-host, file-level operation — the hosted DO
+                has no serialisable SQLite file to hand back, and CSV/JSON above
+                are the portability path there. */}
+            {!hosted && (
+              <a href="/api/data?format=backup" download>
+                <Button variant="outline" className="rounded-none font-mono text-xs tracking-widest uppercase">
+                  <Database data-icon="inline-start" />
+                  Backup DB
+                </Button>
+              </a>
+            )}
           </CardContent>
         </Card>
 

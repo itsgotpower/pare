@@ -3,40 +3,18 @@ import fs from "fs";
 import path from "path";
 import { getDb, DB_PATH } from "@/lib/db";
 import { isHostedMode } from "@/lib/auth/resolve";
+import { getScopedRepo, unauthorized } from "@/lib/repo/scoped";
 import { csvField } from "@/lib/csv";
 
-// Exports + destructive data ops — SELF-HOST ONLY. This route reads the file DB
-// directly (getDb/fs/better-sqlite3), which does not exist on the hosted target,
-// and in hosted mode the middleware gate is retired (routes must auth
-// themselves) — so it explicitly 404s there rather than relying on the import
-// failing. Self-host auth is the middleware.ts session gate (this route is not
-// in its public list), same as every other self-host API route.
+// Data export + destructive wipe. Exports (GET) now flow through the scoped Repo,
+// so CSV + JSON work on BOTH deploy targets (self-host file DB and the hosted
+// Durable-Object-per-user backend). The `backup` format is a byte-for-byte
+// better-sqlite3 online db.backup() and stays SELF-HOST ONLY — the hosted DO uses
+// native ctx.storage.sql with no serialisable .db file, and there is no
+// copy-over-the-file restore path there anyway. DELETE (wipe) still reads the file
+// DB directly and remains self-host only; see hostedNotFound below.
 function hostedNotFound(): Response | null {
   return isHostedMode() ? Response.json({ error: "Not found" }, { status: 404 }) : null;
-}
-
-interface ExportTxn {
-  txn_date: string;
-  source: string;
-  description: string;
-  amount: number;
-  flow: string;
-  category: string;
-}
-
-function exportTransactions(): ExportTxn[] {
-  // Base table + override join, NOT v_transactions: the view excludes hidden
-  // accounts (migration 009), but an export is the user's own data and must
-  // always be complete.
-  return getDb()
-    .prepare(
-      `SELECT t.txn_date, t.source, t.description, t.amount, t.flow,
-              COALESCE(co.new_category, t.category) AS category
-       FROM transactions t
-       LEFT JOIN category_overrides co ON co.transaction_id = t.id
-       ORDER BY t.txn_date, t.source, t.id`
-    )
-    .all() as ExportTxn[];
 }
 
 function attachment(filename: string, contentType: string): HeadersInit {
@@ -47,14 +25,36 @@ function attachment(filename: string, contentType: string): HeadersInit {
 }
 
 export async function GET(request: NextRequest) {
-  const gone = hostedNotFound();
-  if (gone) return gone;
   const format = request.nextUrl.searchParams.get("format");
   const stamp = new Date().toISOString().slice(0, 10);
 
+  // Backup is a self-host-only, file-level operation (better-sqlite3.backup);
+  // 404 it in hosted mode before touching the repo.
+  if (format === "backup") {
+    if (isHostedMode()) return Response.json({ error: "Not found" }, { status: 404 });
+    // Self-host still gates via the middleware session cookie (this route is not
+    // public), so the file DB read below is already authenticated.
+    // Online backup via better-sqlite3 — safe while the DB is in use, and
+    // produces a single consolidated file (no -wal/-shm sidecars).
+    const tmp = path.join(path.dirname(DB_PATH), `.backup-${process.pid}-${Date.now()}.db`);
+    try {
+      await getDb().backup(tmp);
+      const bytes = fs.readFileSync(tmp);
+      return new Response(new Uint8Array(bytes), {
+        headers: attachment(`parse-backup-${stamp}.db`, "application/octet-stream"),
+      });
+    } finally {
+      fs.rmSync(tmp, { force: true });
+    }
+  }
+
+  // CSV + JSON: scoped to the caller's Repo, so they work on both targets.
+  const repo = await getScopedRepo(request);
+  if (!repo) return unauthorized();
+
   switch (format) {
     case "csv": {
-      const rows = exportTransactions();
+      const rows = await repo.transactions.exportAll();
       const header = "txn_date,source,description,amount,flow,category";
       const body = rows
         .map((r) =>
@@ -69,42 +69,29 @@ export async function GET(request: NextRequest) {
     }
 
     case "json": {
-      const db = getDb();
+      const [transactions, rules, splits, goals] = await Promise.all([
+        repo.transactions.exportAll(),
+        repo.categories.listRules(),
+        repo.splits.listAll(),
+        repo.goals.list(),
+      ]);
       const payload = {
         exported_at: new Date().toISOString(),
-        transactions: exportTransactions(),
-        category_rules: db
-          .prepare("SELECT keyword, category, sort_order FROM category_rules ORDER BY sort_order, id")
-          .all(),
+        transactions,
+        category_rules: rules.map((r) => ({
+          keyword: r.keyword,
+          category: r.category,
+          sort_order: r.sort_order,
+        })),
         // Split parts, so the JSON export stays a faithful backup (splits
         // re-slice the transactions above by transaction_id).
-        transaction_splits: db
-          .prepare(
-            "SELECT id, transaction_id, category, amount FROM transaction_splits ORDER BY transaction_id, id"
-          )
-          .all(),
-        goals: db
-          .prepare("SELECT category, monthly_limit FROM spending_goals WHERE active = 1 ORDER BY category")
-          .all(),
+        transaction_splits: splits,
+        // goals.list() already returns only active goals.
+        goals: goals.map((g) => ({ category: g.category, monthly_limit: g.monthly_limit })),
       };
       return new Response(JSON.stringify(payload, null, 2), {
         headers: attachment(`parse-export-${stamp}.json`, "application/json"),
       });
-    }
-
-    case "backup": {
-      // Online backup via better-sqlite3 — safe while the DB is in use, and
-      // produces a single consolidated file (no -wal/-shm sidecars).
-      const tmp = path.join(path.dirname(DB_PATH), `.backup-${process.pid}-${Date.now()}.db`);
-      try {
-        await getDb().backup(tmp);
-        const bytes = fs.readFileSync(tmp);
-        return new Response(new Uint8Array(bytes), {
-          headers: attachment(`parse-backup-${stamp}.db`, "application/octet-stream"),
-        });
-      } finally {
-        fs.rmSync(tmp, { force: true });
-      }
     }
 
     default:

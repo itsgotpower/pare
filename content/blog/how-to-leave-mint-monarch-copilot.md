@@ -77,7 +77,7 @@ If you're a Mint refugee specifically, it's worth understanding why the replacem
 
 ## Leaving Copilot
 
-Copilot is an Apple-only, subscription app (around $95/year), and it exports too.
+Copilot is an Apple-only, subscription app (around $95/year), and it exports too. (Still deciding whether to leave? [Pare vs Copilot](/blog/pare-vs-copilot) is the head-to-head.)
 
 1. Open Copilot on iOS or Mac.
 2. Go to **Settings / Account → Export Data**.

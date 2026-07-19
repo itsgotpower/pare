@@ -36,6 +36,18 @@ export function getSplits(transactionId: number): SplitRow[] {
     .all(transactionId) as SplitRow[];
 }
 
+// Every split part across all transactions, for the JSON export/backup. Ordered
+// so the export is stable and re-slices cleanly against the exported txns.
+export function listAllSplits(): SplitRow[] {
+  const db = getDb();
+  return db
+    .prepare(
+      `SELECT id, transaction_id, category, amount
+       FROM transaction_splits ORDER BY transaction_id, id`
+    )
+    .all() as SplitRow[];
+}
+
 /**
  * Create or replace the split for one transaction. Validations (all throw an
  * Error with a user-safe message):

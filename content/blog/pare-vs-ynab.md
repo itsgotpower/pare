@@ -69,7 +69,7 @@ YNAB also has years of teaching, a large community, and a genuinely effective ph
 
 Pare wins on the axes YNAB was never built for:
 
-- **No bank connection.** You don't hand your login to an aggregator to use Pare. YNAB's model depends on that connection.
+- **No bank login.** You don't hand your login to an aggregator to use Pare. YNAB's model depends on that connection.
 - **Ownership.** Your data is a file you hold, not a subscription-gated cloud account. You can self-host the whole thing from [open-source code](https://github.com/itsgotpower/pare).
 - **Understanding over enforcement.** Forecasts, net-worth history, a discretionary baseline that strips one-off charges, subscription and double-bill detection — the analytical picture is deeper.
 - **Ask it questions.** A local MCP server lets you ask Claude about your own numbers in plain language, with the data staying on your machine.
