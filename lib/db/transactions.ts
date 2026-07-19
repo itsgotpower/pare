@@ -252,6 +252,33 @@ export function listTransactions(filters: TransactionFilters = {}): {
   return { rows, total };
 }
 
+// One row of the data export — the trimmed, human-facing shape used by
+// /api/data (CSV + JSON). See exportAllTransactions.
+export interface ExportTxn {
+  txn_date: string;
+  source: string;
+  description: string;
+  amount: number;
+  flow: string;
+  category: string;
+}
+
+// Every transaction, flattened for export. Reads the BASE table + override join
+// (NOT v_transactions): the view excludes hidden accounts (migration 009), but an
+// export is the user's own data and must always be complete. Unpaginated by
+// design — a backup includes everything.
+export function exportAllTransactions(): ExportTxn[] {
+  return getDb()
+    .prepare(
+      `SELECT t.txn_date, t.source, t.description, t.amount, t.flow,
+              COALESCE(co.new_category, t.category) AS category
+       FROM transactions t
+       LEFT JOIN category_overrides co ON co.transaction_id = t.id
+       ORDER BY t.txn_date, t.source, t.id`
+    )
+    .all() as ExportTxn[];
+}
+
 export function getCategories(): string[] {
   const db = getDb();
   // Slice view, not v_transactions: a category that only exists as a split

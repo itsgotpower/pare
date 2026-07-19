@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -15,9 +15,8 @@ import {
 import { PALETTE } from "@/lib/colors";
 import { timeAgo } from "@/lib/format";
 import { purgeDataCaches } from "@/lib/purge-data-cache";
-import { LogOut, Pencil, Download, Database, FileJson, CreditCard, ShieldCheck, Settings2, MessageSquarePlus } from "lucide-react";
+import { LogOut, Pencil, Download, Database, FileJson, CreditCard, Settings2, MessageSquarePlus } from "lucide-react";
 import { IngestInbox } from "@/components/profile/ingest-inbox";
-import { FooterNav } from "@/components/layout/footer-nav";
 import { FeedbackDialog } from "@/components/feedback/feedback-dialog";
 import { authClient } from "@/lib/auth/client";
 
@@ -32,7 +31,6 @@ interface SourceHealth {
   last_txn_date: string | null;
   days_since_last: number | null;
   coverage: boolean[];
-  missing_months: string[];
   // Fed by a sync (SimpleFIN) — staleness keys off sync recency, not
   // days-since-last-transaction (a quiet card syncs daily with no spend).
   synced: boolean;
@@ -432,11 +430,11 @@ export default function ProfilePage() {
 
       <div className="grid gap-3 md:grid-cols-3 mb-3">
         <Card className="rounded-none ring-0 border border-border md:col-span-2">
-          <CardContent className="flex items-start gap-4">
+          <CardContent className="flex items-center gap-4">
             <div className="size-12 shrink-0 border border-foreground flex items-center justify-center font-mono text-lg font-bold">
               {initials}
             </div>
-            <div className="min-w-0 flex-1">
+            <div className="min-w-0">
               {editingName ? (
                 <div className="flex items-center gap-2">
                   <Input
@@ -460,61 +458,23 @@ export default function ProfilePage() {
                   <p className="font-mono text-sm font-bold uppercase truncate">
                     {profile.display_name || "Unnamed"}
                   </p>
-                  {/* Name edit posts to the self-host auth route; hosted name
-                      changes aren't wired yet, so only offer it in self-host. */}
-                  {!hosted && (
-                    <button
-                      onClick={() => setEditingName(true)}
-                      aria-label="Edit display name"
-                      className="text-muted-foreground hover:text-foreground transition-colors shrink-0"
-                    >
-                      <Pencil className="size-3.5" />
-                    </button>
-                  )}
+                  <button
+                    onClick={() => setEditingName(true)}
+                    aria-label="Edit display name"
+                    className="text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    <Pencil className="size-3.5" />
+                  </button>
                 </div>
               )}
-              {/* email · verification · mode — one wrapping row so nothing gets
-                  squeezed to zero width on a narrow card. */}
-              <div className="flex flex-wrap items-center gap-2 mt-1">
-                {profile.email && (
-                  <p className="text-xs text-muted-foreground truncate max-w-full">
-                    {profile.email}
-                  </p>
-                )}
-                {profile.email && (
-                  <span
-                    className="shrink-0 font-mono text-[9px] tracking-widest uppercase border px-1 py-0.5"
-                    style={
-                      profile.email_verified
-                        ? { color: PALETTE.sage, borderColor: PALETTE.sage }
-                        : { color: PALETTE.mustard, borderColor: PALETTE.mustard }
-                    }
-                    title={
-                      profile.email_verified
-                        ? "Your email address is verified"
-                        : "Check your inbox for the verification link"
-                    }
-                  >
-                    {profile.email_verified ? "Verified" : "Unverified"}
-                  </span>
-                )}
-                <span
-                  className="shrink-0 font-mono text-[9px] tracking-widest uppercase border px-1 py-0.5"
-                  style={{ color: PALETTE.sage, borderColor: PALETTE.sage }}
-                  title={
-                    hosted
-                      ? "Hosted account — synced and stored on Pare's servers"
-                      : "Self-hosted — running on your own machine"
-                  }
-                >
-                  {hosted ? "Hosted account" : "Self-hosted"}
-                </span>
-              </div>
-              <p className="text-xs text-muted-foreground mt-1">
+              <p className="text-xs text-muted-foreground">
                 Member since {formatDate(profile.created_at)}
               </p>
             </div>
-            <div className="shrink-0 self-start">
+            <div className="ml-auto flex items-center gap-3 shrink-0">
+              <span className="hidden sm:inline font-mono text-[10px] tracking-widest uppercase border border-border px-2 py-1 text-muted-foreground">
+                All data local
+              </span>
               <Button
                 variant="outline"
                 onClick={handleSignOut}
@@ -530,41 +490,22 @@ export default function ProfilePage() {
         <Card className="rounded-none ring-0 border border-border">
           <CardContent>
             <p className={`${labelClass} mb-2`}>Security</p>
-            {hosted ? (
-              // Hosted passwords + passkeys are managed by better-auth at the
-              // sign-in screen (reset via email); there's no in-app change here.
-              <>
-                <p className="text-xs mb-0.5">
-                  Password &amp; passkeys managed at sign-in
-                </p>
-                <p className="text-[11px] text-muted-foreground">
-                  Reset your password from the{" "}
-                  <Link href="/login" className="underline hover:text-foreground">
-                    sign-in screen
-                  </Link>
-                  .
-                </p>
-              </>
-            ) : (
-              <>
-                <p className="text-xs mb-0.5">
-                  Password changed {formatDate(profile.password_changed_at)}
-                </p>
-                <p className="text-[11px] text-muted-foreground mb-3">
-                  Changing it signs out every session.
-                </p>
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setPwStatus(null);
-                    setPwOpen(true);
-                  }}
-                  className="rounded-none font-mono text-xs tracking-widest uppercase"
-                >
-                  Change password
-                </Button>
-              </>
-            )}
+            <p className="text-xs mb-0.5">
+              Password changed {formatDate(profile.password_changed_at)}
+            </p>
+            <p className="text-[11px] text-muted-foreground mb-3">
+              Changing it signs out every session.
+            </p>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setPwStatus(null);
+                setPwOpen(true);
+              }}
+              className="rounded-none font-mono text-xs tracking-widest uppercase"
+            >
+              Change password
+            </Button>
           </CardContent>
         </Card>
       </div>
@@ -753,15 +694,6 @@ export default function ProfilePage() {
                     {monthAbbr(health.coverage_window[health.coverage_window.length - 1])}
                   </span>
                 </span>
-                {s.missing_months.length > 0 && (
-                  <span
-                    title={`Missing statements: ${s.missing_months.map(formatMonth).join(", ")}`}
-                    className="font-mono text-[10px] tracking-widest uppercase border px-1.5 py-0.5"
-                    style={{ color: PALETTE.mustard, borderColor: PALETTE.mustard }}
-                  >
-                    {s.missing_months.length} {s.missing_months.length === 1 ? "gap" : "gaps"}
-                  </span>
-                )}
                 {s.hidden && (
                   <span className="font-mono text-[10px] tracking-widest uppercase border border-border px-1.5 py-0.5 text-muted-foreground">
                     Hidden
@@ -829,96 +761,70 @@ export default function ProfilePage() {
         </div>
       </Card>
 
-      {/* Native <details> accordions (same pattern as upload's bank guides —
-          no JS state), collapsed by default to keep the page compact. */}
-      <Card className="rounded-none ring-0 border border-border py-0 gap-0 mb-3">
-        <details className="group">
-          <summary className="flex items-center justify-between gap-3 px-4 py-3 cursor-pointer list-none hover:bg-accent/50 transition-colors [&::-webkit-details-marker]:hidden">
-            <span className="flex items-center gap-2">
-              <ShieldCheck className="size-4 text-muted-foreground" />
-              <span className={labelClass}>Privacy</span>
-            </span>
-            <span className="font-mono text-xs text-muted-foreground group-open:hidden">+</span>
-            <span className="font-mono text-xs text-muted-foreground hidden group-open:inline">−</span>
-          </summary>
-          <p className="px-4 pb-4 pt-1 text-xs text-muted-foreground leading-relaxed">
-            {hosted
-              ? "Your data is encrypted at rest and isolated to your account — no third-party sharing, no ad tracking. Statements are parsed and then discarded; only the transactions are kept. You can export everything or delete your account at any time."
-              : "Everything runs on this machine — no account, no telemetry, no third-party sharing. Statements are parsed locally and discarded; only the transactions are stored, in a database you can export or wipe anytime."}{" "}
-            <Link href="/privacy" className="underline hover:text-foreground transition-colors">
-              Read the privacy policy →
-            </Link>
-          </p>
-        </details>
-      </Card>
-
-      <div className="grid gap-3 md:grid-cols-3 items-start">
-        <Card className="rounded-none ring-0 border border-border py-0 gap-0 md:col-span-2">
-          <details className="group">
-            <summary className="flex items-center justify-between gap-3 px-4 py-3 cursor-pointer list-none hover:bg-accent/50 transition-colors [&::-webkit-details-marker]:hidden">
-              <span className={labelClass}>Your data, your files</span>
-              <span className="font-mono text-xs text-muted-foreground group-open:hidden">+</span>
-              <span className="font-mono text-xs text-muted-foreground hidden group-open:inline">−</span>
-            </summary>
-            <div className="flex flex-wrap gap-2 px-4 pb-4 pt-1">
-              <a href="/api/data?format=csv" download>
-                <Button variant="outline" className="rounded-none font-mono text-xs tracking-widest uppercase">
-                  <Download data-icon="inline-start" />
-                  Export CSV
-                </Button>
-              </a>
-              <a href="/api/data?format=json" download>
-                <Button variant="outline" className="rounded-none font-mono text-xs tracking-widest uppercase">
-                  <FileJson data-icon="inline-start" />
-                  Export JSON
-                </Button>
-              </a>
+      <div className="grid gap-3 md:grid-cols-3">
+        <Card className="rounded-none ring-0 border border-border md:col-span-2">
+          <CardHeader>
+            <CardTitle className={labelClass}>Your data, your files</CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-wrap gap-2">
+            <a href="/api/data?format=csv" download>
+              <Button variant="outline" className="rounded-none font-mono text-xs tracking-widest uppercase">
+                <Download data-icon="inline-start" />
+                Export CSV
+              </Button>
+            </a>
+            <a href="/api/data?format=json" download>
+              <Button variant="outline" className="rounded-none font-mono text-xs tracking-widest uppercase">
+                <FileJson data-icon="inline-start" />
+                Export JSON
+              </Button>
+            </a>
+            {/* .db backup is a self-host, file-level operation — the hosted DO
+                has no serialisable SQLite file to hand back, and CSV/JSON above
+                are the portability path there. */}
+            {!hosted && (
               <a href="/api/data?format=backup" download>
                 <Button variant="outline" className="rounded-none font-mono text-xs tracking-widest uppercase">
                   <Database data-icon="inline-start" />
                   Backup DB
                 </Button>
               </a>
-            </div>
-          </details>
+            )}
+          </CardContent>
         </Card>
 
-        <Card className="rounded-none ring-0 border border-destructive/50 py-0 gap-0">
-          <details className="group">
-            <summary className="flex items-center justify-between gap-3 px-4 py-3 cursor-pointer list-none hover:bg-destructive/5 transition-colors [&::-webkit-details-marker]:hidden">
-              <span className="font-mono text-[10px] tracking-widest uppercase text-destructive">
-                Danger zone
-              </span>
-              <span className="font-mono text-xs text-destructive group-open:hidden">+</span>
-              <span className="font-mono text-xs text-destructive hidden group-open:inline">−</span>
-            </summary>
-            <div className="flex flex-col items-start gap-2 px-4 pb-4 pt-1">
+        <Card className="rounded-none ring-0 border border-destructive/50">
+          <CardHeader>
+            <CardTitle className="font-mono text-[10px] tracking-widest uppercase text-destructive">
+              Danger zone
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-col items-start gap-2">
+            <Button
+              variant="destructive"
+              onClick={() => {
+                setWipeError(null);
+                setWipeConfirm("");
+                setWipeOpen(true);
+              }}
+              className="rounded-none font-mono text-xs tracking-widest uppercase"
+            >
+              Wipe all data…
+            </Button>
+            {hosted && (
               <Button
                 variant="destructive"
                 onClick={() => {
-                  setWipeError(null);
-                  setWipeConfirm("");
-                  setWipeOpen(true);
+                  setDeleteError(null);
+                  setDeleteConfirm("");
+                  setDeleteOpen(true);
                 }}
                 className="rounded-none font-mono text-xs tracking-widest uppercase"
               >
-                Wipe all data…
+                Delete account…
               </Button>
-              {hosted && (
-                <Button
-                  variant="destructive"
-                  onClick={() => {
-                    setDeleteError(null);
-                    setDeleteConfirm("");
-                    setDeleteOpen(true);
-                  }}
-                  className="rounded-none font-mono text-xs tracking-widest uppercase"
-                >
-                  Delete account…
-                </Button>
-              )}
-            </div>
-          </details>
+            )}
+          </CardContent>
         </Card>
       </div>
 
@@ -934,26 +840,19 @@ export default function ProfilePage() {
         />
       </div>
 
-      <footer className="mt-8 border-t border-border pt-4 flex flex-col gap-3">
-        <FooterNav />
-        <p className="font-mono text-[10px] tracking-widest uppercase text-muted-foreground/60">
-          Pare
-          {APP_VERSION && (
-            <>
-              {" "}
-              <a
-                href={`${REPO_URL}/releases/tag/v${APP_VERSION}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="hover:text-foreground transition-colors"
-              >
-                v{APP_VERSION}
-              </a>
-            </>
-          )}{" "}
-          — private by design.
+      {APP_VERSION && (
+        <p className="mt-2 font-mono text-[10px] tracking-widest uppercase text-muted-foreground/60">
+          Pare{" "}
+          <a
+            href={`${REPO_URL}/releases/tag/v${APP_VERSION}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hover:text-foreground transition-colors"
+          >
+            v{APP_VERSION}
+          </a>
         </p>
-      </footer>
+      )}
 
       <Dialog open={pwOpen} onOpenChange={setPwOpen}>
         <DialogContent className="rounded-none">

@@ -12,6 +12,12 @@ contracts, on-disk and crypto formats) may change between minor versions — see
 
 ### Added
 
+- **Six new blog posts** — head-to-heads with Copilot and with budgeting
+  spreadsheets (Tiller), a piece on what connecting your bank through an
+  aggregator actually shares, a guide to asking Claude about your money via the
+  local finance MCP server, a 15-minute subscription-audit walkthrough, and a
+  self-hosting guide. Also corrects stale "no bank connection" wording in the
+  Mint and YNAB comparisons now that the opt-in SimpleFIN sync exists ([#135]).
 - **See when Claude is connected** — the hosted `/connect` page now detects a
   live connector link (an active OAuth token) and collapses the setup steps into
   a compact CONNECTED card with an OPEN CLAUDE shortcut and a manage/disconnect
@@ -98,6 +104,14 @@ contracts, on-disk and crypto formats) may change between minor versions — see
 
 ### Fixed
 
+- **Data exports now work on the hosted app** — Export CSV and Export JSON on
+  the profile page returned "file wasn't available" on pare.money: the
+  `/api/data` route read the local file database directly and 404'd on the
+  hosted per-user backend. Both exports now go through the shared data layer and
+  work on hosted and self-host alike. The byte-for-byte database backup stays a
+  self-host feature (there's no downloadable database file on the hosted
+  backend, and CSV/JSON cover portability there), so its button is hidden when
+  running hosted ([#134]).
 - **The Claude connector wouldn't connect** — the remote MCP endpoint
   (`/api/mcp`) sent no CORS headers, so claude.ai's browser probe was blocked by
   the same-origin policy before it could read the 401 OAuth challenge, failing
@@ -277,6 +291,8 @@ server exposing the local data to MCP clients. Ships open-source repo scaffoldin
 [0.2.0]: https://github.com/itsgotpower/pare/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/itsgotpower/pare/releases/tag/v0.1.0
 
+[#135]: https://github.com/itsgotpower/pare/pull/135
+[#134]: https://github.com/itsgotpower/pare/pull/134
 [#132]: https://github.com/itsgotpower/pare/pull/132
 [#131]: https://github.com/itsgotpower/pare/pull/131
 [#126]: https://github.com/itsgotpower/pare/pull/126

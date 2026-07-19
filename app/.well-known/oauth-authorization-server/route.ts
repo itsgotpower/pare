@@ -2,6 +2,7 @@ import { oAuthDiscoveryMetadata } from "better-auth/plugins";
 import { createHostedAuth } from "@/lib/auth/hosted";
 import { getD1 } from "@/lib/auth/d1";
 import { isHostedMode } from "@/lib/auth/resolve";
+import { withMcpCors, mcpCorsPreflight } from "@/lib/auth/mcp-challenge";
 
 // OAuth 2.1 authorization-server discovery (RFC 8414) for the remote MCP
 // connector. claude.ai fetches this before dynamic client registration; the
@@ -40,5 +41,15 @@ export async function GET(request: Request): Promise<Response> {
   metadata.scopes_supported = ["offline_access"];
   delete metadata.jwks_uri;
   delete metadata.id_token_signing_alg_values_supported;
-  return Response.json(metadata, { headers: { "cache-control": "no-store" } });
+  // Re-wrapping in a fresh Response drops any header the plugin set, so CORS
+  // must be re-applied here — claude.ai resolves this doc cross-origin (RFC 8414
+  // issuer-root) and the browser blocks it without Allow-Origin.
+  return withMcpCors(
+    Response.json(metadata, { headers: { "cache-control": "no-store" } })
+  );
+}
+
+// Preflight for the cross-origin discovery fetch.
+export function OPTIONS(): Response {
+  return mcpCorsPreflight();
 }

@@ -1,6 +1,7 @@
 import { getD1 } from "@/lib/auth/d1";
 import { isHostedMode } from "@/lib/auth/resolve";
 import { allowRequest, clientIp, tooManyRequests } from "@/lib/ratelimit";
+import { withMcpCors, mcpCorsPreflight, isMcpOAuthPath } from "@/lib/auth/mcp-challenge";
 
 // HOSTED-mode better-auth endpoints: /api/auth/sign-up/email,
 // /api/auth/sign-in/email, /api/auth/request-password-reset, etc.
@@ -37,7 +38,22 @@ async function handler(request: Request): Promise<Response> {
   ]);
   const auth = createHostedAuth(await getD1());
   const { GET, POST } = toNextJsHandler(auth);
-  return request.method === "GET" ? GET(request) : POST(request);
+  const response = await (request.method === "GET" ? GET(request) : POST(request));
+  // The MCP OAuth flow (discovery docs + /mcp/* register/token/jwks) is fetched
+  // cross-origin by claude.ai's browser client, so those sub-paths need CORS.
+  // The rest of the auth surface (sign-in/up/reset) is same-origin app traffic
+  // and is left untouched. See isMcpOAuthPath / withMcpCors in mcp-challenge.ts.
+  return isMcpOAuthPath(new URL(request.url).pathname) ? withMcpCors(response) : response;
+}
+
+// Preflight for the cross-origin MCP OAuth fetches (register/token send a
+// Content-Type/Authorization header, so the browser preflights them). Only the
+// MCP OAuth paths answer; everything else 404s as an unknown method.
+export function OPTIONS(request: Request): Response {
+  if (isHostedMode() && isMcpOAuthPath(new URL(request.url).pathname)) {
+    return mcpCorsPreflight();
+  }
+  return new Response(null, { status: 404 });
 }
 
 export const GET = handler;

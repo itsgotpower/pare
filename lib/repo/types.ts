@@ -15,6 +15,7 @@ import type {
   TransactionRow,
   TransactionFilters,
   ManualTransactionInput,
+  ExportTxn,
 } from "../db/transactions";
 import type { StatementRow } from "../db/statements";
 import type { CategoryRule } from "../db/categories";
@@ -57,6 +58,7 @@ export type {
   TransactionRow,
   TransactionFilters,
   ManualTransactionInput,
+  ExportTxn,
   StatementRow,
   CategoryRule,
   SplitRow,
@@ -169,6 +171,9 @@ export interface TransactionRepo {
   // Delete a quick-added row (and its override). Statement-backed rows are
   // refused — deleted: 0.
   deleteManual(id: number): Promise<{ deleted: number }>;
+  // Every transaction, flattened + unpaginated, INCLUDING hidden accounts — the
+  // data-export read (/api/data csv+json). Not the paginated view read `list`.
+  exportAll(): Promise<ExportTxn[]>;
 }
 
 export interface StatementRepo {
@@ -220,6 +225,8 @@ export interface CategoryRepo {
 // reverts the row to its base/override category.
 export interface SplitsRepo {
   list(transactionId: number): Promise<SplitRow[]>;
+  // Every split part across all transactions — the JSON export/backup read.
+  listAll(): Promise<SplitRow[]>;
   set(transactionId: number, parts: SplitPart[]): Promise<void>;
   clear(transactionId: number): Promise<void>;
 }
