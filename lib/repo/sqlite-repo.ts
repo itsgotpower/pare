@@ -37,6 +37,7 @@ import {
   getSources,
   listTransactions,
   getCategories,
+  exportAllTransactions,
 } from "../db/transactions";
 import { insertStatement, listStatements, deleteStatement } from "../db/statements";
 import {
@@ -54,7 +55,7 @@ import {
   dismissSuggestion,
   bulkAssignCategory,
 } from "../db/categories";
-import { getSplits, setSplits, clearSplits } from "../db/splits";
+import { getSplits, listAllSplits, setSplits, clearSplits } from "../db/splits";
 import {
   listGoals,
   upsertGoal,
@@ -184,6 +185,7 @@ export class SqliteRepo implements Repo {
     categoryOf: (id) => this.read(() => getTransactionCategory(id)),
     insertManual: (input) => this.write(() => insertManualTransaction(input)),
     deleteManual: (id) => this.write(() => deleteManualTransaction(id)),
+    exportAll: () => this.read(() => exportAllTransactions()),
   };
 
   statements: StatementRepo = {
@@ -212,6 +214,7 @@ export class SqliteRepo implements Repo {
 
   splits: SplitsRepo = {
     list: (transactionId) => this.read(() => getSplits(transactionId)),
+    listAll: () => this.read(() => listAllSplits()),
     set: (transactionId, parts) => this.write(() => setSplits(transactionId, parts)),
     clear: (transactionId) => this.write(() => clearSplits(transactionId)),
   };

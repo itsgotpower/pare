@@ -104,6 +104,14 @@ contracts, on-disk and crypto formats) may change between minor versions — see
 
 ### Fixed
 
+- **Data exports now work on the hosted app** — Export CSV and Export JSON on
+  the profile page returned "file wasn't available" on pare.money: the
+  `/api/data` route read the local file database directly and 404'd on the
+  hosted per-user backend. Both exports now go through the shared data layer and
+  work on hosted and self-host alike. The byte-for-byte database backup stays a
+  self-host feature (there's no downloadable database file on the hosted
+  backend, and CSV/JSON cover portability there), so its button is hidden when
+  running hosted ([#134]).
 - **The Claude connector wouldn't connect** — the remote MCP endpoint
   (`/api/mcp`) sent no CORS headers, so claude.ai's browser probe was blocked by
   the same-origin policy before it could read the 401 OAuth challenge, failing
@@ -284,6 +292,7 @@ server exposing the local data to MCP clients. Ships open-source repo scaffoldin
 [0.1.0]: https://github.com/itsgotpower/pare/releases/tag/v0.1.0
 
 [#135]: https://github.com/itsgotpower/pare/pull/135
+[#134]: https://github.com/itsgotpower/pare/pull/134
 [#132]: https://github.com/itsgotpower/pare/pull/132
 [#131]: https://github.com/itsgotpower/pare/pull/131
 [#126]: https://github.com/itsgotpower/pare/pull/126
