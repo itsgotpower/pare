@@ -118,6 +118,18 @@ export const REPO_CATALOGUE: RepoCatalogue = {
     bulkOverride: "write",
   },
   splits: { list: "read", listAll: "read", set: "write", clear: "write" },
+  tags: {
+    list: "read",
+    counts: "read",
+    listAll: "read",
+    set: "write",
+    markReimbursable: "write",
+    markReimbursed: "write",
+    clearReimbursement: "write",
+    reimbursementSummary: "read",
+    listReimbursements: "read",
+    listAllReimbursements: "read",
+  },
   goals: {
     list: "read",
     upsert: "write",

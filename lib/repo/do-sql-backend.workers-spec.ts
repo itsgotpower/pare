@@ -57,6 +57,8 @@ describe("DoSqlBackend over real ctx.storage.sql (workerd)", () => {
         "waitlist",
         "imports",
         "transaction_splits",
+        "transaction_tags",
+        "reimbursements",
       ]) {
         expect(byName.get(t), `table ${t} created`).toBe("table");
       }
@@ -380,6 +382,74 @@ describe("DoSqlBackend over real ctx.storage.sql (workerd)", () => {
 
       // profile.dataHealth runs end to end against the DO-backed DB.
       expect(await repo.profile.dataHealth()).toBeTruthy();
+    });
+  });
+
+  it("tags namespace works end to end on DO SQLite (set/filter/reimbursement lifecycle)", async () => {
+    // Tags + reimbursements run the same lib/db code over the adapter; this
+    // pins the workerd-side behaviours the Node suite can't: GROUP_CONCAT in
+    // the list()'s tags column, the SUM/COUNT coercion in
+    // reimbursementSummary (DO SQLite returns INTEGER as bigint without the
+    // adapter's number coercion), and that no Node-ism detonates in workerd.
+    await withCtx(async (storage) => {
+      const repo = new SqliteRepo(new DoSqlBackend(storage));
+      await repo.categories.seed();
+
+      await repo.transactions.insertMany([
+        {
+          statement_id: null, source: "amex", account: "card", account_kind: "card", period: "2026-05",
+          txn_date: "2026-05-04", description: "CONFERENCE HOTEL", amount: 400, category: "Travel",
+          flow: "spend", dedup_key: "tag-a",
+        },
+        {
+          statement_id: null, source: "amex", account: "card", account_kind: "card", period: "2026-05",
+          txn_date: "2026-05-05", description: "TEAM LUNCH", amount: 90, category: "Restaurants & takeout",
+          flow: "spend", dedup_key: "tag-b",
+        },
+      ]);
+      const { rows } = await repo.transactions.list();
+      const hotel = rows.find((r) => r.description === "CONFERENCE HOTEL")!;
+      const lunch = rows.find((r) => r.description === "TEAM LUNCH")!;
+
+      // set() normalizes and returns the stored set.
+      expect(await repo.tags.set(hotel.id, [" Work ", "CONFERENCE", "work"])).toEqual([
+        "conference",
+        "work",
+      ]);
+      await repo.tags.set(lunch.id, ["work"]);
+      expect(await repo.tags.list(hotel.id)).toEqual(["conference", "work"]);
+
+      // counts() coerces COUNT to number; the tag filter joins transaction_tags.
+      const counts = await repo.tags.counts();
+      expect(counts).toEqual([
+        { tag: "conference", count: 1 },
+        { tag: "work", count: 2 },
+      ]);
+      const filtered = await repo.transactions.list({ tag: "conference" });
+      expect(filtered.total).toBe(1);
+      expect(filtered.rows[0].tags).toBe("conference,work");
+
+      // Reimbursement lifecycle + summary aggregation.
+      await repo.tags.markReimbursable(hotel.id);
+      await repo.tags.markReimbursable(lunch.id);
+      let summary = await repo.tags.reimbursementSummary();
+      expect(summary.outstanding).toEqual({ count: 2, total: 490 });
+      await repo.tags.markReimbursed(hotel.id);
+      summary = await repo.tags.reimbursementSummary();
+      expect(summary.outstanding).toEqual({ count: 1, total: 90 });
+      expect(summary.reimbursed).toEqual({ count: 1, total: 400 });
+      const listed = await repo.tags.listReimbursements();
+      expect(listed.map((r) => [r.description, r.status])).toEqual([
+        ["TEAM LUNCH", "outstanding"],
+        ["CONFERENCE HOTEL", "reimbursed"],
+      ]);
+
+      // Export reads hit the base table.
+      expect((await repo.tags.listAll()).length).toBe(3);
+      expect((await repo.tags.listAllReimbursements()).length).toBe(2);
+
+      // Unknown-id validation surfaces as a rejection over the DO path too.
+      await expect(repo.tags.set(999999, ["x"])).rejects.toThrow(/transaction not found/);
     });
   });
 

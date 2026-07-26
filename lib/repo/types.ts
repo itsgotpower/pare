@@ -20,6 +20,13 @@ import type {
 import type { StatementRow } from "../db/statements";
 import type { CategoryRule } from "../db/categories";
 import type { SplitRow, SplitPart } from "../db/splits";
+import type {
+  TagCount,
+  TagRow,
+  ReimbursementRow,
+  ReimbursementListRow,
+  ReimbursementSummary,
+} from "../db/tags";
 import type { SpendingGoal, GoalProgress } from "../db/goals";
 import type { ManualEntry, NetWorthData } from "../db/networth";
 import type {
@@ -64,6 +71,11 @@ export type {
   CategoryRule,
   SplitRow,
   SplitPart,
+  TagCount,
+  TagRow,
+  ReimbursementRow,
+  ReimbursementListRow,
+  ReimbursementSummary,
   SpendingGoal,
   GoalProgress,
   ManualEntry,
@@ -235,6 +247,31 @@ export interface SplitsRepo {
   clear(transactionId: number): Promise<void>;
 }
 
+// Tags + reimbursement tracking (lib/db/tags.ts, migration 013). Tags are
+// orthogonal to categories: any number of free-form lowercase labels per
+// transaction; set() validates, normalizes, and replaces atomically (returning
+// the stored set). The reimbursement half is a per-row lifecycle:
+// markReimbursable (spend rows only) → 'outstanding' → markReimbursed, with
+// clearReimbursement removing the mark entirely. counts()/reimbursementSummary()
+// /listReimbursements() are display reads (hidden accounts excluded via
+// v_transactions); listAll()/listAllReimbursements() are the base-table
+// JSON-export reads.
+export interface TagsRepo {
+  list(transactionId: number): Promise<string[]>;
+  // Distinct tag + visible-transaction count — the filter dropdown's options.
+  counts(): Promise<TagCount[]>;
+  // Every (transaction, tag) pair — the JSON export/backup read.
+  listAll(): Promise<TagRow[]>;
+  set(transactionId: number, tags: string[]): Promise<string[]>;
+  markReimbursable(transactionId: number): Promise<void>;
+  markReimbursed(transactionId: number): Promise<void>;
+  clearReimbursement(transactionId: number): Promise<void>;
+  reimbursementSummary(): Promise<ReimbursementSummary>;
+  listReimbursements(): Promise<ReimbursementListRow[]>;
+  // Every reimbursement row — the JSON export/backup read.
+  listAllReimbursements(): Promise<ReimbursementRow[]>;
+}
+
 // A category's average monthly card spend over the data window — the basis for
 // suggested goal limits.
 export interface CategoryAverage {
@@ -369,6 +406,7 @@ export interface Repo {
   statements: StatementRepo;
   categories: CategoryRepo;
   splits: SplitsRepo;
+  tags: TagsRepo;
   goals: GoalRepo;
   netWorth: NetWorthRepo;
   summary: SummaryRepo;
