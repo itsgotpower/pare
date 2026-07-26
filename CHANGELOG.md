@@ -12,6 +12,13 @@ contracts, on-disk and crypto formats) may change between minor versions — see
 
 ### Added
 
+- **Year-over-year comparison** — the BY CATEGORY tab ends with a YEAR OVER
+  YEAR section once a full year of data exists: the last 12 months overlaid
+  on the 12 before them, the latest month against the same month last year,
+  and a top-movers list of the categories that changed most ([#141]).
+- **Savings-rate trend** — the INCOME tab charts your monthly savings rate
+  (net ÷ income) across the whole data range, with the current month against
+  its trailing-3-month average ([#141]).
 - **Unusual-charge alerts** — the dashboard INSIGHTS panel now flags single
   charges that are outliers against your own history: a charge well above a
   merchant's typical amount ("5.2× your typical $86 at this merchant"), or —
