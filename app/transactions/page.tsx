@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { categoryColor } from "@/lib/colors";
+import { categoryColor, PALETTE } from "@/lib/colors";
 import { deriveKeyword } from "@/lib/db/derive-keyword";
 import {
   InputGroup,
@@ -47,6 +47,21 @@ interface Transaction {
   flow: string;
   has_override: number;
   has_splits: number;
+  // Comma-joined lowercase tags ("vacation,work"), or null when untagged.
+  tags: string | null;
+  // 'outstanding' | 'reimbursed' | null (unmarked).
+  reimbursement_status: string | null;
+}
+
+// GET /api/tags — a distinct tag with how many transactions carry it.
+interface TagOption {
+  tag: string;
+  count: number;
+}
+
+interface ReimbursementSummary {
+  outstanding: { count: number; total: number };
+  reimbursed: { count: number; total: number };
 }
 
 // A saved split part (GET /api/transactions/splits).
@@ -78,6 +93,7 @@ export default function TransactionsPage() {
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState<string>("all");
   const [source, setSource] = useState<string>("all");
+  const [tag, setTag] = useState<string>("all");
   const [flow, setFlow] = useState<string>("spend");
   const [loading, setLoading] = useState(true);
   const [filterSheetOpen, setFilterSheetOpen] = useState(false);
@@ -112,6 +128,16 @@ export default function TransactionsPage() {
   const [bulkError, setBulkError] = useState<string | null>(null);
   const [bulkNotice, setBulkNotice] = useState<string | null>(null);
 
+  // Tags + reimbursements (GET /api/tags: filter options + the outstanding strip)
+  const [tagOptions, setTagOptions] = useState<TagOption[]>([]);
+  const [reimbSummary, setReimbSummary] = useState<ReimbursementSummary | null>(null);
+  // The selected row's tag chips (edited in the dialog, saved on every change).
+  const [tagDraft, setTagDraft] = useState<string[]>([]);
+  const [tagInput, setTagInput] = useState("");
+  const [tagError, setTagError] = useState<string | null>(null);
+  const [reimbBusy, setReimbBusy] = useState(false);
+  const [reimbError, setReimbError] = useState<string | null>(null);
+
   // Split editor
   const [splitOpen, setSplitOpen] = useState(false);
   const [splitParts, setSplitParts] = useState<SplitPartDraft[]>([]);
@@ -130,6 +156,7 @@ export default function TransactionsPage() {
     if (search) params.set("search", search);
     if (category && category !== "all") params.set("category", category);
     if (source && source !== "all") params.set("source", source);
+    if (tag && tag !== "all") params.set("tag", tag);
     if (flow && flow !== "all") params.set("flow", flow);
 
     const res = await fetch(`/api/transactions?${params}`);
@@ -139,7 +166,7 @@ export default function TransactionsPage() {
     setCategories(data.categories);
     setSources(data.sources ?? []);
     setLoading(false);
-  }, [page, search, category, source, flow]);
+  }, [page, search, category, source, tag, flow]);
 
   useEffect(() => {
     fetchTransactions();
@@ -147,7 +174,25 @@ export default function TransactionsPage() {
 
   useEffect(() => {
     setPage(1);
-  }, [search, category, source, flow]);
+  }, [search, category, source, tag, flow]);
+
+  // Tag filter options + the reimbursement summary strip. Refreshed after any
+  // tag/reimbursement mutation so the dropdown and strip never go stale.
+  const fetchTagMeta = useCallback(async () => {
+    try {
+      const res = await fetch("/api/tags");
+      if (!res.ok) return;
+      const data = await res.json();
+      setTagOptions(data.tags ?? []);
+      setReimbSummary(data.reimbursements ?? null);
+    } catch {
+      // Non-fatal: the page works without tag metadata.
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchTagMeta();
+  }, [fetchTagMeta]);
 
   // Once on mount: AccountInfo.label is already nickname-resolved server-side.
   useEffect(() => {
@@ -178,6 +223,11 @@ export default function TransactionsPage() {
       return;
     }
     setSelected(tx);
+    // Tags come with the row (comma-joined) — no fetch needed for the chips.
+    setTagDraft(tx.tags ? tx.tags.split(",") : []);
+    setTagInput("");
+    setTagError(null);
+    setReimbError(null);
     // A split row's dialog shows its parts — fetch them on open.
     setSelectedParts(null);
     if (tx.has_splits) {
@@ -268,7 +318,7 @@ export default function TransactionsPage() {
       : categories;
 
   const activeFilters =
-    (category !== "all" ? 1 : 0) + (source !== "all" ? 1 : 0);
+    (category !== "all" ? 1 : 0) + (source !== "all" ? 1 : 0) + (tag !== "all" ? 1 : 0);
 
   const addTargetCategory =
     addCategory === CUSTOM_CATEGORY ? addCustomCategory.trim() : addCategory;
@@ -493,6 +543,72 @@ export default function TransactionsPage() {
     finishRecategorize();
   };
 
+  // --- Tags + reimbursements -------------------------------------------------
+
+  // Atomic replace: every add/remove ships the FULL set, so there's no save
+  // button to forget. Optimistic chips, reverted on failure.
+  const persistTags = async (next: string[]) => {
+    if (!selected) return;
+    const prev = tagDraft;
+    setTagDraft(next);
+    setTagError(null);
+    const res = await fetch("/api/tags", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "set_tags", transaction_id: selected.id, tags: next }),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setTagError(data.error || "Couldn't save the tags");
+      setTagDraft(prev);
+      return;
+    }
+    const data = await res.json().catch(() => ({}));
+    // The server's normalized set is canonical (lowercase-trim-dedupe).
+    if (Array.isArray(data.tags)) setTagDraft(data.tags);
+    fetchTransactions();
+    fetchTagMeta();
+  };
+
+  const addTag = () => {
+    const t = tagInput.trim().toLowerCase();
+    setTagInput("");
+    if (!t || tagDraft.includes(t)) return;
+    persistTags([...tagDraft, t].sort());
+  };
+
+  const removeTag = (t: string) => persistTags(tagDraft.filter((x) => x !== t));
+
+  const handleReimbursement = async (
+    action: "mark_reimbursable" | "mark_reimbursed" | "clear_reimbursement"
+  ) => {
+    if (!selected) return;
+    setReimbBusy(true);
+    setReimbError(null);
+    const res = await fetch("/api/tags", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action, transaction_id: selected.id }),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setReimbError(data.error || "Couldn't save the change");
+      setReimbBusy(false);
+      return;
+    }
+    setReimbBusy(false);
+    // Keep the open dialog in step without waiting for the refetch.
+    const nextStatus =
+      action === "mark_reimbursable"
+        ? "outstanding"
+        : action === "mark_reimbursed"
+          ? "reimbursed"
+          : null;
+    setSelected((s) => (s ? { ...s, reimbursement_status: nextStatus } : s));
+    fetchTransactions();
+    fetchTagMeta();
+  };
+
   const filterSelects = (
     <>
       <Select value={category} onValueChange={(v) => setCategory(v ?? "all")}>
@@ -523,6 +639,22 @@ export default function TransactionsPage() {
           ))}
         </SelectContent>
       </Select>
+      {/* Only when tags exist — an empty dropdown teaches nothing. */}
+      {tagOptions.length > 0 && (
+        <Select value={tag} onValueChange={(v) => setTag(v ?? "all")}>
+          <SelectTrigger className="w-full sm:w-[150px] font-mono text-xs">
+            <SelectValue placeholder="Tag" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all" className="font-mono text-xs">ALL TAGS</SelectItem>
+            {tagOptions.map((t) => (
+              <SelectItem key={t.tag} value={t.tag} className="font-mono text-xs">
+                {t.tag.toUpperCase()} ({t.count})
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      )}
     </>
   );
 
@@ -687,6 +819,29 @@ export default function TransactionsPage() {
         <p className="font-mono text-xs text-muted-foreground -mt-4 mb-4">{bulkNotice}</p>
       )}
 
+      {/* Money still owed back — visible only while something is outstanding. */}
+      {reimbSummary && reimbSummary.outstanding.count > 0 && (
+        <div className="border border-border mb-6 px-4 py-3 flex flex-wrap items-center gap-x-3 gap-y-1">
+          <span
+            className="inline-block w-2 h-2 shrink-0"
+            style={{ backgroundColor: PALETTE.mustard }}
+            aria-hidden
+          />
+          <span className="font-mono text-xs tracking-widest uppercase text-muted-foreground">
+            REIMBURSEMENTS
+          </span>
+          <span className="font-mono text-xs tracking-widest uppercase">
+            {reimbSummary.outstanding.count} OUTSTANDING ·{" "}
+            {formatCents(reimbSummary.outstanding.total)}
+          </span>
+          {reimbSummary.reimbursed.count > 0 && (
+            <span className="font-mono text-[10px] text-muted-foreground uppercase ml-auto">
+              {formatCents(reimbSummary.reimbursed.total)} COLLECTED
+            </span>
+          )}
+        </div>
+      )}
+
       <Dialog open={filterSheetOpen} onOpenChange={setFilterSheetOpen}>
         <DialogContent className="top-auto bottom-0 left-0 translate-x-0 translate-y-0 w-full max-w-full rounded-none border-t border-border pb-[calc(1rem+env(safe-area-inset-bottom))] data-open:slide-in-from-bottom-4">
           <DialogHeader>
@@ -702,6 +857,7 @@ export default function TransactionsPage() {
                 onClick={() => {
                   setCategory("all");
                   setSource("all");
+                  setTag("all");
                 }}
                 disabled={activeFilters === 0}
                 className="flex-1 font-mono text-xs tracking-widest uppercase"
@@ -1228,6 +1384,114 @@ export default function TransactionsPage() {
                 </div>
               )}
                 </>
+              )}
+
+              {/* TAGS — orthogonal to categories; saved on every change. */}
+              <div className="border p-3 space-y-2">
+                <label className="font-mono text-xs tracking-widest text-muted-foreground">
+                  TAGS
+                </label>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {tagDraft.map((t) => (
+                    <span
+                      key={t}
+                      className="inline-flex items-center gap-1.5 px-2 py-0.5 border font-mono text-[10px] tracking-widest uppercase"
+                    >
+                      {t}
+                      <button
+                        onClick={() => removeTag(t)}
+                        className="text-muted-foreground hover:text-destructive"
+                        aria-label={`Remove tag ${t}`}
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))}
+                  <input
+                    value={tagInput}
+                    onChange={(e) => setTagInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        addTag();
+                      }
+                    }}
+                    placeholder="+ TAG ⏎"
+                    className="w-24 bg-transparent border-b border-input px-1 py-0.5 font-mono text-[10px] tracking-widest uppercase placeholder:text-muted-foreground focus:outline-none focus:border-foreground"
+                    aria-label="Add a tag (press Enter)"
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Labels across categories — &lsquo;vacation&rsquo;,
+                  &lsquo;work-reimbursable&rsquo;. Filter the table by tag above.
+                </p>
+                {tagError && (
+                  <p className="font-mono text-xs text-destructive">{tagError}</p>
+                )}
+              </div>
+
+              {/* REIMBURSEMENT — spend rows only (money you laid out). */}
+              {selected.flow === "spend" && (
+                <div className="border p-3 space-y-2">
+                  <div className="flex items-center gap-3">
+                    <label className="font-mono text-xs tracking-widest text-muted-foreground">
+                      REIMBURSEMENT
+                    </label>
+                    {selected.reimbursement_status === "outstanding" && (
+                      <span
+                        className="font-mono text-[10px] px-1.5 py-0.5 border shrink-0"
+                        style={{ borderColor: PALETTE.mustard, color: PALETTE.mustard }}
+                      >
+                        OUTSTANDING
+                      </span>
+                    )}
+                    {selected.reimbursement_status === "reimbursed" && (
+                      <span
+                        className="font-mono text-[10px] px-1.5 py-0.5 border shrink-0"
+                        style={{ borderColor: PALETTE.sage, color: PALETTE.sage }}
+                      >
+                        REIMBURSED
+                      </span>
+                    )}
+                  </div>
+                  {selected.reimbursement_status === null ? (
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-xs text-muted-foreground">
+                        Waiting on money back for this charge? Track it until it
+                        lands.
+                      </p>
+                      <button
+                        onClick={() => handleReimbursement("mark_reimbursable")}
+                        disabled={reimbBusy}
+                        className="font-mono text-xs tracking-widest uppercase underline underline-offset-2 text-muted-foreground hover:text-foreground disabled:opacity-50 shrink-0"
+                      >
+                        MARK REIMBURSABLE
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-4">
+                      {selected.reimbursement_status === "outstanding" && (
+                        <button
+                          onClick={() => handleReimbursement("mark_reimbursed")}
+                          disabled={reimbBusy}
+                          className="font-mono text-xs tracking-widest uppercase underline underline-offset-2 hover:opacity-80 disabled:opacity-50"
+                        >
+                          MARK REIMBURSED
+                        </button>
+                      )}
+                      <button
+                        onClick={() => handleReimbursement("clear_reimbursement")}
+                        disabled={reimbBusy}
+                        className="font-mono text-xs tracking-widest uppercase underline underline-offset-2 text-muted-foreground hover:text-foreground disabled:opacity-50"
+                      >
+                        CLEAR
+                      </button>
+                    </div>
+                  )}
+                  {reimbError && (
+                    <p className="font-mono text-xs text-destructive">{reimbError}</p>
+                  )}
+                </div>
               )}
               {selected.source === "manual" && (
                 <div className="border p-3 flex items-center justify-between gap-3">

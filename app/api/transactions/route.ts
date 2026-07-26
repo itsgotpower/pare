@@ -15,6 +15,7 @@ export async function GET(request: NextRequest) {
     from: params.get("from") || undefined,
     to: params.get("to") || undefined,
     search: params.get("search") || undefined,
+    tag: params.get("tag") || undefined,
     page: params.get("page") ? parseInt(params.get("page")!) : 1,
     limit: params.get("limit") ? parseInt(params.get("limit")!) : 50,
   };

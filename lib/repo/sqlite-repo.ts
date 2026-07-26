@@ -7,6 +7,7 @@ import type {
   StatementRepo,
   CategoryRepo,
   SplitsRepo,
+  TagsRepo,
   GoalRepo,
   NetWorthRepo,
   SummaryRepo,
@@ -56,6 +57,18 @@ import {
   bulkAssignCategory,
 } from "../db/categories";
 import { getSplits, listAllSplits, setSplits, clearSplits } from "../db/splits";
+import {
+  tagsFor,
+  listTags,
+  listAllTags,
+  setTags,
+  markReimbursable,
+  markReimbursed,
+  clearReimbursement,
+  reimbursementSummary,
+  listReimbursements,
+  listAllReimbursements,
+} from "../db/tags";
 import {
   listGoals,
   upsertGoal,
@@ -218,6 +231,19 @@ export class SqliteRepo implements Repo {
     listAll: () => this.read(() => listAllSplits()),
     set: (transactionId, parts) => this.write(() => setSplits(transactionId, parts)),
     clear: (transactionId) => this.write(() => clearSplits(transactionId)),
+  };
+
+  tags: TagsRepo = {
+    list: (transactionId) => this.read(() => tagsFor(transactionId)),
+    counts: () => this.read(() => listTags()),
+    listAll: () => this.read(() => listAllTags()),
+    set: (transactionId, tags) => this.write(() => setTags(transactionId, tags)),
+    markReimbursable: (transactionId) => this.write(() => markReimbursable(transactionId)),
+    markReimbursed: (transactionId) => this.write(() => markReimbursed(transactionId)),
+    clearReimbursement: (transactionId) => this.write(() => clearReimbursement(transactionId)),
+    reimbursementSummary: () => this.read(() => reimbursementSummary()),
+    listReimbursements: () => this.read(() => listReimbursements()),
+    listAllReimbursements: () => this.read(() => listAllReimbursements()),
   };
 
   goals: GoalRepo = {
