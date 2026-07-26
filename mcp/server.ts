@@ -20,6 +20,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 
 import pkg from "../package.json";
 import { getRepo } from "../lib/repo";
+import { touchMcpHeartbeat, HEARTBEAT_INTERVAL_MS } from "./heartbeat";
 import { registerPareTools } from "./tools";
 
 // Version comes from package.json (single source of truth — same value the web
@@ -32,6 +33,11 @@ registerPareTools(server, getRepo());
 async function main() {
   // Ensure schema + built-in/user rules exist before serving (opens the DB).
   await getRepo().categories.seed();
+  // Liveness beacon for the /profile CLAUDE indicator: touch now, then keep
+  // touching while the MCP client keeps this process alive. unref() so the
+  // timer never holds the process open after the transport closes.
+  touchMcpHeartbeat();
+  setInterval(() => touchMcpHeartbeat(), HEARTBEAT_INTERVAL_MS).unref();
   const transport = new StdioServerTransport();
   await server.connect(transport);
 }

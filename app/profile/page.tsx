@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -15,8 +15,9 @@ import {
 import { PALETTE } from "@/lib/colors";
 import { timeAgo } from "@/lib/format";
 import { purgeDataCaches } from "@/lib/purge-data-cache";
-import { LogOut, Pencil, Download, Database, FileJson, CreditCard, Settings2, MessageSquarePlus } from "lucide-react";
+import { LogOut, Pencil, Download, Database, FileJson, Settings2, MessageSquarePlus } from "lucide-react";
 import { IngestInbox } from "@/components/profile/ingest-inbox";
+import { StatementsCard } from "@/components/profile/statements-card";
 import { FeedbackDialog } from "@/components/feedback/feedback-dialog";
 import { authClient } from "@/lib/auth/client";
 
@@ -60,6 +61,14 @@ interface Profile {
     lastSyncedAt: string | null;
     lastSyncStatus: string | null;
   } | null;
+  // CLAUDE indicator: hosted = live claude.ai-connector OAuth token
+  // (connectedAt), self-host = stdio-server heartbeat (lastSeenAt).
+  // null/absent = status unavailable — hide rather than claim disconnected.
+  mcp?: {
+    connected: boolean;
+    connectedAt: string | null;
+    lastSeenAt: string | null;
+  } | null;
 }
 
 interface Billing {
@@ -78,6 +87,10 @@ const WARN_AFTER_DAYS = 28;
 // successful syncs is worth a nudge — days-since-last-TRANSACTION is the
 // wrong clock for them (a quiet card syncs fine with zero spend).
 const SYNC_OVERDUE_AFTER_HOURS = 48;
+// Self-host CLAUDE indicator: the stdio server heartbeats every 10 min while
+// an MCP client keeps it alive (mcp/heartbeat.ts) — within 3 intervals counts
+// as "running right now"; older heartbeats show as "last seen".
+const MCP_FRESH_WITHIN_MS = 30 * 60 * 1000;
 
 const formatDate = (iso: string | null) =>
   iso
@@ -423,184 +436,108 @@ export default function ProfilePage() {
   ];
 
   return (
-    <div className="p-6 max-w-5xl">
-      <h1 className="font-mono text-2xl font-bold tracking-tight uppercase mb-6">
+    <div className="p-6 max-w-4xl">
+      <h1 className="font-mono text-2xl font-bold tracking-tight uppercase">
         Profile
       </h1>
 
-      <div className="grid gap-3 md:grid-cols-3 mb-3">
-        <Card className="rounded-none ring-0 border border-border md:col-span-2">
-          <CardContent className="flex items-center gap-4">
-            <div className="size-12 shrink-0 border border-foreground flex items-center justify-center font-mono text-lg font-bold">
-              {initials}
-            </div>
-            <div className="min-w-0">
-              {editingName ? (
-                <div className="flex items-center gap-2">
-                  <Input
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && handleSaveName()}
-                    autoFocus
-                    className="h-7 max-w-48 rounded-none font-mono text-sm"
-                  />
-                  <Button
-                    size="sm"
-                    disabled={busy}
-                    onClick={handleSaveName}
-                    className="rounded-none font-mono text-[10px] tracking-widest uppercase"
-                  >
-                    Save
-                  </Button>
-                </div>
-              ) : (
-                <div className="flex items-center gap-2">
-                  <p className="font-mono text-sm font-bold uppercase truncate">
-                    {profile.display_name || "Unnamed"}
-                  </p>
-                  <button
-                    onClick={() => setEditingName(true)}
-                    aria-label="Edit display name"
-                    className="text-muted-foreground hover:text-foreground transition-colors"
-                  >
-                    <Pencil className="size-3.5" />
-                  </button>
-                </div>
-              )}
-              <p className="text-xs text-muted-foreground">
-                Member since {formatDate(profile.created_at)}
-              </p>
-            </div>
-            <div className="ml-auto flex items-center gap-3 shrink-0">
-              <span className="hidden sm:inline font-mono text-[10px] tracking-widest uppercase border border-border px-2 py-1 text-muted-foreground">
-                All data local
-              </span>
+      {/* Identity is a masthead, not a card — the page is about the data below,
+          so the who-you-are strip stays unboxed and quiet. */}
+      <div className="mt-5 mb-8 flex flex-wrap items-center gap-x-4 gap-y-3">
+        <div className="size-11 shrink-0 border border-foreground flex items-center justify-center font-mono text-base font-bold">
+          {initials}
+        </div>
+        <div className="min-w-0 flex-1">
+          {editingName ? (
+            <div className="flex items-center gap-2">
+              <Input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleSaveName()}
+                autoFocus
+                className="h-7 max-w-48 rounded-none font-mono text-sm"
+              />
               <Button
-                variant="outline"
-                onClick={handleSignOut}
-                className="rounded-none font-mono text-xs tracking-widest uppercase"
+                size="sm"
+                disabled={busy}
+                onClick={handleSaveName}
+                className="rounded-none font-mono text-[10px] tracking-widest uppercase"
               >
-                <LogOut data-icon="inline-start" />
-                Sign out
+                Save
               </Button>
             </div>
-          </CardContent>
-        </Card>
-
-        <Card className="rounded-none ring-0 border border-border">
-          <CardContent>
-            <p className={`${labelClass} mb-2`}>Security</p>
-            <p className="text-xs mb-0.5">
-              Password changed {formatDate(profile.password_changed_at)}
-            </p>
-            <p className="text-[11px] text-muted-foreground mb-3">
-              Changing it signs out every session.
-            </p>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setPwStatus(null);
-                setPwOpen(true);
-              }}
-              className="rounded-none font-mono text-xs tracking-widest uppercase"
-            >
-              Change password
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-
-      {billing?.hosted && (
-        <Card className="rounded-none ring-0 border border-border py-0 gap-0 mb-3">
-          <div className="flex items-center justify-between border-b border-border px-4 py-3">
-            <span className={labelClass}>Plan</span>
-            <span
-              className={`font-mono text-[10px] tracking-widest uppercase border px-1.5 py-0.5 ${
-                billing.plan.id === "pro" ? "" : "text-muted-foreground border-border"
-              }`}
-              style={
-                billing.plan.id === "pro"
-                  ? { color: PALETTE.sage, borderColor: PALETTE.sage }
-                  : undefined
-              }
-            >
-              {billing.plan.label}
-            </span>
-          </div>
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-3 px-4 py-4">
-            <CreditCard className="size-5 text-muted-foreground shrink-0" />
-            <div className="flex-1 min-w-48">
-              <p className="font-mono text-sm font-bold uppercase">
-                {billing.plan.label} plan
+          ) : (
+            <div className="flex items-center gap-2">
+              <p className="font-mono text-sm font-bold uppercase truncate">
+                {profile.display_name || "Unnamed"}
               </p>
-              <p className="text-xs text-muted-foreground">
-                {billing.plan.statementsPerMonth === null
-                  ? "Unlimited statements per month"
-                  : `Up to ${billing.plan.statementsPerMonth} statements per month`}
-                {billing.status && billing.status !== "active"
-                  ? ` · status: ${billing.status}`
-                  : ""}
-              </p>
-              <p className="text-xs text-muted-foreground">
-                {billing.plan.id !== "pro" && (
-                  <>Plus is $8/mo or $72/yr USD — 2 accounts, unlimited uploads. </>
-                )}
-                <Link
-                  href="/pricing"
-                  className="link"
-                >
-                  See pricing
-                </Link>
-              </p>
-            </div>
-            <div className="flex gap-2 shrink-0">
-              {billing.configured && billing.plan.id !== "pro" && (
-                <Button
-                  onClick={() => openBillingFlow("/api/billing/checkout")}
-                  disabled={billingBusy}
-                  className="rounded-none font-mono text-xs tracking-widest uppercase"
-                >
-                  Upgrade to Plus
-                </Button>
-              )}
-              {!billing.configured && (
-                <span className="font-mono text-[10px] tracking-widest uppercase border border-border px-2 py-1 text-muted-foreground">
-                  Upgrades coming soon
-                </span>
-              )}
-              {billing.manageable && (
-                <Button
-                  variant="outline"
-                  onClick={() => openBillingFlow("/api/billing/portal")}
-                  disabled={billingBusy}
-                  className="rounded-none font-mono text-xs tracking-widest uppercase"
-                >
-                  Manage billing
-                </Button>
-              )}
-            </div>
-          </div>
-          {(billingNotice || billingError) && (
-            <div className="border-t border-border px-4 py-2">
-              {billingError ? (
-                <p className="font-mono text-xs text-destructive">{billingError}</p>
-              ) : (
-                <p
-                  className="font-mono text-xs"
-                  style={{ color: billingNotice!.ok ? PALETTE.sage : PALETTE.terracotta }}
-                >
-                  {billingNotice!.msg}
-                </p>
-              )}
+              <button
+                onClick={() => setEditingName(true)}
+                aria-label="Edit display name"
+                className="text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <Pencil className="size-3.5" />
+              </button>
             </div>
           )}
-        </Card>
-      )}
-
-      {hosted && <IngestInbox />}
+          <p className="text-xs text-muted-foreground">
+            Member since {formatDate(profile.created_at)} · All data local
+          </p>
+          {profile.mcp &&
+            (() => {
+              const { connected, connectedAt, lastSeenAt } = profile.mcp;
+              const fresh =
+                lastSeenAt !== null &&
+                Date.now() - Date.parse(lastSeenAt) < MCP_FRESH_WITHIN_MS;
+              // Hosted (lastSeenAt null): connected = live token → sage.
+              // Self-host: sage only while the stdio server is actually alive.
+              const live = connected && (lastSeenAt === null || fresh);
+              const label = !connected
+                ? "Connect Claude →"
+                : live
+                  ? "Claude connected"
+                  : `Claude last seen ${timeAgo(lastSeenAt!)}`;
+              return (
+                <Link
+                  href="/connect"
+                  title={
+                    connectedAt
+                      ? `Connected since ${formatDate(connectedAt)}`
+                      : undefined
+                  }
+                  className={`mt-1.5 inline-flex items-center gap-1.5 font-mono text-[10px] tracking-widest uppercase transition-colors ${
+                    live ? "" : "text-muted-foreground hover:text-foreground"
+                  }`}
+                  style={live ? { color: PALETTE.sage } : undefined}
+                >
+                  <span
+                    aria-hidden
+                    className={`size-1.5 ${
+                      live
+                        ? ""
+                        : connected
+                          ? "bg-muted-foreground/50"
+                          : "border border-muted-foreground/60"
+                    }`}
+                    style={live ? { backgroundColor: PALETTE.sage } : undefined}
+                  />
+                  {label}
+                </Link>
+              );
+            })()}
+        </div>
+        <Button
+          variant="outline"
+          onClick={handleSignOut}
+          className="rounded-none font-mono text-xs tracking-widest uppercase shrink-0"
+        >
+          <LogOut data-icon="inline-start" />
+          Sign out
+        </Button>
+      </div>
 
       <Card className="rounded-none ring-0 border border-border py-0 gap-0 mb-3">
-        <div className="flex items-center justify-between border-b border-border px-4 py-3">
+        <div className="flex flex-wrap items-center justify-between gap-2 px-4 pt-4">
           <span className={labelClass}>Data health</span>
           <Link
             href="/categories"
@@ -612,18 +549,15 @@ export default function ProfilePage() {
             · {health.rule_count} rules →
           </Link>
         </div>
-        <div className="grid grid-cols-2 sm:grid-cols-4 border-b border-border">
-          {stats.map(([label, value], i) => (
-            <div
-              key={label}
-              className={`px-4 py-3 ${i > 0 ? "border-l border-border/50" : ""}`}
-            >
-              <p className="font-mono text-xl font-bold">{value}</p>
+        <div className="grid grid-cols-2 gap-x-4 gap-y-4 px-4 pt-4 pb-5 sm:grid-cols-4">
+          {stats.map(([label, value]) => (
+            <div key={label}>
+              <p className="font-mono text-2xl font-bold">{value}</p>
               <p className={labelClass}>{label}</p>
             </div>
           ))}
         </div>
-        <div>
+        <div className="border-t border-border/60">
           {health.sources.map((s, i) => {
             // Quick-added cash rows have no statement feed behind them — there
             // is nothing to upload, so staleness doesn't apply. Closed accounts
@@ -657,20 +591,23 @@ export default function ProfilePage() {
             return (
               <div
                 key={s.source}
-                className={`flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-2.5 ${
-                  i > 0 ? "border-t border-border/50" : ""
+                className={`flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3 ${
+                  i > 0 ? "border-t border-border/40" : ""
                 } ${s.hidden ? "opacity-60" : ""}`}
               >
-                <span className="font-mono text-xs tracking-widest w-24 shrink-0 truncate" title={s.source}>
+                <span
+                  className="font-mono text-xs tracking-widest w-24 shrink-0 truncate max-sm:w-auto max-sm:flex-1"
+                  title={s.source}
+                >
                   {s.label}
                 </span>
-                <span className="text-xs text-muted-foreground flex-1 min-w-40">
+                <span className="text-xs text-muted-foreground flex-1 min-w-40 max-sm:order-2 max-sm:w-full max-sm:flex-none max-sm:min-w-0">
                   {isManual
                     ? `Quick-added in app · txns to ${formatDate(s.last_txn_date)}`
                     : `Txns to ${formatDate(s.last_txn_date)} · last statement ${formatMonth(s.last_period)} · ${s.statement_count} statements`}
                 </span>
                 <span
-                  className="flex items-center gap-1"
+                  className="flex items-center gap-1 max-sm:order-3"
                   role="img"
                   aria-label={`${coveredCount} of the last ${s.coverage.length} months covered`}
                 >
@@ -695,63 +632,71 @@ export default function ProfilePage() {
                   </span>
                 </span>
                 {s.hidden && (
-                  <span className="font-mono text-[10px] tracking-widest uppercase border border-border px-1.5 py-0.5 text-muted-foreground">
+                  <span className="font-mono text-[10px] tracking-widest uppercase text-muted-foreground max-sm:order-4">
                     Hidden
                   </span>
                 )}
-                {s.closed ? (
-                  <span className="font-mono text-[10px] tracking-widest uppercase border border-border px-1.5 py-0.5 text-muted-foreground">
-                    Closed
-                  </span>
-                ) : syncActive ? (
-                  sync?.lastSyncedAt ? (
-                    syncFresh ? (
-                      <span
-                        className="font-mono text-[10px] tracking-widest uppercase border px-1.5 py-0.5"
-                        style={{ color: PALETTE.sage, borderColor: PALETTE.sage }}
-                      >
-                        Synced {timeAgo(sync.lastSyncedAt)}
-                      </span>
-                    ) : (
-                      <Link
-                        href="/upload"
-                        className="font-mono text-[10px] tracking-widest uppercase border px-1.5 py-0.5"
-                        style={{ color: PALETTE.mustard, borderColor: PALETTE.mustard }}
-                      >
-                        Sync overdue — {timeAgo(sync.lastSyncedAt)}
-                      </Link>
-                    )
-                  ) : (
-                    <span className="font-mono text-[10px] tracking-widest uppercase border border-border px-1.5 py-0.5 text-muted-foreground">
-                      Synced
+                <span className="flex items-center max-sm:order-4">
+                  {s.closed ? (
+                    <span className="flex items-center gap-1.5 font-mono text-[10px] tracking-widest uppercase text-muted-foreground">
+                      <span aria-hidden className="size-1.5 bg-muted-foreground/50" />
+                      Closed
                     </span>
-                  )
-                ) : stale || aging ? (
-                  <Link
-                    href="/upload"
-                    className="font-mono text-[10px] tracking-widest uppercase border px-1.5 py-0.5"
-                    style={
-                      stale
-                        ? { color: PALETTE.terracotta, borderColor: PALETTE.terracotta }
-                        : { color: PALETTE.mustard, borderColor: PALETTE.mustard }
-                    }
-                  >
-                    {s.days_since_last}d — upload
-                  </Link>
-                ) : isManual ? null : (
-                  <span
-                    className="font-mono text-[10px] tracking-widest uppercase border px-1.5 py-0.5"
-                    style={{ color: PALETTE.sage, borderColor: PALETTE.sage }}
-                  >
-                    Current
-                    {s.days_since_last !== null &&
-                      ` · ${s.days_since_last === 0 ? "today" : `${s.days_since_last}d`}`}
-                  </span>
-                )}
+                  ) : syncActive ? (
+                    sync?.lastSyncedAt ? (
+                      syncFresh ? (
+                        <span
+                          className="flex items-center gap-1.5 font-mono text-[10px] tracking-widest uppercase"
+                          style={{ color: PALETTE.sage }}
+                        >
+                          <span aria-hidden className="size-1.5" style={{ backgroundColor: PALETTE.sage }} />
+                          Synced {timeAgo(sync.lastSyncedAt)}
+                        </span>
+                      ) : (
+                        <Link
+                          href="/upload"
+                          className="flex items-center gap-1.5 font-mono text-[10px] tracking-widest uppercase hover:underline"
+                          style={{ color: PALETTE.mustard }}
+                        >
+                          <span aria-hidden className="size-1.5" style={{ backgroundColor: PALETTE.mustard }} />
+                          Sync overdue — {timeAgo(sync.lastSyncedAt)}
+                        </Link>
+                      )
+                    ) : (
+                      <span className="flex items-center gap-1.5 font-mono text-[10px] tracking-widest uppercase text-muted-foreground">
+                        <span aria-hidden className="size-1.5 bg-muted-foreground/50" />
+                        Synced
+                      </span>
+                    )
+                  ) : stale || aging ? (
+                    <Link
+                      href="/upload"
+                      className="flex items-center gap-1.5 font-mono text-[10px] tracking-widest uppercase hover:underline"
+                      style={{ color: stale ? PALETTE.terracotta : PALETTE.mustard }}
+                    >
+                      <span
+                        aria-hidden
+                        className="size-1.5"
+                        style={{ backgroundColor: stale ? PALETTE.terracotta : PALETTE.mustard }}
+                      />
+                      {s.days_since_last}d — upload
+                    </Link>
+                  ) : isManual ? null : (
+                    <span
+                      className="flex items-center gap-1.5 font-mono text-[10px] tracking-widest uppercase"
+                      style={{ color: PALETTE.sage }}
+                    >
+                      <span aria-hidden className="size-1.5" style={{ backgroundColor: PALETTE.sage }} />
+                      Current
+                      {s.days_since_last !== null &&
+                        ` · ${s.days_since_last === 0 ? "today" : `${s.days_since_last}d`}`}
+                    </span>
+                  )}
+                </span>
                 <button
                   onClick={() => openManageAccount(s)}
                   aria-label={`Manage ${s.label}`}
-                  className="text-muted-foreground hover:text-foreground transition-colors"
+                  className="text-muted-foreground hover:text-foreground transition-colors max-sm:order-1"
                 >
                   <Settings2 className="size-3.5" />
                 </button>
@@ -761,12 +706,122 @@ export default function ProfilePage() {
         </div>
       </Card>
 
+      {(billing?.hosted || hosted) && (
+        <div
+          className={`grid gap-3 mb-3 ${
+            billing?.hosted && hosted ? "md:grid-cols-2" : ""
+          }`}
+        >
+          {billing?.hosted && (
+            <Card className="rounded-none ring-0 border border-border py-0 gap-0">
+              <div className="flex flex-wrap items-center justify-between gap-2 px-4 pt-4">
+                <span className={labelClass}>Plan</span>
+                <span
+                  className="font-mono text-[10px] tracking-widest uppercase text-muted-foreground"
+                  style={
+                    billing.plan.id === "pro" ? { color: PALETTE.sage } : undefined
+                  }
+                >
+                  {billing.plan.label}
+                </span>
+              </div>
+              <div className="px-4 pt-2 pb-4">
+                <p className="text-xs">
+                  {billing.plan.statementsPerMonth === null
+                    ? "Unlimited statements per month"
+                    : `Up to ${billing.plan.statementsPerMonth} statements per month`}
+                  {billing.status && billing.status !== "active"
+                    ? ` · status: ${billing.status}`
+                    : ""}
+                </p>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  {billing.plan.id !== "pro" && (
+                    <>Plus is $8/mo or $72/yr USD — 2 accounts, unlimited uploads. </>
+                  )}
+                  <Link href="/pricing" className="link">
+                    See pricing
+                  </Link>
+                </p>
+                <div className="flex flex-wrap items-center gap-2 mt-3">
+                  {billing.configured && billing.plan.id !== "pro" && (
+                    <Button
+                      onClick={() => openBillingFlow("/api/billing/checkout")}
+                      disabled={billingBusy}
+                      className="rounded-none font-mono text-xs tracking-widest uppercase"
+                    >
+                      Upgrade to Plus
+                    </Button>
+                  )}
+                  {!billing.configured && (
+                    <span className="font-mono text-[10px] tracking-widest uppercase text-muted-foreground">
+                      Upgrades coming soon
+                    </span>
+                  )}
+                  {billing.manageable && (
+                    <Button
+                      variant="outline"
+                      onClick={() => openBillingFlow("/api/billing/portal")}
+                      disabled={billingBusy}
+                      className="rounded-none font-mono text-xs tracking-widest uppercase"
+                    >
+                      Manage billing
+                    </Button>
+                  )}
+                </div>
+                {(billingNotice || billingError) &&
+                  (billingError ? (
+                    <p className="mt-2 font-mono text-xs text-destructive">
+                      {billingError}
+                    </p>
+                  ) : (
+                    <p
+                      className="mt-2 font-mono text-xs"
+                      style={{
+                        color: billingNotice!.ok ? PALETTE.sage : PALETTE.terracotta,
+                      }}
+                    >
+                      {billingNotice!.msg}
+                    </p>
+                  ))}
+              </div>
+            </Card>
+          )}
+          {hosted && <IngestInbox />}
+        </div>
+      )}
+
+      <StatementsCard onChanged={fetchProfile} />
+
       <div className="grid gap-3 md:grid-cols-3">
-        <Card className="rounded-none ring-0 border border-border md:col-span-2">
-          <CardHeader>
-            <CardTitle className={labelClass}>Your data, your files</CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-wrap gap-2">
+        <Card className="rounded-none ring-0 border border-border py-0 gap-0">
+          <div className="px-4 pt-4">
+            <span className={labelClass}>Security</span>
+          </div>
+          <div className="px-4 pt-2 pb-4">
+            <p className="text-xs">
+              Password changed {formatDate(profile.password_changed_at)}
+            </p>
+            <p className="text-[11px] text-muted-foreground mt-0.5">
+              Changing it signs out every session.
+            </p>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setPwStatus(null);
+                setPwOpen(true);
+              }}
+              className="rounded-none font-mono text-xs tracking-widest uppercase mt-3"
+            >
+              Change password
+            </Button>
+          </div>
+        </Card>
+
+        <Card className="rounded-none ring-0 border border-border py-0 gap-0">
+          <div className="px-4 pt-4">
+            <span className={labelClass}>Your data, your files</span>
+          </div>
+          <div className="px-4 pt-2 pb-4 flex flex-wrap content-start gap-2">
             <a href="/api/data?format=csv" download>
               <Button variant="outline" className="rounded-none font-mono text-xs tracking-widest uppercase">
                 <Download data-icon="inline-start" />
@@ -790,16 +845,16 @@ export default function ProfilePage() {
                 </Button>
               </a>
             )}
-          </CardContent>
+          </div>
         </Card>
 
-        <Card className="rounded-none ring-0 border border-destructive/50">
-          <CardHeader>
-            <CardTitle className="font-mono text-[10px] tracking-widest uppercase text-destructive">
+        <Card className="rounded-none ring-0 border border-border py-0 gap-0">
+          <div className="px-4 pt-4">
+            <span className="font-mono text-[10px] tracking-widest uppercase text-destructive">
               Danger zone
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-col items-start gap-2">
+            </span>
+          </div>
+          <div className="px-4 pt-2 pb-4 flex flex-wrap content-start gap-2">
             <Button
               variant="destructive"
               onClick={() => {
@@ -824,11 +879,11 @@ export default function ProfilePage() {
                 Delete account…
               </Button>
             )}
-          </CardContent>
+          </div>
         </Card>
       </div>
 
-      <div className="mt-6">
+      <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
         <FeedbackDialog
           triggerClassName="inline-flex items-center gap-2 border border-input bg-background px-4 py-2 font-mono text-xs tracking-widest uppercase hover:bg-accent hover:text-accent-foreground transition-colors"
           trigger={
@@ -838,21 +893,20 @@ export default function ProfilePage() {
             </>
           }
         />
+        {APP_VERSION && (
+          <p className="font-mono text-[10px] tracking-widest uppercase text-muted-foreground/60">
+            Pare{" "}
+            <a
+              href={`${REPO_URL}/releases/tag/v${APP_VERSION}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:text-foreground transition-colors"
+            >
+              v{APP_VERSION}
+            </a>
+          </p>
+        )}
       </div>
-
-      {APP_VERSION && (
-        <p className="mt-2 font-mono text-[10px] tracking-widest uppercase text-muted-foreground/60">
-          Pare{" "}
-          <a
-            href={`${REPO_URL}/releases/tag/v${APP_VERSION}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="hover:text-foreground transition-colors"
-          >
-            v{APP_VERSION}
-          </a>
-        </p>
-      )}
 
       <Dialog open={pwOpen} onOpenChange={setPwOpen}>
         <DialogContent className="rounded-none">

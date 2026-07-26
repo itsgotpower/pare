@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Mail, Copy, Check, RefreshCw } from "lucide-react";
+import { Copy, Check, RefreshCw } from "lucide-react";
 import { copyText } from "@/lib/clipboard";
 
 const labelClass = "font-mono text-[10px] tracking-widest uppercase text-muted-foreground";
@@ -62,67 +62,67 @@ export function IngestInbox() {
   if (!address) return null;
 
   return (
-    <Card className="rounded-none ring-0 border border-border py-0 gap-0 mb-3">
-      <div className="flex items-center justify-between border-b border-border px-4 py-3">
+    <Card className="rounded-none ring-0 border border-border py-0 gap-0">
+      <div className="flex flex-wrap items-center justify-between gap-2 px-4 pt-4">
         <span className={labelClass}>Statement inbox</span>
         <span className={`${labelClass} hidden sm:inline`}>Forward · parse · done</span>
       </div>
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-3 px-4 py-4">
-        <Mail className="size-5 text-muted-foreground shrink-0" />
-        <div className="flex-1 min-w-56">
-          <p className="font-mono text-sm font-bold break-all">{address}</p>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            Forward a statement email here (or set a bank auto-forward rule) and the
-            PDF is parsed into your account automatically.
-          </p>
+      <div className="px-4 pt-2 pb-4">
+        <div className="flex items-center gap-1">
+          <p className="font-mono text-sm font-bold break-all min-w-0">{address}</p>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            onClick={copy}
+            aria-label={copied ? "Copied" : "Copy address"}
+            className="rounded-none shrink-0 text-muted-foreground hover:text-foreground"
+          >
+            {copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
+          </Button>
         </div>
-        <Button
-          variant="outline"
-          onClick={copy}
-          className="rounded-none font-mono text-xs tracking-widest uppercase shrink-0"
-        >
-          {copied ? <Check data-icon="inline-start" /> : <Copy data-icon="inline-start" />}
-          {copied ? "Copied" : "Copy"}
-        </Button>
-      </div>
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-border px-4 py-2.5">
-        {confirmRotate ? (
-          <>
-            <span className="text-xs text-muted-foreground flex-1 min-w-48">
-              Rotating mints a new address — the current one stops working immediately.
-            </span>
-            <Button
-              variant="destructive"
-              disabled={busy}
-              onClick={rotate}
-              className="rounded-none font-mono text-[10px] tracking-widest uppercase"
-            >
-              <RefreshCw data-icon="inline-start" />
-              Rotate now
-            </Button>
-            <Button
-              variant="ghost"
-              disabled={busy}
-              onClick={() => setConfirmRotate(false)}
-              className="rounded-none font-mono text-[10px] tracking-widest uppercase"
-            >
-              Cancel
-            </Button>
-          </>
-        ) : (
-          <>
-            <span className="text-xs text-muted-foreground flex-1 min-w-48">
-              Keep this address private — anyone who has it can add statements to your
-              account.
-            </span>
-            <button
-              onClick={() => setConfirmRotate(true)}
-              className="font-mono text-[10px] tracking-widest uppercase text-muted-foreground hover:text-foreground transition-colors"
-            >
-              New address →
-            </button>
-          </>
-        )}
+        <p className="text-[11px] text-muted-foreground mt-1">
+          Forward a statement email here (or set a bank auto-forward rule) and the
+          PDF is parsed into your account automatically.
+        </p>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 mt-3">
+          {confirmRotate ? (
+            <>
+              <span className="text-[11px] text-muted-foreground flex-1 min-w-48">
+                Rotating mints a new address — the current one stops working immediately.
+              </span>
+              <Button
+                variant="destructive"
+                disabled={busy}
+                onClick={rotate}
+                className="rounded-none font-mono text-[10px] tracking-widest uppercase"
+              >
+                <RefreshCw data-icon="inline-start" />
+                Rotate now
+              </Button>
+              <Button
+                variant="ghost"
+                disabled={busy}
+                onClick={() => setConfirmRotate(false)}
+                className="rounded-none font-mono text-[10px] tracking-widest uppercase"
+              >
+                Cancel
+              </Button>
+            </>
+          ) : (
+            <>
+              <span className="text-[11px] text-muted-foreground flex-1 min-w-48">
+                Keep this address private — anyone who has it can add statements to your
+                account.
+              </span>
+              <button
+                onClick={() => setConfirmRotate(true)}
+                className="font-mono text-[10px] tracking-widest uppercase text-muted-foreground hover:text-foreground transition-colors"
+              >
+                New address →
+              </button>
+            </>
+          )}
+        </div>
       </div>
     </Card>
   );
