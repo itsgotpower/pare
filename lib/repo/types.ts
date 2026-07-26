@@ -28,6 +28,7 @@ import type {
   TrendPoint,
   TopMerchant,
 } from "../db/summary";
+import type { YoySummary, YoyCategoryDelta, YoyMonthPoint } from "../db/yoy";
 import type { MonthlyIncome, IncomeType, IncomeVsSpend } from "../db/income";
 import type { MonthReview } from "../db/monthReview";
 import type { Cashflow } from "../db/cashflow";
@@ -71,6 +72,9 @@ export type {
   CategoryBreakdown,
   TrendPoint,
   TopMerchant,
+  YoySummary,
+  YoyCategoryDelta,
+  YoyMonthPoint,
   MonthlyIncome,
   IncomeType,
   IncomeVsSpend,
@@ -260,6 +264,9 @@ export interface SummaryRepo {
   categoryBreakdown(month?: string): Promise<CategoryBreakdown[]>;
   trends(): Promise<TrendPoint[]>;
   topMerchants(limit?: number, month?: string, category?: string): Promise<TopMerchant[]>;
+  // Year-over-year: latest data month vs the same month last year, plus the
+  // 12-vs-12 aligned monthly overlay (lib/db/yoy.ts).
+  yoy(): Promise<YoySummary>;
 }
 
 export interface IncomeRepo {

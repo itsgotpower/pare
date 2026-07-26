@@ -76,6 +76,7 @@ import {
   getTrends,
   getTopMerchants,
 } from "../db/summary";
+import { getYoy } from "../db/yoy";
 import { getMonthlyIncome, getIncomeByType, getIncomeVsSpend } from "../db/income";
 import { getMonthReview } from "../db/monthReview";
 import { getCashflow } from "../db/cashflow";
@@ -241,6 +242,7 @@ export class SqliteRepo implements Repo {
     trends: () => this.read(() => getTrends()),
     topMerchants: (limit, month, category) =>
       this.read(() => getTopMerchants(limit, month, category)),
+    yoy: () => this.read(() => getYoy()),
   };
 
   income: IncomeRepo = {

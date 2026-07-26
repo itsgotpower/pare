@@ -14,6 +14,7 @@ import { ForecastTab, type CashflowForecast } from "@/components/dashboard/forec
 import { SafeToSpendHero } from "@/components/dashboard/safe-to-spend";
 import { BaselineTab } from "@/components/dashboard/baseline-tab";
 import { CashflowTab, type Forecast } from "@/components/dashboard/cashflow-tab";
+import { YoySection } from "@/components/dashboard/yoy-section";
 import type { Cashflow } from "@/components/dashboard/cashflow-sankey";
 import {
   IncomeTab,
@@ -650,6 +651,7 @@ export default function Dashboard() {
                 </div>
               ))}
             </div>
+            <YoySection tooltipTrigger={tooltipTrigger} />
           </TabsContent>
 
           <TabsContent value="income">
