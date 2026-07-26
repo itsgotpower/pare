@@ -69,11 +69,13 @@ export async function GET(request: NextRequest) {
     }
 
     case "json": {
-      const [transactions, rules, splits, goals] = await Promise.all([
+      const [transactions, rules, splits, goals, tags, reimbursements] = await Promise.all([
         repo.transactions.exportAll(),
         repo.categories.listRules(),
         repo.splits.listAll(),
         repo.goals.list(),
+        repo.tags.listAll(),
+        repo.tags.listAllReimbursements(),
       ]);
       const payload = {
         exported_at: new Date().toISOString(),
@@ -86,6 +88,10 @@ export async function GET(request: NextRequest) {
         // Split parts, so the JSON export stays a faithful backup (splits
         // re-slice the transactions above by transaction_id).
         transaction_splits: splits,
+        // Tags + reimbursement marks — base-table reads (incl. hidden
+        // accounts), keyed by transaction_id like the splits above.
+        transaction_tags: tags,
+        reimbursements,
         // goals.list() already returns only active goals.
         goals: goals.map((g) => ({ category: g.category, monthly_limit: g.monthly_limit })),
       };
@@ -112,13 +118,17 @@ export async function DELETE(request: NextRequest) {
 
   const db = getDb();
   const wipe = db.transaction(() => {
-    // Overrides and splits reference transactions(id) (FKs are ON) — delete
-    // the children first.
+    // Overrides, splits, tags, and reimbursements reference transactions(id)
+    // (FKs are ON) — delete the children first. Tags/reimbursements are
+    // row-scoped, so dying with their transactions is correct (unlike
+    // rules/goals/marks, which survive the wipe).
     const overrides = db.prepare("DELETE FROM category_overrides").run().changes;
     const splits = db.prepare("DELETE FROM transaction_splits").run().changes;
+    const tags = db.prepare("DELETE FROM transaction_tags").run().changes;
+    const reimbursements = db.prepare("DELETE FROM reimbursements").run().changes;
     const txns = db.prepare("DELETE FROM transactions").run().changes;
     const stmts = db.prepare("DELETE FROM statements").run().changes;
-    return { transactions: txns, statements: stmts, overrides, splits };
+    return { transactions: txns, statements: stmts, overrides, splits, tags, reimbursements };
   });
   const deleted = wipe();
 

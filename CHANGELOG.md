@@ -12,6 +12,22 @@ contracts, on-disk and crypto formats) may change between minor versions — see
 
 ### Added
 
+- **Tags** — label any transaction with free-form tags ('vacation',
+  'work-reimbursable') from the row dialog, orthogonal to categories: add or
+  remove a chip and it saves instantly, and a new tag filter on
+  `/transactions` narrows the table to one tag. Tags ride along in the JSON
+  export ([#143]).
+- **Reimbursement tracking** — mark a charge reimbursable and it shows as
+  OUTSTANDING with a summary strip ("2 outstanding · $180") above the
+  transactions table until you mark it reimbursed; the totals live in the row
+  dialog's REIMBURSEMENT block ([#143]).
+- **Year-over-year comparison** — the BY CATEGORY tab ends with a YEAR OVER
+  YEAR section once a full year of data exists: the last 12 months overlaid
+  on the 12 before them, the latest month against the same month last year,
+  and a top-movers list of the categories that changed most ([#142]).
+- **Savings-rate trend** — the INCOME tab charts your monthly savings rate
+  (net ÷ income) across the whole data range, with the current month against
+  its trailing-3-month average ([#142]).
 - **Unusual-charge alerts** — the dashboard INSIGHTS panel now flags single
   charges that are outliers against your own history: a charge well above a
   merchant's typical amount ("5.2× your typical $86 at this merchant"), or —
@@ -326,6 +342,8 @@ server exposing the local data to MCP clients. Ships open-source repo scaffoldin
 [0.2.0]: https://github.com/itsgotpower/pare/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/itsgotpower/pare/releases/tag/v0.1.0
 
+[#143]: https://github.com/itsgotpower/pare/pull/143
+[#142]: https://github.com/itsgotpower/pare/pull/142
 [#141]: https://github.com/itsgotpower/pare/pull/141
 [#140]: https://github.com/itsgotpower/pare/pull/140
 [#139]: https://github.com/itsgotpower/pare/pull/139

@@ -7,6 +7,7 @@ import type {
   StatementRepo,
   CategoryRepo,
   SplitsRepo,
+  TagsRepo,
   GoalRepo,
   NetWorthRepo,
   SummaryRepo,
@@ -57,6 +58,18 @@ import {
 } from "../db/categories";
 import { getSplits, listAllSplits, setSplits, clearSplits } from "../db/splits";
 import {
+  tagsFor,
+  listTags,
+  listAllTags,
+  setTags,
+  markReimbursable,
+  markReimbursed,
+  clearReimbursement,
+  reimbursementSummary,
+  listReimbursements,
+  listAllReimbursements,
+} from "../db/tags";
+import {
   listGoals,
   upsertGoal,
   deleteGoal,
@@ -76,6 +89,7 @@ import {
   getTrends,
   getTopMerchants,
 } from "../db/summary";
+import { getYoy } from "../db/yoy";
 import { getMonthlyIncome, getIncomeByType, getIncomeVsSpend } from "../db/income";
 import { getMonthReview } from "../db/monthReview";
 import { getCashflow } from "../db/cashflow";
@@ -219,6 +233,19 @@ export class SqliteRepo implements Repo {
     clear: (transactionId) => this.write(() => clearSplits(transactionId)),
   };
 
+  tags: TagsRepo = {
+    list: (transactionId) => this.read(() => tagsFor(transactionId)),
+    counts: () => this.read(() => listTags()),
+    listAll: () => this.read(() => listAllTags()),
+    set: (transactionId, tags) => this.write(() => setTags(transactionId, tags)),
+    markReimbursable: (transactionId) => this.write(() => markReimbursable(transactionId)),
+    markReimbursed: (transactionId) => this.write(() => markReimbursed(transactionId)),
+    clearReimbursement: (transactionId) => this.write(() => clearReimbursement(transactionId)),
+    reimbursementSummary: () => this.read(() => reimbursementSummary()),
+    listReimbursements: () => this.read(() => listReimbursements()),
+    listAllReimbursements: () => this.read(() => listAllReimbursements()),
+  };
+
   goals: GoalRepo = {
     list: () => this.read(() => listGoals()),
     upsert: (category, monthlyLimit) => this.write(() => upsertGoal(category, monthlyLimit)),
@@ -241,6 +268,7 @@ export class SqliteRepo implements Repo {
     trends: () => this.read(() => getTrends()),
     topMerchants: (limit, month, category) =>
       this.read(() => getTopMerchants(limit, month, category)),
+    yoy: () => this.read(() => getYoy()),
   };
 
   income: IncomeRepo = {

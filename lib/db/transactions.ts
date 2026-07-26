@@ -17,6 +17,12 @@ export interface TransactionRow {
   effective_category: string;
   has_override: number;
   has_splits: number;
+  // Comma-joined lowercase tags ("vacation,work"), or null when untagged —
+  // aggregated in the list query so the row dialog renders chips without an
+  // N+1 fetch. The editable source of truth stays transaction_tags.
+  tags: string | null;
+  // 'outstanding' | 'reimbursed' | null (unmarked) — from reimbursements.
+  reimbursement_status: string | null;
   dedup_key: string;
   created_at: string;
 }
@@ -28,6 +34,8 @@ export interface TransactionFilters {
   from?: string;
   to?: string;
   search?: string;
+  // Exact match on a normalized (lowercase-trimmed) tag.
+  tag?: string;
   page?: number;
   limit?: number;
 }
@@ -174,9 +182,11 @@ export function deleteManualTransaction(id: number): { deleted: number } {
       | { source: string }
       | undefined;
     if (!row || row.source !== MANUAL_SOURCE) return 0;
-    // Children first — both carry a FK to transactions(id).
+    // Children first — all four carry a FK to transactions(id).
     db.prepare("DELETE FROM category_overrides WHERE transaction_id = ?").run(id);
     db.prepare("DELETE FROM transaction_splits WHERE transaction_id = ?").run(id);
+    db.prepare("DELETE FROM transaction_tags WHERE transaction_id = ?").run(id);
+    db.prepare("DELETE FROM reimbursements WHERE transaction_id = ?").run(id);
     return db.prepare("DELETE FROM transactions WHERE id = ?").run(id).changes;
   });
   return { deleted: tx() };
@@ -229,6 +239,13 @@ export function listTransactions(filters: TransactionFilters = {}): {
     conditions.push("description LIKE @search");
     params.search = `%${filters.search}%`;
   }
+  if (filters.tag) {
+    conditions.push(
+      `EXISTS(SELECT 1 FROM transaction_tags tt
+              WHERE tt.transaction_id = v_transactions.id AND tt.tag = @tag)`
+    );
+    params.tag = filters.tag;
+  }
 
   const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
   const limit = filters.limit || 50;
@@ -244,7 +261,12 @@ export function listTransactions(filters: TransactionFilters = {}): {
     .prepare(
       `SELECT *,
          EXISTS(SELECT 1 FROM category_overrides co WHERE co.transaction_id = v_transactions.id) AS has_override,
-         EXISTS(SELECT 1 FROM transaction_splits ts WHERE ts.transaction_id = v_transactions.id) AS has_splits
+         EXISTS(SELECT 1 FROM transaction_splits ts WHERE ts.transaction_id = v_transactions.id) AS has_splits,
+         (SELECT GROUP_CONCAT(tag)
+            FROM (SELECT tag FROM transaction_tags tt
+                  WHERE tt.transaction_id = v_transactions.id ORDER BY tag)) AS tags,
+         (SELECT status FROM reimbursements r
+           WHERE r.transaction_id = v_transactions.id) AS reimbursement_status
        FROM v_transactions ${where} ORDER BY txn_date DESC, id DESC LIMIT @limit OFFSET @offset`
     )
     .all({ ...params, limit, offset }) as TransactionRow[];

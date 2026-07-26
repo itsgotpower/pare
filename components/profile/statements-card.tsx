@@ -10,6 +10,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { PALETTE } from "@/lib/colors";
 import { formatCents } from "@/lib/format";
 import { purgeDataCaches } from "@/lib/purge-data-cache";
 
@@ -150,7 +151,7 @@ export function StatementsCard({ onChanged }: { onChanged?: () => void }) {
   return (
     <>
       <Card className="rounded-none ring-0 border border-border py-0 gap-0 mb-3">
-        <div className="flex items-center justify-between border-b border-border px-4 py-3">
+        <div className="flex items-center justify-between px-4 pt-4 pb-2">
           <span className={labelClass}>Statements</span>
           <span className={labelClass}>
             {statements.length} loaded
@@ -166,7 +167,7 @@ export function StatementsCard({ onChanged }: { onChanged?: () => void }) {
             .
           </p>
         ) : (
-          <div className="divide-y divide-border">
+          <div className="divide-y divide-border/40 border-t border-border/40">
             {groups.map((g) => (
               <details key={g.source} className={`group ${g.hidden ? "opacity-60" : ""}`}>
                 <summary className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3 cursor-pointer list-none hover:bg-accent/50 transition-colors [&::-webkit-details-marker]:hidden">
@@ -181,9 +182,13 @@ export function StatementsCard({ onChanged }: { onChanged?: () => void }) {
                   </span>
                   {g.missingAnchors > 0 && (
                     <span
-                      className="font-mono text-[10px] tracking-widest uppercase border border-border px-1.5 py-0.5 text-muted-foreground/70 shrink-0"
+                      className="inline-flex items-center gap-1.5 font-mono text-[10px] tracking-widest uppercase text-muted-foreground shrink-0"
                       title="Statements without a closing balance can't anchor net worth or the cash-flow forecast."
                     >
+                      <span
+                        className="inline-block size-2"
+                        style={{ backgroundColor: PALETTE.mustard }}
+                      />
                       {g.missingAnchors} no anchor
                     </span>
                   )}
@@ -194,7 +199,7 @@ export function StatementsCard({ onChanged }: { onChanged?: () => void }) {
                   {g.statements.map((s) => (
                     <div
                       key={s.id}
-                      className="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-2.5 border-t border-border/50"
+                      className="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-2.5 border-t border-border/40"
                     >
                       <div className="flex-1 min-w-48">
                         <p className="font-mono text-xs truncate" title={s.filename}>
@@ -216,9 +221,13 @@ export function StatementsCard({ onChanged }: { onChanged?: () => void }) {
                         </span>
                       ) : (
                         <span
-                          className="font-mono text-[10px] tracking-widest uppercase border border-border px-1.5 py-0.5 text-muted-foreground/60 shrink-0"
+                          className="inline-flex items-center gap-1.5 font-mono text-[10px] tracking-widest uppercase text-muted-foreground/70 shrink-0"
                           title="No closing balance captured — this statement can't anchor net worth or the cash-flow forecast."
                         >
+                          <span
+                            className="inline-block size-2"
+                            style={{ backgroundColor: PALETTE.mustard }}
+                          />
                           No balance anchor
                         </span>
                       )}
@@ -237,7 +246,7 @@ export function StatementsCard({ onChanged }: { onChanged?: () => void }) {
           </div>
         )}
 
-        <p className="border-t border-border px-4 py-2.5 text-[11px] text-muted-foreground">
+        <p className="border-t border-border/40 px-4 py-2.5 text-[11px] text-muted-foreground">
           Original files are parsed, then discarded — never stored. To re-parse a
           statement: remove it here, then re-upload the file at{" "}
           <Link href="/upload" className="link">

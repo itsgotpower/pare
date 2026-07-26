@@ -70,13 +70,20 @@ export function deleteStatement(id: number): { deleted: number; transactions: nu
       | { id: number }
       | undefined;
     if (!stmt) return { deleted: 0, transactions: 0 };
-    // Children first — overrides and splits both carry a FK to transactions(id),
-    // and transactions carry a FK to statements(id) (no ON DELETE CASCADE).
+    // Children first — overrides, splits, tags, and reimbursements all carry a
+    // FK to transactions(id), and transactions carry a FK to statements(id)
+    // (no ON DELETE CASCADE).
     db.prepare(
       "DELETE FROM category_overrides WHERE transaction_id IN (SELECT id FROM transactions WHERE statement_id = ?)"
     ).run(id);
     db.prepare(
       "DELETE FROM transaction_splits WHERE transaction_id IN (SELECT id FROM transactions WHERE statement_id = ?)"
+    ).run(id);
+    db.prepare(
+      "DELETE FROM transaction_tags WHERE transaction_id IN (SELECT id FROM transactions WHERE statement_id = ?)"
+    ).run(id);
+    db.prepare(
+      "DELETE FROM reimbursements WHERE transaction_id IN (SELECT id FROM transactions WHERE statement_id = ?)"
     ).run(id);
     const transactions = db
       .prepare("DELETE FROM transactions WHERE statement_id = ?")
