@@ -21,6 +21,9 @@ import {
   PieChart,
   Pie,
   Cell,
+  LineChart,
+  Line,
+  ReferenceLine,
 } from "recharts";
 
 export interface IncomeType {
@@ -59,6 +62,20 @@ export function IncomeTab({
   const thisMonthNet = netData.length ? netData[netData.length - 1].net : 0;
   const lastMonthNet = netData.length > 1 ? netData[netData.length - 2].net : null;
   const momDelta = lastMonthNet === null ? null : thisMonthNet - lastMonthNet;
+
+  // Savings rate = net ÷ income, only for months with chequing data (income > 0
+  // — same qualifying set as netData, so the two charts always agree).
+  const savingsData = incomeVsSpend
+    .filter((m) => m.income > 0)
+    .map((m) => ({
+      month: m.month,
+      rate: ((m.income - m.fixed - m.variable) / m.income) * 100,
+    }));
+  const currentRate = savingsData.length ? savingsData[savingsData.length - 1].rate : null;
+  const trailing3 = savingsData.slice(-3);
+  const trailing3Avg = trailing3.length
+    ? trailing3.reduce((s, m) => s + m.rate, 0) / trailing3.length
+    : null;
 
   if (incomeByType.length === 0) {
     return (
@@ -252,6 +269,79 @@ export function IncomeTab({
         <p className="text-xs text-muted-foreground mt-1">
           fixed {formatCurrency(totalFixed)} (incl. rent) · variable {formatCurrency(totalVariable)}
         </p>
+      </div>
+
+      {/* Savings rate trend — 2 cols */}
+      <div className="col-span-1 md:col-span-2 bg-card p-4 md:p-6">
+        <h2 className="font-mono text-xs tracking-widest uppercase text-muted-foreground mb-4">
+          SAVINGS RATE (NET ÷ INCOME)
+        </h2>
+        {savingsData.length <= 1 ? (
+          <p className="font-mono text-sm text-muted-foreground py-12 text-center">
+            NEEDS 2+ MONTHS OF CHEQUING DATA FOR A TREND
+          </p>
+        ) : (
+          <ResponsiveContainer width="100%" height={180}>
+            <LineChart data={savingsData}>
+              <XAxis
+                dataKey="month"
+                tickFormatter={formatMonthShort}
+                tick={MONO_TICK}
+                axisLine={false}
+                tickLine={false}
+              />
+              <YAxis
+                tick={MONO_TICK}
+                axisLine={false}
+                tickLine={false}
+                tickFormatter={(v) => `${v}%`}
+              />
+              <Tooltip
+                trigger={tooltipTrigger}
+                formatter={(value) => [`${Number(value).toFixed(1)}%`, "Savings rate"]}
+                labelFormatter={(v) => formatMonthFull(String(v))}
+                contentStyle={CHART_TOOLTIP_STYLE}
+              />
+              <ReferenceLine y={0} stroke="var(--border)" ifOverflow="extendDomain" />
+              <Line
+                type="monotone"
+                dataKey="rate"
+                stroke={PALETTE.slate}
+                strokeWidth={2}
+                isAnimationActive={false}
+                dot={{ r: 2, fill: "var(--card)", stroke: PALETTE.slate, strokeWidth: 1.5 }}
+                activeDot={{ r: 4 }}
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        )}
+      </div>
+
+      {/* Savings rate stat: current vs trailing-3-month average */}
+      <div className="bg-card p-4 md:p-6">
+        <h2 className="font-mono text-xs tracking-widest uppercase text-muted-foreground mb-2">
+          SAVINGS RATE
+        </h2>
+        {currentRate === null ? (
+          <p className="font-mono text-3xl font-bold text-muted-foreground">—</p>
+        ) : (
+          <>
+            <p
+              className="font-mono text-3xl font-bold"
+              style={{ color: currentRate >= 0 ? PALETTE.sage : PALETTE.terracotta }}
+            >
+              {currentRate.toFixed(1)}%
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">
+              {formatMonthFull(savingsData[savingsData.length - 1].month)}
+            </p>
+            {trailing3Avg !== null && savingsData.length > 1 && (
+              <p className="text-xs text-muted-foreground mt-1">
+                {currentRate >= trailing3Avg ? "▲" : "▼"} 3-mo avg {trailing3Avg.toFixed(1)}%
+              </p>
+            )}
+          </>
+        )}
       </div>
     </div>
   );

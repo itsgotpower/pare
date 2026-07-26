@@ -22,6 +22,10 @@ export async function GET(request: NextRequest) {
     return Response.json(await repo.summary.trends());
   }
 
+  if (type === "yoy") {
+    return Response.json(await repo.summary.yoy());
+  }
+
   if (type === "top_merchants") {
     const category = params.get("category") || undefined;
     return Response.json(await repo.summary.topMerchants(10, month, category));
