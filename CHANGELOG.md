@@ -12,6 +12,21 @@ contracts, on-disk and crypto formats) may change between minor versions — see
 
 ### Added
 
+- **Claude connection status on `/profile`** — a small indicator under your
+  name shows whether Claude is hooked up to your data: on hosted it reflects a
+  live claude.ai connector link, on self-host the local MCP server now leaves a
+  liveness heartbeat (gitignored `data/mcp-heartbeat.json`, touched every 10
+  minutes while Claude keeps it running) so the profile can show CONNECTED,
+  LAST SEEN, or a set-up nudge linking to `/connect` ([#141]).
+
+### Changed
+
+- **Calmer `/profile` layout** — identity is now an unboxed masthead instead of
+  a card, DATA HEALTH moves to the top as the main panel, per-account status
+  chips become colored dot + text, PLAN and STATEMENT INBOX sit side by side,
+  and Security / exports / danger-zone collapse into one quiet bottom row.
+  Fewer borders, clearer hierarchy, same information ([#141]).
+
 - **Interactive modules in blog posts** — posts can now embed a chart, a
   comparison, or a click-through widget inline: annual-cost comparison bars on
   the Mint/Monarch pricing sections, a step-by-step for the 10-minute review and
@@ -302,6 +317,7 @@ server exposing the local data to MCP clients. Ships open-source repo scaffoldin
 [0.2.0]: https://github.com/itsgotpower/pare/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/itsgotpower/pare/releases/tag/v0.1.0
 
+[#141]: https://github.com/itsgotpower/pare/pull/141
 [#135]: https://github.com/itsgotpower/pare/pull/135
 [#134]: https://github.com/itsgotpower/pare/pull/134
 [#132]: https://github.com/itsgotpower/pare/pull/132

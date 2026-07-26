@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import type { D1Like } from "@/lib/auth/hosted";
 import { isHostedMode } from "@/lib/auth/resolve";
 import { getScopedRepo } from "@/lib/repo/scoped";
 import { simplefinDisabled } from "@/lib/db/simplefin-config";
@@ -20,9 +21,16 @@ import {
 // Shape (both modes):
 //   { configured, authenticated, profile?: {
 //       display_name, email, email_verified, created_at,
-//       password_changed_at, health, simplefin } }
+//       password_changed_at, health, simplefin, mcp } }
 // email/email_verified are null in self-host (no email identity); the client
 // uses email !== null to know it's a hosted account.
+//
+// `mcp` drives the /profile CLAUDE indicator and is mode-specific by nature:
+// hosted = a live OAuth token from the claude.ai connector (connectedAt,
+// lastSeenAt always null); self-host = the stdio server's heartbeat file
+// (lastSeenAt, connectedAt always null). null = status unavailable (hosted
+// D1 hiccup) — the client hides the indicator rather than claiming
+// "disconnected" on a lookup failure.
 
 // SimpleFIN sync recency for the DATA HEALTH panel's synced-source badges.
 // Merged HERE, at the composition root: getDataHealth runs inside the repo
@@ -72,6 +80,7 @@ export async function GET(request: NextRequest) {
         password_changed_at: null,
         health: repo ? await repo.profile.dataHealth() : null,
         simplefin: await simplefinStatus(d1SimplefinStore(d1, u.id)),
+        mcp: await hostedMcpStatus(d1, u.id),
       },
     });
   }
@@ -102,6 +111,36 @@ export async function GET(request: NextRequest) {
       email_verified: null,
       health: repo ? await repo.profile.dataHealth() : null,
       simplefin: await simplefinStatus(fileSimplefinStore()),
+      mcp: await selfHostMcpStatus(),
     },
   });
+}
+
+interface McpIndicator {
+  connected: boolean;
+  connectedAt: string | null; // hosted: earliest live OAuth token
+  lastSeenAt: string | null; // self-host: stdio-server heartbeat
+}
+
+// Hosted: a live claude.ai connector token in D1 (same source as /connect's
+// CONNECTED card, same lingering-token caveat — see lib/auth/mcp-connection).
+async function hostedMcpStatus(
+  d1: D1Like,
+  userId: string
+): Promise<McpIndicator | null> {
+  try {
+    const { getMcpConnection } = await import("@/lib/auth/mcp-connection");
+    const c = await getMcpConnection(d1, userId);
+    return { connected: c.connected, connectedAt: c.connectedAt, lastSeenAt: null };
+  } catch {
+    return null; // status unknown ≠ disconnected — hide the indicator
+  }
+}
+
+// Self-host: the stdio server's heartbeat file (mcp/heartbeat.ts). A missing
+// file is a REAL "never connected" — show the setup nudge.
+async function selfHostMcpStatus(): Promise<McpIndicator> {
+  const { readMcpHeartbeat } = await import("@/mcp/heartbeat");
+  const lastSeenAt = readMcpHeartbeat();
+  return { connected: lastSeenAt !== null, connectedAt: null, lastSeenAt };
 }
