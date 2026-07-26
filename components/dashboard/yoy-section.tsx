@@ -126,8 +126,8 @@ export function YoySection({
                 labelFormatter={(v) => formatMonthFull(String(v))}
                 contentStyle={CHART_TOOLTIP_STYLE}
               />
-              <Bar dataKey="prevTotal" fill={PALETTE.greige} />
-              <Bar dataKey="total" fill={PALETTE.slate} />
+              <Bar dataKey="prevTotal" fill={PALETTE.greige} isAnimationActive={false} />
+              <Bar dataKey="total" fill={PALETTE.slate} isAnimationActive={false} />
             </BarChart>
           </ResponsiveContainer>
           <div className="flex gap-4 mt-2">

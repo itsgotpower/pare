@@ -618,7 +618,9 @@ export default function Dashboard() {
           </TabsContent>
 
           <TabsContent value="categories">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-[1px] bg-border border border-border">
+            {/* Odd card count: span the last card across both columns so the
+                bg-border container never shows through an empty cell. */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-[1px] bg-border border border-border md:[&>*:last-child:nth-child(odd)]:col-span-2">
               {categories.map((c) => (
                 <div key={c.category} className="bg-card p-4 md:p-6">
                   <div className="flex items-center justify-between mb-2">
