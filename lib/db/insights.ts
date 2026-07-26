@@ -1,8 +1,10 @@
 import { getDb } from "../db";
+import { merchantDisplay, merchantSlug } from "../merchant-key";
 import { SPEND_WHERE } from "./account-kinds";
 import { getForecast } from "./forecast";
 import { listGoals } from "./goals";
 import { getIncomeVsSpend } from "./income";
+import { median } from "./stats";
 import { getSubscriptions } from "./subscriptions";
 
 export interface Insight {
@@ -26,6 +28,23 @@ const fmt = (v: number) =>
     maximumFractionDigits: 0,
   }).format(v);
 
+// Unusual one-off charge detection (insight #5) — a single charge is an
+// anomaly RELATIVE to its own merchant's (or, lacking merchant history, its
+// category's) prior charges. Tuning constants, documented in one place:
+//
+// Merchant-relative (preferred when the merchant has enough history):
+const ANOMALY_MERCHANT_MIN_CHARGES = 3; // prior charges needed before the latest month
+const ANOMALY_MERCHANT_RATIO = 2.5; // flag at >= ratio × the merchant's prior median…
+const ANOMALY_MERCHANT_MIN_DELTA = 50; // …AND at least $50 over that median
+// Category-relative fallback (new-ish merchant, judge vs the category):
+const ANOMALY_CATEGORY_WINDOW_MONTHS = 6; // pool = individual charges over the prior 6 months
+const ANOMALY_CATEGORY_MIN_CHARGES = 8; // pool must have >= 8 charges to trust mean/σ
+const ANOMALY_CATEGORY_SIGMA = 2; // flag above mean + 2σ (population σ)…
+const ANOMALY_CATEGORY_MIN_AMOUNT = 75; // …AND at least $75 absolute
+// Shared:
+const ANOMALY_MAX = 3; // top N flagged charges by amount (one per merchant)
+const ANOMALY_ALERT_FACTOR = 2; // "alert" severity at >= 2× the flagging threshold
+
 interface CatTotal {
   cat: string;
   total: number;
@@ -33,7 +52,8 @@ interface CatTotal {
 
 // Rule-based, fully local insights over the LATEST data month (not the calendar
 // month — data may lag). Covers goals, month-over-month category moves, net
-// cashflow, and large one-offs. Returns highest-severity first.
+// cashflow, large one-offs, and unusual (history-relative) one-off charges.
+// Returns highest-severity first.
 export function getInsights(): Insight[] {
   const db = getDb();
   const insights: Insight[] = [];
@@ -143,7 +163,127 @@ export function getInsights(): Insight[] {
     });
   }
 
-  // 5. Forward look at the current CALENDAR month (the one heuristic that
+  // 5. Unusual one-off charges: single charges in the latest month that are
+  // outliers vs that MERCHANT's (or, without enough merchant history, that
+  // CATEGORY's) own prior charges. Complements #4, which flags absolutely-large
+  // charges — this one is relative, so a $180 charge at a merchant that
+  // usually runs $40 flags here even though it never clears the $300 bar.
+  // Detected subscriptions are excluded (a known recurring charge is never a
+  // one-off; their anomalies are #7's price-hike / still-charging rules).
+  // Parent rows, not slices — this is about single charges. Constants + their
+  // meanings live next to `fmt` above.
+  const subscriptions = getSubscriptions().subscriptions;
+  {
+    const subSlugs = new Set(subscriptions.map((s) => s.slug));
+
+    const curRows = db
+      .prepare(
+        `SELECT description, amount, effective_category cat FROM v_transactions
+         WHERE ${SPEND_WHERE} AND amount > 0 AND substr(txn_date, 1, 7) = ?`
+      )
+      .all(cur) as { description: string; amount: number; cat: string }[];
+    const priorRows = db
+      .prepare(
+        `SELECT description, amount, substr(txn_date, 1, 7) m, effective_category cat
+         FROM v_transactions
+         WHERE ${SPEND_WHERE} AND amount > 0 AND substr(txn_date, 1, 7) < ?`
+      )
+      .all(cur) as { description: string; amount: number; m: string; cat: string }[];
+
+    // First YYYY-MM inside the category window (the N months before `cur`).
+    const [cy, cm] = cur.split("-").map(Number);
+    const winStart = new Date(cy, cm - 1 - ANOMALY_CATEGORY_WINDOW_MONTHS, 1);
+    const catMinMonth = `${winStart.getFullYear()}-${String(winStart.getMonth() + 1).padStart(2, "0")}`;
+
+    const bySlug = new Map<string, number[]>(); // all prior charges per merchant
+    const byCat = new Map<string, number[]>(); // windowed prior charges per category
+    for (const r of priorRows) {
+      const slug = merchantSlug(r.description);
+      let g = bySlug.get(slug);
+      if (!g) bySlug.set(slug, (g = []));
+      g.push(r.amount);
+      if (r.m >= catMinMonth) {
+        let c = byCat.get(r.cat);
+        if (!c) byCat.set(r.cat, (c = []));
+        c.push(r.amount);
+      }
+    }
+
+    interface Flagged {
+      slug: string;
+      description: string;
+      amount: number;
+      cat: string;
+      severity: "alert" | "warn";
+      detail: string;
+    }
+    const flagged: Flagged[] = [];
+    for (const r of curRows) {
+      const slug = merchantSlug(r.description);
+      if (subSlugs.has(slug)) continue;
+
+      const hist = bySlug.get(slug) ?? [];
+      if (hist.length >= ANOMALY_MERCHANT_MIN_CHARGES) {
+        const med = median(hist);
+        const threshold = Math.max(
+          med * ANOMALY_MERCHANT_RATIO,
+          med + ANOMALY_MERCHANT_MIN_DELTA
+        );
+        if (med > 0 && r.amount >= threshold) {
+          flagged.push({
+            slug,
+            description: r.description,
+            amount: r.amount,
+            cat: r.cat,
+            severity: r.amount >= threshold * ANOMALY_ALERT_FACTOR ? "alert" : "warn",
+            detail: `${(r.amount / med).toFixed(1)}× your typical ${fmt(med)} at this merchant (${hist.length} prior charges)`,
+          });
+        }
+      } else {
+        const pool = byCat.get(r.cat) ?? [];
+        if (
+          pool.length >= ANOMALY_CATEGORY_MIN_CHARGES &&
+          r.amount >= ANOMALY_CATEGORY_MIN_AMOUNT
+        ) {
+          const mean = pool.reduce((s, a) => s + a, 0) / pool.length;
+          const sigma = Math.sqrt(
+            pool.reduce((s, a) => s + (a - mean) ** 2, 0) / pool.length
+          );
+          const threshold = mean + ANOMALY_CATEGORY_SIGMA * sigma;
+          if (r.amount > threshold) {
+            flagged.push({
+              slug,
+              description: r.description,
+              amount: r.amount,
+              cat: r.cat,
+              severity: r.amount >= threshold * ANOMALY_ALERT_FACTOR ? "alert" : "warn",
+              detail: `well above your usual ${r.cat} charge of ~${fmt(mean)}`,
+            });
+          }
+        }
+      }
+    }
+
+    // One flag per merchant (keep its biggest charge), then the top N by amount.
+    const bestPerSlug = new Map<string, Flagged>();
+    for (const f of flagged) {
+      const prior = bestPerSlug.get(f.slug);
+      if (!prior || f.amount > prior.amount) bestPerSlug.set(f.slug, f);
+    }
+    const top = [...bestPerSlug.values()]
+      .sort((a, b) => b.amount - a.amount)
+      .slice(0, ANOMALY_MAX);
+    for (const f of top) {
+      insights.push({
+        severity: f.severity,
+        category: f.cat,
+        title: `Unusual charge: ${fmt(f.amount)} at ${merchantDisplay(f.description)}`,
+        detail: f.detail,
+      });
+    }
+  }
+
+  // 6. Forward look at the current CALENDAR month (the one heuristic that
   // does NOT use the latest data month): projected net, and — when partial
   // current-month data exists — categories pacing materially over typical
   // (same 25% / $75 materiality as the MoM rule).
@@ -172,9 +312,10 @@ export function getInsights(): Insight[] {
     });
   }
 
-  // 6. Subscription anomalies: price hikes and marked-to-cancel subs that
-  // are still charging. Both come straight from the recurring detector.
-  for (const sub of getSubscriptions().subscriptions) {
+  // 7. Subscription anomalies: price hikes and marked-to-cancel subs that
+  // are still charging. Both come straight from the recurring detector
+  // (fetched once, up in #5).
+  for (const sub of subscriptions) {
     if (sub.priceChange && sub.priceChange.pct > 0 && !sub.lapsed) {
       insights.push({
         severity: "warn",
@@ -191,7 +332,7 @@ export function getInsights(): Insight[] {
     }
   }
 
-  // 7. Biggest category this month (context).
+  // 8. Biggest category this month (context).
   if (curCats.length) {
     const top = [...curCats].sort((a, b) => b.total - a.total)[0];
     insights.push({

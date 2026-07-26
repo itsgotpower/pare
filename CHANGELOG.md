@@ -12,6 +12,13 @@ contracts, on-disk and crypto formats) may change between minor versions — see
 
 ### Added
 
+- **Unusual-charge alerts** — the dashboard INSIGHTS panel now flags single
+  charges that are outliers against your own history: a charge well above a
+  merchant's typical amount ("5.2× your typical $86 at this merchant"), or —
+  for merchants you've barely used — well above that category's usual charge.
+  Known subscriptions are excluded (their price hikes already alert), the
+  biggest offenders alert first, and everything stays rule-based and local
+  ([#140]).
 - **Statement management on the profile page** — a STATEMENTS card lists every
   loaded statement grouped by account, with its transaction count and closing
   balance (or a "no balance anchor" badge when a statement can't anchor net
@@ -320,6 +327,7 @@ server exposing the local data to MCP clients. Ships open-source repo scaffoldin
 [0.1.0]: https://github.com/itsgotpower/pare/releases/tag/v0.1.0
 
 [#141]: https://github.com/itsgotpower/pare/pull/141
+[#140]: https://github.com/itsgotpower/pare/pull/140
 [#139]: https://github.com/itsgotpower/pare/pull/139
 [#135]: https://github.com/itsgotpower/pare/pull/135
 [#134]: https://github.com/itsgotpower/pare/pull/134
