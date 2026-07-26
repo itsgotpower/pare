@@ -10,6 +10,9 @@ export interface StatementRow {
   row_count: number;
   closing_balance: number | null;
   closing_date: string | null;
+  // Analytics-facing account class (migration 006) — the column has always come
+  // back from the SELECT *; the interface just used to omit it.
+  account_kind: string;
 }
 
 export function insertStatement(stmt: {

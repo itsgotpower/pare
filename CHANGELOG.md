@@ -19,6 +19,12 @@ contracts, on-disk and crypto formats) may change between minor versions — see
   Known subscriptions are excluded (their price hikes already alert), the
   biggest offenders alert first, and everything stays rule-based and local
   ([#140]).
+- **Statement management on the profile page** — a STATEMENTS card lists every
+  loaded statement grouped by account, with its transaction count and closing
+  balance (or a "no balance anchor" badge when a statement can't anchor net
+  worth or the cash-flow forecast), and a REMOVE action that deletes a
+  mis-parsed statement together with its transactions — re-uploading the file
+  restores everything, since dedup makes re-upload idempotent ([#139]).
 - **Claude connection status on `/profile`** — a small indicator under your
   name shows whether Claude is hooked up to your data: on hosted it reflects a
   live claude.ai connector link, on self-host the local MCP server now leaves a
@@ -322,6 +328,7 @@ server exposing the local data to MCP clients. Ships open-source repo scaffoldin
 
 [#141]: https://github.com/itsgotpower/pare/pull/141
 [#140]: https://github.com/itsgotpower/pare/pull/140
+[#139]: https://github.com/itsgotpower/pare/pull/139
 [#135]: https://github.com/itsgotpower/pare/pull/135
 [#134]: https://github.com/itsgotpower/pare/pull/134
 [#132]: https://github.com/itsgotpower/pare/pull/132
