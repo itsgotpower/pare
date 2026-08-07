@@ -57,7 +57,7 @@ export function registerPareTools(
     "list_transactions",
     {
       title: "List transactions",
-      description: "Filtered, paginated transactions. Filter by category, source (amex/cibc_visa/cibc_chequing), flow (spend/income/payment/transfer/fee_interest), date range (YYYY-MM-DD), or a free-text description search.",
+      description: "Filtered, paginated transactions. Filter by category, source (amex/cibc_visa/cibc_chequing), flow (spend/income/payment/transfer/fee_interest), date range (YYYY-MM-DD), a free-text description search, a tag (see list_tags), or reimbursement state.",
       inputSchema: {
         category: z.string().optional(),
         source: z.string().optional(),
@@ -65,6 +65,8 @@ export function registerPareTools(
         from: z.string().optional(),
         to: z.string().optional(),
         search: z.string().optional(),
+        tag: z.string().optional(),
+        reimbursement: z.enum(["outstanding", "reimbursed"]).optional(),
         page: z.number().int().positive().optional(),
         limit: z.number().int().positive().max(200).optional(),
       },
@@ -166,6 +168,29 @@ export function registerPareTools(
     async () => json(await repo.statements.list())
   );
 
+  server.registerTool(
+    "list_tags",
+    {
+      title: "List tags",
+      description: "Every tag in use with how many transactions carry it. Tags are free-form labels orthogonal to categories ('vacation', 'work-reimbursable'); pass one to list_transactions' tag filter.",
+      inputSchema: {},
+    },
+    async () => json(await repo.tags.counts())
+  );
+
+  server.registerTool(
+    "reimbursements",
+    {
+      title: "Reimbursements",
+      description: "Reimbursement tracking: outstanding vs collected totals, plus every marked transaction (outstanding first). Change a row's state with set_reimbursement.",
+      inputSchema: {},
+    },
+    async () => json({
+      summary: await repo.tags.reimbursementSummary(),
+      rows: await repo.tags.listReimbursements(),
+    })
+  );
+
   if (!writeTools) return;
 
   // ---- Write tools ----------------------------------------------------------
@@ -248,6 +273,48 @@ export function registerPareTools(
       if (!row) return json({ ok: false, error: `No transaction ${transaction_id}` });
       await repo.categories.addOverride(transaction_id, row.category, category);
       return json({ ok: true });
+    }
+  );
+
+  server.registerTool(
+    "set_tags",
+    {
+      title: "Set transaction tags",
+      description: "Replace a transaction's tag set (free-form labels, normalized to lowercase — orthogonal to its category). An empty array clears all tags. Returns the stored set.",
+      inputSchema: { transaction_id: z.number().int(), tags: z.array(z.string()) },
+    },
+    async ({ transaction_id, tags }) => {
+      const row = await repo.transactions.categoryOf(transaction_id);
+      if (!row) return json({ ok: false, error: `No transaction ${transaction_id}` });
+      try {
+        return json({ ok: true, tags: await repo.tags.set(transaction_id, tags) });
+      } catch (err) {
+        return json({ ok: false, error: err instanceof Error ? err.message : "Couldn't save tags" });
+      }
+    }
+  );
+
+  server.registerTool(
+    "set_reimbursement",
+    {
+      title: "Set reimbursement state",
+      description: "Track money owed back: 'outstanding' marks a spend transaction as awaiting reimbursement, 'reimbursed' closes it out, 'none' removes the mark entirely.",
+      inputSchema: {
+        transaction_id: z.number().int(),
+        status: z.enum(["outstanding", "reimbursed", "none"]),
+      },
+    },
+    async ({ transaction_id, status }) => {
+      const row = await repo.transactions.categoryOf(transaction_id);
+      if (!row) return json({ ok: false, error: `No transaction ${transaction_id}` });
+      try {
+        if (status === "outstanding") await repo.tags.markReimbursable(transaction_id);
+        else if (status === "reimbursed") await repo.tags.markReimbursed(transaction_id);
+        else await repo.tags.clearReimbursement(transaction_id);
+        return json({ ok: true, status });
+      } catch (err) {
+        return json({ ok: false, error: err instanceof Error ? err.message : "Couldn't update the mark" });
+      }
     }
   );
 
