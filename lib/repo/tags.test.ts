@@ -193,6 +193,51 @@ test("transactions.list tag filter + tags/reimbursement_status row columns", asy
   await repo.tags.set(lunch, []);
 });
 
+test("transactions.list reimbursement filter", async () => {
+  const hotel = await byDesc("CONFERENCE HOTEL");
+  const taxi = await byDesc("AIRPORT TAXI");
+  await repo.tags.markReimbursable(hotel);
+  await repo.tags.markReimbursable(taxi);
+  await repo.tags.markReimbursed(taxi);
+
+  const outstanding = await repo.transactions.list({ reimbursement: "outstanding" });
+  assert.equal(outstanding.total, 1);
+  assert.equal(outstanding.rows[0].id, hotel);
+
+  const reimbursed = await repo.transactions.list({ reimbursement: "reimbursed" });
+  assert.equal(reimbursed.total, 1);
+  assert.equal(reimbursed.rows[0].id, taxi);
+
+  // Composes with other filters (hotel is Travel, not Transport).
+  const none = await repo.transactions.list({
+    reimbursement: "outstanding",
+    category: "Transport",
+  });
+  assert.equal(none.total, 0);
+
+  await repo.tags.clearReimbursement(hotel);
+  await repo.tags.clearReimbursement(taxi);
+});
+
+test("exportAll carries id, tags, reimbursement_status (incl. hidden accounts)", async () => {
+  const hotel = await byDesc("CONFERENCE HOTEL");
+  const hidden = await byDesc("HIDDEN CARD CHARGE");
+  await repo.tags.set(hotel, ["work", "conference"]);
+  await repo.tags.markReimbursable(hotel);
+
+  const rows = await repo.transactions.exportAll();
+  const hotelRow = rows.find((r) => r.id === hotel);
+  assert.equal(hotelRow?.tags, "conference,work", "alphabetical csv aggregate");
+  assert.equal(hotelRow?.reimbursement_status, "outstanding");
+  const hiddenRow = rows.find((r) => r.id === hidden);
+  assert.ok(hiddenRow, "hidden-account rows stay in the export");
+  assert.equal(hiddenRow.tags, null);
+  assert.equal(hiddenRow.reimbursement_status, null);
+
+  await repo.tags.set(hotel, []);
+  await repo.tags.clearReimbursement(hotel);
+});
+
 test("reimbursement lifecycle: mark → outstanding → reimbursed → clear", async () => {
   const hotel = await byDesc("CONFERENCE HOTEL");
   const taxi = await byDesc("AIRPORT TAXI");

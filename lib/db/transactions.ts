@@ -36,6 +36,8 @@ export interface TransactionFilters {
   search?: string;
   // Exact match on a normalized (lowercase-trimmed) tag.
   tag?: string;
+  // Rows in a reimbursement state (the OUTSTANDING strip's click-through).
+  reimbursement?: "outstanding" | "reimbursed";
   page?: number;
   limit?: number;
 }
@@ -246,6 +248,13 @@ export function listTransactions(filters: TransactionFilters = {}): {
     );
     params.tag = filters.tag;
   }
+  if (filters.reimbursement) {
+    conditions.push(
+      `EXISTS(SELECT 1 FROM reimbursements r
+              WHERE r.transaction_id = v_transactions.id AND r.status = @reimbursement)`
+    );
+    params.reimbursement = filters.reimbursement;
+  }
 
   const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
   const limit = filters.limit || 50;
@@ -277,12 +286,19 @@ export function listTransactions(filters: TransactionFilters = {}): {
 // One row of the data export — the trimmed, human-facing shape used by
 // /api/data (CSV + JSON). See exportAllTransactions.
 export interface ExportTxn {
+  // Row id, so the JSON export's transaction_splits / transaction_tags /
+  // reimbursements arrays (keyed by transaction_id) correlate to their rows.
+  id: number;
   txn_date: string;
   source: string;
   description: string;
   amount: number;
   flow: string;
   category: string;
+  // Comma-joined normalized tags ("vacation,work"), null when untagged — same
+  // denormalized shape the list read uses.
+  tags: string | null;
+  reimbursement_status: string | null; // 'outstanding' | 'reimbursed' | null
 }
 
 // Every transaction, flattened for export. Reads the BASE table + override join
@@ -292,8 +308,13 @@ export interface ExportTxn {
 export function exportAllTransactions(): ExportTxn[] {
   return getDb()
     .prepare(
-      `SELECT t.txn_date, t.source, t.description, t.amount, t.flow,
-              COALESCE(co.new_category, t.category) AS category
+      `SELECT t.id, t.txn_date, t.source, t.description, t.amount, t.flow,
+              COALESCE(co.new_category, t.category) AS category,
+              (SELECT GROUP_CONCAT(tag)
+                 FROM (SELECT tag FROM transaction_tags tt
+                       WHERE tt.transaction_id = t.id ORDER BY tag)) AS tags,
+              (SELECT status FROM reimbursements r
+                WHERE r.transaction_id = t.id) AS reimbursement_status
        FROM transactions t
        LEFT JOIN category_overrides co ON co.transaction_id = t.id
        ORDER BY t.txn_date, t.source, t.id`

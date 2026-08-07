@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { getMcpConnection } from "./mcp-connection";
+import { getMcpConnection, revokeMcpConnection } from "./mcp-connection";
 import type { D1Like } from "./hosted";
 
 // Fake D1: ignores the SQL and hands back canned rows, so the tests exercise the
@@ -101,4 +101,44 @@ test("numeric epoch-ms expiry is honored (adapter-format robustness)", async () 
     NOW
   );
   assert.equal(s.connected, true);
+});
+
+test("revokeMcpConnection deletes tokens + consent, scoped to the user", async () => {
+  const executed: string[] = [];
+  const bound: unknown[][] = [];
+  const db = {
+    prepare(sql: string) {
+      return {
+        bind(...args: unknown[]) {
+          bound.push(args);
+          return {
+            async run() {
+              executed.push(sql);
+              // D1 shape: affected rows on meta.changes.
+              return sql.includes("oauthAccessToken")
+                ? { success: true, meta: { changes: 2 } }
+                : { success: true, meta: { changes: 1 } };
+            },
+          };
+        },
+      };
+    },
+  } as unknown as D1Like;
+
+  const res = await revokeMcpConnection(db, "u1");
+  assert.equal(res.revokedTokens, 2, "reports the token-row count, not consent's");
+  assert.equal(executed.length, 2);
+  assert.match(executed[0], /DELETE FROM "oauthAccessToken" WHERE "userId" = \?/);
+  assert.match(executed[1], /DELETE FROM "oauthConsent" WHERE "userId" = \?/);
+  assert.deepEqual(bound, [["u1"], ["u1"]], "both deletes bind the user id");
+});
+
+test("revokeMcpConnection tolerates a driver without meta.changes", async () => {
+  const db = {
+    prepare() {
+      return { bind: () => ({ run: async () => ({ success: true }) }) };
+    },
+  } as unknown as D1Like;
+  const res = await revokeMcpConnection(db, "u1");
+  assert.equal(res.revokedTokens, 0);
 });

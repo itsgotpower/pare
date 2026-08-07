@@ -10,7 +10,7 @@ It reuses the app's `lib/db` query layer (no duplicated SQL) and talks **stdio**
 
 **Read**
 - `spending_summary` — monthly totals + category breakdown + top merchants
-- `list_transactions` — filter by category / source / flow / date range / search
+- `list_transactions` — filter by category / source / flow / date range / search / tag / reimbursement state
 - `category_breakdown` — spend per category (optionally one month)
 - `income_summary` — income by type + income-vs-spend series
 - `cashflow` — net cashflow per month + period surplus
@@ -20,12 +20,16 @@ It reuses the app's `lib/db` query layer (no duplicated SQL) and talks **stdio**
 - `insights` — auto tips (over-budget, MoM moves, surplus/deficit, one-offs)
 - `list_categories` — categories in use + keyword rules
 - `list_statements` — uploaded/synced statements with ids, periods, closing balances
+- `list_tags` — every tag in use + how many transactions carry it
+- `reimbursements` — outstanding vs collected totals + every marked row
 
 **Write**
 - `set_goal` / `delete_goal` — manage a category's monthly limit
 - `add_category_rule` / `delete_category_rule` — manage keyword→category rules (persist across DB wipes)
 - `recategorize_all` — re-apply rules to all transactions
 - `tag_transaction` — override one transaction's category by id
+- `set_tags` — replace a transaction's free-form tag set (empty array clears)
+- `set_reimbursement` — mark a spend row `outstanding` / `reimbursed`, or `none` to clear the mark
 - `add_manual_transaction` — record a cash / off-statement purchase (date, description, amount, category)
 - `delete_manual_transaction` — delete a manually recorded transaction by id (statement rows refused)
 - `delete_statement` — delete a statement and every transaction parsed from it, by id (find via `list_statements`)
