@@ -96,6 +96,8 @@ export default function TransactionsPage() {
   const [category, setCategory] = useState<string>("all");
   const [source, setSource] = useState<string>("all");
   const [tag, setTag] = useState<string>("all");
+  // "all" | "outstanding" | "reimbursed" — toggled from the reimbursements strip.
+  const [reimb, setReimb] = useState<string>("all");
   const [flow, setFlow] = useState<string>("spend");
   const [loading, setLoading] = useState(true);
   const [filterSheetOpen, setFilterSheetOpen] = useState(false);
@@ -162,6 +164,7 @@ export default function TransactionsPage() {
     if (category && category !== "all") params.set("category", category);
     if (source && source !== "all") params.set("source", source);
     if (tag && tag !== "all") params.set("tag", tag);
+    if (reimb && reimb !== "all") params.set("reimbursement", reimb);
     if (flow && flow !== "all") params.set("flow", flow);
 
     const res = await fetch(`/api/transactions?${params}`);
@@ -171,7 +174,7 @@ export default function TransactionsPage() {
     setCategories(data.categories);
     setSources(data.sources ?? []);
     setLoading(false);
-  }, [page, search, category, source, tag, flow]);
+  }, [page, search, category, source, tag, reimb, flow]);
 
   useEffect(() => {
     fetchTransactions();
@@ -179,7 +182,7 @@ export default function TransactionsPage() {
 
   useEffect(() => {
     setPage(1);
-  }, [search, category, source, tag, flow]);
+  }, [search, category, source, tag, reimb, flow]);
 
   // Tag filter options + the reimbursement summary strip. Refreshed after any
   // tag/reimbursement mutation so the dropdown and strip never go stale.
@@ -323,7 +326,10 @@ export default function TransactionsPage() {
       : categories;
 
   const activeFilters =
-    (category !== "all" ? 1 : 0) + (source !== "all" ? 1 : 0) + (tag !== "all" ? 1 : 0);
+    (category !== "all" ? 1 : 0) +
+    (source !== "all" ? 1 : 0) +
+    (tag !== "all" ? 1 : 0) +
+    (reimb !== "all" ? 1 : 0);
 
   const addTargetCategory =
     addCategory === CUSTOM_CATEGORY ? addCustomCategory.trim() : addCategory;
@@ -830,8 +836,9 @@ export default function TransactionsPage() {
         <p className="font-mono text-xs text-muted-foreground -mt-4 mb-4">{bulkNotice}</p>
       )}
 
-      {/* Money still owed back — visible only while something is outstanding. */}
-      {reimbSummary && reimbSummary.outstanding.count > 0 && (
+      {/* Money still owed back — visible while something is outstanding, or while
+          the strip's own filter is active (so it can always be un-toggled). */}
+      {reimbSummary && (reimbSummary.outstanding.count > 0 || reimb !== "all") && (
         <div className="border border-border mb-6 px-4 py-3 flex flex-wrap items-center gap-x-3 gap-y-1">
           <span
             className="inline-block w-2 h-2 shrink-0"
@@ -841,14 +848,32 @@ export default function TransactionsPage() {
           <span className="font-mono text-xs tracking-widest uppercase text-muted-foreground">
             REIMBURSEMENTS
           </span>
-          <span className="font-mono text-xs tracking-widest uppercase">
+          <button
+            onClick={() => setReimb(reimb === "outstanding" ? "all" : "outstanding")}
+            aria-pressed={reimb === "outstanding"}
+            title="Filter the table to outstanding rows"
+            className={`font-mono text-xs tracking-widest uppercase border px-2 py-0.5 -my-0.5 transition-colors ${
+              reimb === "outstanding"
+                ? "border-foreground bg-foreground text-background"
+                : "border-transparent hover:border-border"
+            }`}
+          >
             {reimbSummary.outstanding.count} OUTSTANDING ·{" "}
             {formatCents(reimbSummary.outstanding.total)}
-          </span>
-          {reimbSummary.reimbursed.count > 0 && (
-            <span className="font-mono text-[10px] text-muted-foreground uppercase ml-auto">
+          </button>
+          {(reimbSummary.reimbursed.count > 0 || reimb === "reimbursed") && (
+            <button
+              onClick={() => setReimb(reimb === "reimbursed" ? "all" : "reimbursed")}
+              aria-pressed={reimb === "reimbursed"}
+              title="Filter the table to collected rows"
+              className={`font-mono text-[10px] uppercase ml-auto border px-2 py-0.5 -my-0.5 transition-colors ${
+                reimb === "reimbursed"
+                  ? "border-foreground bg-foreground text-background"
+                  : "border-transparent text-muted-foreground hover:border-border"
+              }`}
+            >
               {formatCents(reimbSummary.reimbursed.total)} COLLECTED
-            </span>
+            </button>
           )}
         </div>
       )}
@@ -869,6 +894,7 @@ export default function TransactionsPage() {
                   setCategory("all");
                   setSource("all");
                   setTag("all");
+                  setReimb("all");
                 }}
                 disabled={activeFilters === 0}
                 className="flex-1 font-mono text-xs tracking-widest uppercase"

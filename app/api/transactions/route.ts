@@ -8,6 +8,11 @@ export async function GET(request: NextRequest) {
 
   const params = request.nextUrl.searchParams;
 
+  // Constrained to the two stored statuses; anything else means no filter.
+  const rawReimb = params.get("reimbursement");
+  const reimbursement: "outstanding" | "reimbursed" | undefined =
+    rawReimb === "outstanding" || rawReimb === "reimbursed" ? rawReimb : undefined;
+
   const filters = {
     category: params.get("category") || undefined,
     source: params.get("source") || undefined,
@@ -16,6 +21,7 @@ export async function GET(request: NextRequest) {
     to: params.get("to") || undefined,
     search: params.get("search") || undefined,
     tag: params.get("tag") || undefined,
+    reimbursement,
     page: params.get("page") ? parseInt(params.get("page")!) : 1,
     limit: params.get("limit") ? parseInt(params.get("limit")!) : 50,
   };

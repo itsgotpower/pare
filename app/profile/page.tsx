@@ -170,6 +170,11 @@ export default function ProfilePage() {
   const [deleteConfirm, setDeleteConfirm] = useState("");
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
+  // Disconnect Claude (hosted connector revocation)
+  const [mcpOpen, setMcpOpen] = useState(false);
+  const [mcpBusy, setMcpBusy] = useState(false);
+  const [mcpError, setMcpError] = useState<string | null>(null);
+
   // Billing / plan (hosted + Stripe-provisioned only). billingNotice is the
   // banner shown after returning from Stripe Checkout (?checkout=success|cancel).
   const [billing, setBilling] = useState<Billing | null>(null);
@@ -264,6 +269,27 @@ export default function ProfilePage() {
     if (res.ok) {
       setEditingName(false);
       fetchProfile();
+    }
+  };
+
+  // Sever the claude.ai connector (hosted only): revokes every OAuth token +
+  // consent row server-side; reconnecting later re-runs the /connect walkthrough.
+  const handleMcpDisconnect = async () => {
+    setMcpBusy(true);
+    setMcpError(null);
+    try {
+      const res = await fetch("/api/mcp-disconnect", { method: "POST" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setMcpError(data.error || "Could not disconnect. Please try again.");
+        return;
+      }
+      setMcpOpen(false);
+      fetchProfile(); // the masthead indicator flips back to CONNECT CLAUDE →
+    } catch {
+      setMcpError("Could not disconnect. Please try again.");
+    } finally {
+      setMcpBusy(false);
     }
   };
 
@@ -814,6 +840,24 @@ export default function ProfilePage() {
             >
               Change password
             </Button>
+            {hosted && profile.mcp?.connected && (
+              <div className="mt-4 border-t border-border/60 pt-3">
+                <p className="text-xs">Claude has connector access</p>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  Disconnecting revokes claude.ai&apos;s tokens immediately.
+                </p>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setMcpError(null);
+                    setMcpOpen(true);
+                  }}
+                  className="rounded-none font-mono text-xs tracking-widest uppercase mt-3"
+                >
+                  Disconnect Claude
+                </Button>
+              </div>
+            )}
           </div>
         </Card>
 
@@ -1128,6 +1172,36 @@ export default function ProfilePage() {
               className="rounded-none font-mono text-xs tracking-widest uppercase"
             >
               Delete my account
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={mcpOpen} onOpenChange={setMcpOpen}>
+        <DialogContent className="rounded-none">
+          <DialogHeader>
+            <DialogTitle className="font-mono text-sm tracking-widest uppercase">
+              Disconnect Claude
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 text-sm">
+            <p>
+              Revokes every token the claude.ai connector holds, so Claude loses
+              access to your data immediately.
+            </p>
+            <p className="text-muted-foreground text-xs">
+              Nothing else changes — your data stays put, and you can reconnect
+              any time from the CONNECT page.
+            </p>
+            {mcpError && (
+              <p className="font-mono text-xs text-destructive">{mcpError}</p>
+            )}
+            <Button
+              disabled={mcpBusy}
+              onClick={handleMcpDisconnect}
+              className="rounded-none font-mono text-xs tracking-widest uppercase"
+            >
+              Disconnect Claude
             </Button>
           </div>
         </DialogContent>

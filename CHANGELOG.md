@@ -12,6 +12,19 @@ contracts, on-disk and crypto formats) may change between minor versions — see
 
 ### Added
 
+- **Disconnect Claude** — hosted accounts get a DISCONNECT CLAUDE button on the
+  profile's SECURITY card whenever the claude.ai connector is linked: it
+  revokes every OAuth token (and consent) server-side, so Claude loses access
+  immediately and a reconnect re-runs the consent screen ([#145]).
+- **Tags + reimbursements for Claude** — four new MCP tools: `list_tags`,
+  `reimbursements` (outstanding vs collected + every marked row), `set_tags`,
+  and `set_reimbursement`; `list_transactions` also learned `tag` and
+  `reimbursement` filters. 24 tools total, on both the local server and the
+  hosted connector ([#145]).
+- **Reimbursements strip filters the table** — click "N OUTSTANDING · $X" (or
+  COLLECTED) above the transactions table to narrow it to those rows; click
+  again to clear ([#145]).
+
 - **Tags** — label any transaction with free-form tags ('vacation',
   'work-reimbursable') from the row dialog, orthogonal to categories: add or
   remove a chip and it saves instantly, and a new tag filter on
@@ -136,6 +149,10 @@ contracts, on-disk and crypto formats) may change between minor versions — see
   ([#113]).
 ### Changed
 
+- **CSV export carries tags** — `/api/data?format=csv` gains `id`, `tags`
+  (comma-joined), and `reimbursement_status` columns, and the JSON export's
+  transactions now include `id`, so its splits/tags/reimbursements arrays are
+  correlatable ([#145]).
 - **Calmer `/profile` layout** — identity is now an unboxed masthead instead of
   a card, DATA HEALTH moves to the top as the main panel, per-account status
   chips become colored dot + text, PLAN and STATEMENT INBOX sit side by side,
@@ -342,6 +359,7 @@ server exposing the local data to MCP clients. Ships open-source repo scaffoldin
 [0.2.0]: https://github.com/itsgotpower/pare/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/itsgotpower/pare/releases/tag/v0.1.0
 
+[#145]: https://github.com/itsgotpower/pare/pull/145
 [#143]: https://github.com/itsgotpower/pare/pull/143
 [#142]: https://github.com/itsgotpower/pare/pull/142
 [#141]: https://github.com/itsgotpower/pare/pull/141

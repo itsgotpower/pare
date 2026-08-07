@@ -48,6 +48,27 @@ function makeFakeRepo() {
         return a[0] === 36 ? { deleted: 1, transactions: 4 } : { deleted: 0, transactions: 0 };
       },
     },
+    tags: {
+      counts: async () => [{ tag: "vacation", count: 3 }],
+      set: async (...a: unknown[]) => {
+        record("setTags", a);
+        // Echo the lib contract: normalized, sorted, deduped.
+        return [...new Set((a[1] as string[]).map((t) => t.trim().toLowerCase()).filter(Boolean))].sort();
+      },
+      markReimbursable: async (...a: unknown[]) => record("markReimbursable", a),
+      markReimbursed: async (...a: unknown[]) => {
+        record("markReimbursed", a);
+        throw new Error("This transaction is not marked as reimbursable");
+      },
+      clearReimbursement: async (...a: unknown[]) => record("clearReimbursement", a),
+      reimbursementSummary: async () => ({
+        outstanding: { count: 1, total: 55 },
+        reimbursed: { count: 0, total: 0 },
+      }),
+      listReimbursements: async () => [
+        { transaction_id: 42, status: "outstanding", txn_date: "2026-05-05", description: "AIRPORT TAXI", amount: 55 },
+      ],
+    },
   };
   return { repo: repo as unknown as Repo, calls };
 }
@@ -64,15 +85,15 @@ async function connect(repo: Repo, options?: RegisterPareToolsOptions) {
 const READ_TOOLS = [
   "spending_summary", "list_transactions", "category_breakdown", "income_summary",
   "cashflow", "baseline", "subscriptions", "goals_status", "insights", "list_categories",
-  "list_statements",
+  "list_statements", "list_tags", "reimbursements",
 ];
 const WRITE_TOOLS = [
   "set_goal", "delete_goal", "add_category_rule", "delete_category_rule",
-  "recategorize_all", "tag_transaction", "add_manual_transaction", "delete_manual_transaction",
-  "delete_statement",
+  "recategorize_all", "tag_transaction", "set_tags", "set_reimbursement",
+  "add_manual_transaction", "delete_manual_transaction", "delete_statement",
 ];
 
-test("registry exposes all 20 tools by default", async () => {
+test("registry exposes all 24 tools by default", async () => {
   const { repo } = makeFakeRepo();
   const client = await connect(repo);
   const { tools } = await client.listTools();
@@ -151,5 +172,70 @@ test("delete_statement refuses an unknown statement id", async () => {
     arguments: { statement_id: 999 },
   })) as { content: Array<{ text: string }> };
   assert.equal(JSON.parse(res.content[0].text).ok, false);
+  await client.close();
+});
+
+test("set_tags replaces a known row's tag set and refuses an unknown id", async () => {
+  const { repo, calls } = makeFakeRepo();
+  const client = await connect(repo);
+
+  const ok = (await client.callTool({
+    name: "set_tags",
+    arguments: { transaction_id: 42, tags: ["Vacation", "work"] },
+  })) as { content: Array<{ text: string }> };
+  const payload = JSON.parse(ok.content[0].text);
+  assert.equal(payload.ok, true);
+  assert.deepEqual(payload.tags, ["vacation", "work"]);
+  assert.deepEqual(calls.setTags[0], [42, ["Vacation", "work"]]);
+
+  const missing = (await client.callTool({
+    name: "set_tags",
+    arguments: { transaction_id: 999, tags: ["x"] },
+  })) as { content: Array<{ text: string }> };
+  assert.equal(JSON.parse(missing.content[0].text).ok, false);
+  assert.equal(calls.setTags.length, 1, "no write for the unknown id");
+  await client.close();
+});
+
+test("set_reimbursement routes each status and surfaces lib rejections", async () => {
+  const { repo, calls } = makeFakeRepo();
+  const client = await connect(repo);
+
+  const mark = (await client.callTool({
+    name: "set_reimbursement",
+    arguments: { transaction_id: 42, status: "outstanding" },
+  })) as { content: Array<{ text: string }> };
+  assert.equal(JSON.parse(mark.content[0].text).ok, true);
+  assert.deepEqual(calls.markReimbursable[0], [42]);
+
+  const clear = (await client.callTool({
+    name: "set_reimbursement",
+    arguments: { transaction_id: 42, status: "none" },
+  })) as { content: Array<{ text: string }> };
+  assert.equal(JSON.parse(clear.content[0].text).ok, true);
+  assert.deepEqual(calls.clearReimbursement[0], [42]);
+
+  // The fake's markReimbursed throws the lib's user-safe message — the tool
+  // returns it as {ok:false} instead of a protocol error.
+  const reject = (await client.callTool({
+    name: "set_reimbursement",
+    arguments: { transaction_id: 42, status: "reimbursed" },
+  })) as { content: Array<{ text: string }> };
+  const rejected = JSON.parse(reject.content[0].text);
+  assert.equal(rejected.ok, false);
+  assert.match(rejected.error, /not marked as reimbursable/);
+  await client.close();
+});
+
+test("reimbursements read returns summary + rows", async () => {
+  const { repo } = makeFakeRepo();
+  const client = await connect(repo);
+  const res = (await client.callTool({
+    name: "reimbursements",
+    arguments: {},
+  })) as { content: Array<{ text: string }> };
+  const payload = JSON.parse(res.content[0].text);
+  assert.equal(payload.summary.outstanding.total, 55);
+  assert.equal(payload.rows[0].description, "AIRPORT TAXI");
   await client.close();
 });

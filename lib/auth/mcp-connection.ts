@@ -93,3 +93,24 @@ export async function getMcpConnection(
     clientName,
   };
 }
+
+// Sever the connector server-side (the /profile SECURITY "Disconnect Claude"
+// action): delete every OAuth token the user has issued — claude.ai's stored
+// access/refresh tokens die immediately, so its next MCP call or refresh 401s —
+// plus the consent rows, so a future reconnect runs the consent screen from
+// scratch. This is OUR side of revocation and is authoritative regardless of
+// whether claude.ai ever calls a revocation endpoint (see the caveat above:
+// it reliably doesn't).
+export async function revokeMcpConnection(
+  db: D1Like,
+  userId: string
+): Promise<{ revokedTokens: number }> {
+  const res = await db
+    .prepare(`DELETE FROM "oauthAccessToken" WHERE "userId" = ?`)
+    .bind(userId)
+    .run();
+  await db.prepare(`DELETE FROM "oauthConsent" WHERE "userId" = ?`).bind(userId).run();
+  // D1 reports affected rows on meta.changes; tolerate a fake/driver without it.
+  const changes = (res as { meta?: { changes?: number } } | null)?.meta?.changes;
+  return { revokedTokens: typeof changes === "number" ? changes : 0 };
+}

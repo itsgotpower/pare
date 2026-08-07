@@ -55,10 +55,20 @@ export async function GET(request: NextRequest) {
   switch (format) {
     case "csv": {
       const rows = await repo.transactions.exportAll();
-      const header = "txn_date,source,description,amount,flow,category";
+      const header = "id,txn_date,source,description,amount,flow,category,tags,reimbursement_status";
       const body = rows
         .map((r) =>
-          [r.txn_date, r.source, r.description, r.amount, r.flow, r.category]
+          [
+            r.id,
+            r.txn_date,
+            r.source,
+            r.description,
+            r.amount,
+            r.flow,
+            r.category,
+            r.tags ?? "",
+            r.reimbursement_status ?? "",
+          ]
             .map(csvField)
             .join(",")
         )

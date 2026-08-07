@@ -14,7 +14,7 @@ export const dynamic = "force-dynamic";
 
 const READ_TOOLS = [
   ["spending_summary", "monthly totals, category breakdown, top merchants"],
-  ["list_transactions", "filter by category, source, flow, date range, search"],
+  ["list_transactions", "filter by category, source, flow, dates, tag, reimbursement"],
   ["category_breakdown", "spend per category, optionally one month"],
   ["income_summary", "income by type + income-vs-spend series"],
   ["cashflow", "net cashflow per month + period surplus"],
@@ -24,6 +24,8 @@ const READ_TOOLS = [
   ["insights", "auto tips: over-budget, MoM moves, one-offs"],
   ["list_categories", "categories in use + keyword rules"],
   ["list_statements", "uploaded/synced statements with ids + balances"],
+  ["list_tags", "every tag in use + how many rows carry it"],
+  ["reimbursements", "outstanding vs collected totals + marked rows"],
 ] as const;
 
 const WRITE_TOOLS = [
@@ -33,6 +35,8 @@ const WRITE_TOOLS = [
   ["delete_category_rule", "remove a keyword→category rule"],
   ["recategorize_all", "re-apply rules to all transactions"],
   ["tag_transaction", "override one transaction's category"],
+  ["set_tags", "replace a transaction's free-form tag set"],
+  ["set_reimbursement", "mark owed-back money outstanding / reimbursed"],
   ["add_manual_transaction", "record a cash / off-statement purchase"],
   ["delete_manual_transaction", "delete a manually recorded transaction"],
   ["delete_statement", "delete a statement + all its transactions"],
