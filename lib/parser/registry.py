@@ -7,7 +7,7 @@ predicate (run against the `pdftotext` output) and a `priority`. `select()`
 returns the lowest-priority parser whose `matches` is true, which reproduces the
 original precedence exactly:
 
-    Visa (10)  ->  chequing (20)  ->  Amex fallback (90)
+    Visa (10)  ->  chequing (20)  ->  Amex US (85)  ->  Amex fallback (90)
 
 Order matters because CIBC chequing statements contain the text "American
 Express" (Amex card-payment lines), so the specific CIBC titles must be checked
@@ -52,7 +52,7 @@ def all_parsers() -> List[Parser]:
 
 
 def register_builtins(mod) -> None:
-    """Register the three built-in institution parsers from `mod` (the live
+    """Register the built-in institution parsers from `mod` (the live
     parse_statements module). Idempotent, so repeated main()/test calls are safe.
 
     `mod` is passed in rather than imported so there is no second copy of
@@ -69,6 +69,11 @@ def register_builtins(mod) -> None:
                     matches=mod._detect_cibc_chequing,
                     parse=mod.parse_cibc_chequing,
                     meta=mod._cibc_chequing_meta))
+    # US Amex also contains "American Express" -> must precede the fallback.
+    register(Parser("amex_us", 85,
+                    matches=mod._detect_amex_us,
+                    parse=mod.parse_amex_us,
+                    meta=mod._amex_us_meta))
     register(Parser("amex", 90,
                     matches=mod._detect_amex,
                     parse=mod.parse_amex,

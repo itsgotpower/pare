@@ -42,6 +42,54 @@ Jan 01        Jan 02        ANOTHER STORE TORONTO          56.78
 Total of New Transactions
 """
 
+# US Amex template (different from the Canadian one above): numeric closing date,
+# single "MM/DD/YY[*]" rows with a full year, "-$" credits, sectioned detail.
+# Reconciles: 100.00 - 125.00 (payment + refund) + 77.12 (charges) + 95.00 (fee)
+# = 147.12.
+AMEX_US = """\
+         Delta SkyMiles® Gold Card                                       p. 1/5
+
+         TEST USER                                         Customer Care:   1-800-000-0000
+         Closing Date 01/02/26                             Website:    americanexpress.com
+         Account Ending 9-99999
+New Balance                                 $147.12
+                                                     Account Summary
+                                                     Previous Balance          $100.00
+                                                     Payments/Credits         -$125.00
+                                                     New Charges               +$77.12
+                                                     Fees                      +$95.00
+                                                     Interest Charged           +$0.00
+ Payments and Credits
+ Summary
+Payments                                                               -$100.00
+Credits                                                                 -$25.00
+ Detail        *Indicates posting date
+Payments                                                                 Amount
+12/08/25*      ONLINE PAYMENT - THANK YOU                              -$100.00
+Credits                                                                  Amount
+12/21/25*      GADGET SHOP                  SEATTLE         WA          -$25.00
+               TRANSACTION PROCESSED BY AMERICAN EXPRESS
+ New Charges
+ Summary
+Total New Charges                                                        $77.12
+ Detail
+          TEST USER
+          Card Ending 9-99999
+                                                                         Amount
+12/15/25       TEST MERCHANT                SEATTLE         WA           $12.34
+               Ticket Number: 00000000000000     Date of Departure: 01/31
+01/01/26       ANOTHER STORE                PORTLAND        OR           $56.78
+01/01/26       TRANSIT FARE                 NEW YORK        NY            $8.00
+  Fees
+                                                                         Amount
+12/02/25       ANNUAL MEMBERSHIP FEE                                     $95.00
+Total Fees for this Period                                               $95.00
+  Interest Charged
+Total Interest Charged for this Period                                    $0.00
+  2025 Fees and Interest Totals Year-to-Date
+  Total Fees in 2025                                                     $95.00
+"""
+
 CIBC_VISA = """\
 CIBC Aeroplan Visa
 Account statement for the period February 28 to March 27, 2026
@@ -222,6 +270,63 @@ class TestAmex(unittest.TestCase):
 
     def test_amounts_positive(self):
         self.assertTrue(all(r[5] > 0 for r in self.rows))
+
+
+
+class TestAmexUS(unittest.TestCase):
+    def setUp(self):
+        self.rows = _rows(P.parse_amex_us, AMEX_US)
+        self.by_desc = {r[4]: r for r in self.rows}
+
+    def test_count_period_and_source(self):
+        self.assertEqual(len(self.rows), 6)
+        self.assertEqual(self.rows[0][2], "Jan 02, 2026")
+        # Keyed on the account number, not the product name: a Gold -> Platinum
+        # upgrade must stay ONE account.
+        self.assertEqual({r[0] for r in self.rows}, {"amex_us_999999_card"})
+        self.assertEqual(self.rows[0][1], "Amex Delta SkyMiles® Gold Card")
+
+    def test_full_year_dates_no_inference(self):
+        self.assertEqual(self.by_desc["TEST MERCHANT"][3], "2025-12-15")
+        self.assertEqual(self.by_desc["ANOTHER STORE"][3], "2026-01-01")
+
+    def test_merchant_column_only(self):
+        # City/state columns are dropped; continuation lines are not rows.
+        self.assertIn("ANOTHER STORE", self.by_desc)
+        self.assertFalse(any("Ticket" in r[4] for r in self.rows))
+
+    def test_flows_by_section(self):
+        self.assertEqual(self.by_desc["ONLINE PAYMENT - THANK YOU"][7], "payment")
+        self.assertEqual(self.by_desc["GADGET SHOP"][7], "income")
+        self.assertEqual(self.by_desc["ANNUAL MEMBERSHIP FEE"][7], "fee_interest")
+        self.assertEqual(self.by_desc["TEST MERCHANT"][7], "spend")
+
+    def test_amounts_positive(self):
+        self.assertTrue(all(r[5] > 0 for r in self.rows))
+
+    def test_meta_and_reconciles(self):
+        with mock.patch.object(P, "text", return_value=AMEX_US):
+            meta = P.statement_meta("dummy.pdf")
+        self.assertEqual(meta["source"], "amex_us_999999_card")
+        self.assertAlmostEqual(meta["opening_balance"], 100.00)
+        self.assertAlmostEqual(meta["closing_balance"], 147.12)
+        self.assertEqual(meta["closing_date"], "2026-01-02")
+        r = V.verify(self.rows, meta, AMEX_US)
+        self.assertTrue(r.ok)
+        self.assertAlmostEqual(r.residual, 0.0)
+
+    def test_cr_balance_is_negative(self):
+        # "New Balance  CR$100.44" is a credit balance — stored negative
+        # (positive = owed, as printed for every other card).
+        self.assertAlmostEqual(P._us_money("CR$100.44"), -100.44)
+        self.assertAlmostEqual(P._us_money("-$1,234.50"), -1234.50)
+        self.assertAlmostEqual(P._us_money("$9.99"), 9.99)
+
+    def test_routes_ahead_of_canadian_amex(self):
+        import registry
+        registry.register_builtins(P)
+        self.assertEqual(registry.select(AMEX_US).id, "amex_us")
+        self.assertEqual(registry.select(AMEX).id, "amex")
 
 
 class TestCibcVisa(unittest.TestCase):

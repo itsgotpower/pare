@@ -168,6 +168,102 @@ def parse_amex(path):
     return rows
 
 
+# ===========================================================================
+# American Express (US) — tuned against real Delta SkyMiles statements. A
+# different template from the Canadian one above: numeric "Closing Date
+# 03/02/26" header, single-date "MM/DD/YY[*]" rows (full year, so no year
+# inference), "-$" / "CR$" credits, and sectioned detail (Payments / Credits /
+# New Charges / Fees / Interest Charged). Its text also contains "American
+# Express", so it must route BEFORE the Canadian Amex fallback (priority 85).
+# ===========================================================================
+_US_CLOSING_RX = re.compile(r'Closing Date\s+(\d{2})/(\d{2})/(\d{2})\b')
+_US_ROW_RX = re.compile(
+    r'^(\d{2})/(\d{2})/(\d{2})\*?\s+(.*?)\s+(-?(?:CR)?\$[\d,]+\.\d{2})\s*$')
+_US_MONEY = r'(-?(?:CR)?\$[\d,]+\.\d{2})'
+_MONTH_ABBR = {v: k for k, v in MONTHS.items()}
+
+
+def _detect_amex_us(t):
+    return 'americanexpress.com' in t and bool(_US_CLOSING_RX.search(t))
+
+
+def _us_money(s):
+    """'$1.00' -> 1.0; '-$1.00' / 'CR$1.00' -> -1.0 (a credit)."""
+    neg = s.startswith('-') or 'CR' in s
+    v = float(s.replace('-', '').replace('CR', '').replace('$', '').replace(',', ''))
+    return -v if neg else v
+
+
+def _amex_us_period(t):
+    m = _US_CLOSING_RX.search(t)
+    if not m:
+        return "amex_us"
+    mm, dd, yy = (int(g) for g in m.groups())
+    return f"{_MONTH_ABBR[mm]} {dd:02d}, {2000 + yy}"
+
+
+def _amex_us_account(t):
+    """(source, account). The source is keyed on "Account Ending 6-71001" — it
+    survives a product change (Gold -> Platinum keeps the number), so balances
+    carry forward on ONE account, while two different cards stay separate. The
+    account label is the page-1 masthead product name ("Delta SkyMiles®
+    Platinum   p. 1/7"); only the line bearing the "p. 1/" marker is read,
+    never the cardholder-name line."""
+    em = re.search(r'Account Ending\s+([\d-]+)', t)
+    ending = re.sub(r'\D', '', em.group(1)) if em else ''
+    pm = re.search(r'^\s*(\S[^\n]*?)\s{2,}p\.\s*1/\d+', t, re.MULTILINE)
+    product = pm.group(1).strip() if pm else ''
+    source = f'amex_us_{ending}_card' if ending else 'amex_us_card'
+    return source, f'Amex {product}' if product else 'Amex (US)'
+
+
+def is_amex_us_source(source):
+    return source.startswith('amex_') and source.endswith('_card')
+
+
+def parse_amex_us(path):
+    rows, t = [], text(path)
+    period = _amex_us_period(t)
+    source, account = _amex_us_account(t)
+    section = None
+    for ln in t.splitlines():
+        s = ln.strip()
+        # Section headers. Detail starts at "Payments and Credits"; the YTD
+        # totals / trailing-interest boilerplate after "Interest Charged" ends it.
+        if s == 'Payments and Credits' or s.startswith('Payments  ') and 'Amount' in s:
+            section = 'payments'; continue
+        if s.startswith('Credits') and 'Amount' in s:
+            section = 'credits'; continue
+        if s == 'New Charges':
+            section = 'charges'; continue
+        if s == 'Fees' or s == 'Interest Charged':
+            section = 'fees'; continue
+        if 'Year-to-Date' in s or s.startswith('About Trailing Interest'):
+            section = None; continue
+        if section is None:
+            continue
+        m = _US_ROW_RX.match(s)
+        if not m:
+            continue
+        mm, dd, yy, desc, amt_raw = m.groups()
+        signed = _us_money(amt_raw)
+        amt = abs(signed)
+        # Merchant only: the detail row's later columns are city / state.
+        desc = re.split(r'\s{2,}', desc.strip())[0]
+        txn_date = f"{2000 + int(yy)}-{mm}-{dd}"
+        cat = categorize(desc)
+        if section == 'payments' or (signed < 0 and 'PAYMENT' in desc.upper()):
+            flow = 'payment'
+        elif signed < 0:
+            flow = 'income'  # statement credit / refund / fee reversal
+        elif section == 'fees' or cat == 'Cash advance / fees':
+            flow = 'fee_interest'
+        else:
+            flow = 'spend'
+        rows.append((source, account, period, txn_date, desc, amt, cat, flow))
+    return rows
+
+
 # CIBC's own "Spend Categories" column — the real fixed vocabulary as printed on
 # Aeroplan Visa statements. Longest/multi-word phrases first so the alternation
 # consumes the full category, not a prefix. Used to split description from category.
@@ -852,6 +948,20 @@ def _amex_meta(path):
             'opening_balance': _money(om.group(1)) if om else None}
 
 
+def _amex_us_meta(path):
+    t = text(path)
+    period = _amex_us_period(t)
+    source, account = _amex_us_account(t)
+    # "New Balance   CR$100.44" — a CR balance is a credit (stored negative:
+    # positive means owed, as printed for every other card).
+    m = re.search(r'New Balance\s+' + _US_MONEY, t)
+    om = re.search(r'Previous Balance\s+' + _US_MONEY, t)
+    return {'source': source, 'account': account, 'period': period,
+            'closing_balance': _us_money(m.group(1)) if m else None,
+            'closing_date': period_end(period),
+            'opening_balance': _us_money(om.group(1)) if om else None}
+
+
 def statement_meta(path):
     """Statement-level metadata: opening + closing balance + closing date per source.
 
@@ -867,6 +977,8 @@ def statement_meta(path):
         return _cibc_visa_meta(path)
     if _detect_cibc_chequing(t):
         return _cibc_chequing_meta(path)
+    if _detect_amex_us(t):
+        return _amex_us_meta(path)
     if _detect_amex(t):
         # Checked before the scaffolds (unlike the registry, which keeps Amex
         # the LAST-priority fallback) — safe either way, since scaffold

@@ -17,7 +17,7 @@
 // No personal account details, no merchant names.
 //
 // `status` mirrors the parser registry (CLAUDE.md "Coverage status"): CIBC +
-// Amex are tuned against real PDFs; the rest are scaffolds, so OFX/QFX is the
+// Amex (CA + US) are tuned against real PDFs; the rest are scaffolds, so OFX/QFX is the
 // safer first import. Keep this in sync with lib/parser/_SCAFFOLD_BANKS — a
 // bank whose parser graduates from scaffold to tuned should move to "pdf".
 
@@ -83,9 +83,9 @@ export const BANK_GUIDES: BankGuide[] = [
     bank: "American Express",
     status: "pdf",
     intro:
-      "Amex billing statements are PDFs organised by closing date. Pare's Amex parser is tuned against real statements and handles the year-rollover case (December charges on a January-closing statement).",
+      "Amex billing statements are PDFs organised by closing date. Pare's Amex parsers are tuned against real statements for both the Canadian (americanexpress.ca) and US (americanexpress.com) layouts, and handle the year-rollover case (December charges on a January-closing statement).",
     steps: [
-      "Sign in at americanexpress.ca → Statements & Activity.",
+      "Sign in at americanexpress.ca (Canada) or americanexpress.com (US) → Statements & Activity.",
       "Billing statements → View PDF → download.",
       "Drop the PDF into Pare — Amex statements are fully supported.",
     ],

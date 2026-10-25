@@ -58,7 +58,8 @@ def verify(transactions, meta, text: str = "") -> VerifyResult:
     profile = ps.LEDGER_PROFILES.get(source)
     if profile is not None:
         return _verify_ledger(meta, text, profile)
-    if source in ("amex", "cibc_visa") or source in ps.CARD_PROFILES:
+    if (source in ("amex", "cibc_visa") or source in ps.CARD_PROFILES
+            or ps.is_amex_us_source(source)):
         return _verify_card(transactions, meta)
     return VerifyResult(False, "none", 0.0, 0.0, [])
 

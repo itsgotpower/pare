@@ -16,7 +16,8 @@
 // at the edges.
 //
 // Token format (unchanged): <expiresAtMs>.<nonce>.<hmac(expiresAtMs.nonce)>
-// HMAC: HMAC-SHA256, hex-encoded. verify() is constant-time via subtle.verify.
+// HMAC: HMAC-SHA256, hex-encoded. verify() recomputes the MAC and compares in
+// constant time.
 // ---------------------------------------------------------------------------
 
 export const SESSION_COOKIE = "pare_session";
@@ -98,9 +99,20 @@ export async function verifySessionToken(
   const [expiresAt, nonce, mac] = parts;
   if (!/^\d+$/.test(expiresAt) || Number(expiresAt) < Date.now()) return false;
 
-  const macBytes = fromHex(mac);
-  if (!macBytes) return false;
+  if (!fromHex(mac)) return false;
 
-  const key = await importKey(secret, "verify");
-  return subtle.verify("HMAC", key, ab(macBytes), ab(utf8.encode(`${expiresAt}.${nonce}`)));
+  // Recompute and compare rather than subtle.verify(mac bytes): in the Next dev
+  // Edge sandbox a Uint8Array built in module code belongs to a different realm
+  // than SubtleCrypto, which rejects it ("3rd argument is not instance of
+  // ArrayBuffer"). sign() only feeds it TextEncoder output, which is safe.
+  const expected = await sign(`${expiresAt}.${nonce}`, secret);
+  return timingSafeEqualHex(expected, mac.toLowerCase());
+}
+
+// Constant-time string compare (length is not secret: HMAC-SHA256 hex is 64).
+function timingSafeEqualHex(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
 }
