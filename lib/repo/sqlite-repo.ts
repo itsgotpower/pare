@@ -39,6 +39,7 @@ import {
   listTransactions,
   getCategories,
   exportAllTransactions,
+  wipeAllData,
 } from "../db/transactions";
 import { insertStatement, listStatements, deleteStatement } from "../db/statements";
 import {
@@ -200,6 +201,7 @@ export class SqliteRepo implements Repo {
     insertManual: (input) => this.write(() => insertManualTransaction(input)),
     deleteManual: (id) => this.write(() => deleteManualTransaction(id)),
     exportAll: () => this.read(() => exportAllTransactions()),
+    wipeAll: () => this.write(wipeAllData),
   };
 
   statements: StatementRepo = {

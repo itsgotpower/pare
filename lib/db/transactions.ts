@@ -194,6 +194,21 @@ export function deleteManualTransaction(id: number): { deleted: number } {
   return { deleted: tx() };
 }
 
+// Clear statement and transaction data while keeping the account, rules, and goals.
+export function wipeAllData() {
+  const db = getDb();
+  return db.transaction(() => {
+    // Remove foreign-key dependents before their transactions and statements.
+    const overrides = db.prepare("DELETE FROM category_overrides").run().changes;
+    const splits = db.prepare("DELETE FROM transaction_splits").run().changes;
+    const tags = db.prepare("DELETE FROM transaction_tags").run().changes;
+    const reimbursements = db.prepare("DELETE FROM reimbursements").run().changes;
+    const transactions = db.prepare("DELETE FROM transactions").run().changes;
+    const statements = db.prepare("DELETE FROM statements").run().changes;
+    return { transactions, statements, overrides, splits, tags, reimbursements };
+  })();
+}
+
 export function getTransactionCategory(id: number): { category: string } | null {
   const db = getDb();
   const row = db

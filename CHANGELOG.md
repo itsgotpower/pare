@@ -10,6 +10,10 @@ contracts, on-disk and crypto formats) may change between minor versions — see
 
 ## [Unreleased]
 
+### Fixed
+
+- **Wipe all data** now works on hosted accounts and preserves category rules and spending goals.
+
 ### Added
 
 - **Disconnect Claude** — hosted accounts get a DISCONNECT CLAUDE button on the

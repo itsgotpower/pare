@@ -6,17 +6,6 @@ import { isHostedMode } from "@/lib/auth/resolve";
 import { getScopedRepo, unauthorized } from "@/lib/repo/scoped";
 import { csvField } from "@/lib/csv";
 
-// Data export + destructive wipe. Exports (GET) now flow through the scoped Repo,
-// so CSV + JSON work on BOTH deploy targets (self-host file DB and the hosted
-// Durable-Object-per-user backend). The `backup` format is a byte-for-byte
-// better-sqlite3 online db.backup() and stays SELF-HOST ONLY — the hosted DO uses
-// native ctx.storage.sql with no serialisable .db file, and there is no
-// copy-over-the-file restore path there anyway. DELETE (wipe) still reads the file
-// DB directly and remains self-host only; see hostedNotFound below.
-function hostedNotFound(): Response | null {
-  return isHostedMode() ? Response.json({ error: "Not found" }, { status: 404 }) : null;
-}
-
 function attachment(filename: string, contentType: string): HeadersInit {
   return {
     "Content-Type": contentType,
@@ -116,33 +105,17 @@ export async function GET(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
-  const gone = hostedNotFound();
-  if (gone) return gone;
+  const repo = await getScopedRepo(request);
+  if (!repo) return unauthorized();
+
   const body = await request.json().catch(() => ({}));
-  if (body.confirm !== "WIPE") {
+  if (body?.confirm !== "WIPE") {
     return Response.json(
       { error: 'Confirmation required: pass {"confirm":"WIPE"}' },
       { status: 400 }
     );
   }
 
-  const db = getDb();
-  const wipe = db.transaction(() => {
-    // Overrides, splits, tags, and reimbursements reference transactions(id)
-    // (FKs are ON) — delete the children first. Tags/reimbursements are
-    // row-scoped, so dying with their transactions is correct (unlike
-    // rules/goals/marks, which survive the wipe).
-    const overrides = db.prepare("DELETE FROM category_overrides").run().changes;
-    const splits = db.prepare("DELETE FROM transaction_splits").run().changes;
-    const tags = db.prepare("DELETE FROM transaction_tags").run().changes;
-    const reimbursements = db.prepare("DELETE FROM reimbursements").run().changes;
-    const txns = db.prepare("DELETE FROM transactions").run().changes;
-    const stmts = db.prepare("DELETE FROM statements").run().changes;
-    return { transactions: txns, statements: stmts, overrides, splits, tags, reimbursements };
-  });
-  const deleted = wipe();
-
-  // Rules, goals, and the user account are deliberately kept — rules also
-  // persist to data/user-rules.json, so even a full DB wipe restores them.
+  const deleted = await repo.transactions.wipeAll();
   return Response.json({ success: true, deleted });
 }

@@ -16,6 +16,7 @@ import type {
   TransactionFilters,
   ManualTransactionInput,
   ExportTxn,
+  wipeAllData,
 } from "../db/transactions";
 import type { StatementRow } from "../db/statements";
 import type { CategoryRule } from "../db/categories";
@@ -190,6 +191,7 @@ export interface TransactionRepo {
   // Every transaction, flattened + unpaginated, INCLUDING hidden accounts — the
   // data-export read (/api/data csv+json). Not the paginated view read `list`.
   exportAll(): Promise<ExportTxn[]>;
+  wipeAll(): Promise<ReturnType<typeof wipeAllData>>;
 }
 
 export interface StatementRepo {
