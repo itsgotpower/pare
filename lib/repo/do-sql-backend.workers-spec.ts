@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { env, runInDurableObject } from "cloudflare:test";
+import { getRepoForUser } from "./index";
 import { SqliteRepo } from "./sqlite-repo";
 import { DoSqlBackend } from "./do-sql-backend";
 import { runMigrationsOnDoSql } from "./do-sql-backend";
@@ -481,6 +482,47 @@ describe("DoSqlBackend over real ctx.storage.sql (workerd)", () => {
       expect(none.deleted).toBe(0);
       expect(none.transactions).toBe(0);
     });
+  });
+
+  it("wipes only the calling user's transaction data through DO RPC", async () => {
+    const repo = await getRepoForUser("wipe-target", env.USER_DATA as never);
+    const otherRepo = await getRepoForUser("wipe-neighbor", env.USER_DATA as never);
+    await otherRepo.transactions.insertManual({
+      txn_date: "2026-05-09", description: "Other user's charge", amount: 20, category: "Groceries",
+    });
+
+    await repo.categories.addRule("Groceries", "market");
+    await repo.goals.upsert("Groceries", 500);
+    const statementId = await repo.statements.insert({
+      filename: "statement.pdf", source: "amex", account: "card", period: "2026-05",
+      row_count: 2,
+    });
+    await repo.transactions.insertMany(["override", "split"].map((key) => ({
+      statement_id: statementId, source: "amex", account: "card", period: "2026-05",
+      txn_date: "2026-05-09", description: key, amount: 20, category: "Groceries",
+      flow: "spend", dedup_key: key,
+    })));
+    const [first, second] = (await repo.transactions.list()).rows;
+    await repo.categories.addOverride(first.id, "Groceries", "Travel");
+    await repo.splits.set(second.id, [
+      { category: "Groceries", amount: 12 },
+      { category: "Travel", amount: 8 },
+    ]);
+    await repo.tags.set(first.id, ["work"]);
+    await repo.tags.markReimbursable(first.id);
+
+    expect(await repo.transactions.wipeAll()).toEqual({
+      transactions: 2, statements: 1, overrides: 1, splits: 2, tags: 1, reimbursements: 1,
+    });
+    expect(await repo.transactions.exportAll()).toEqual([]);
+    expect(await repo.statements.list()).toEqual([]);
+    expect(await repo.categories.listRules()).toEqual(
+      expect.arrayContaining([expect.objectContaining({ keyword: "market", category: "Groceries" })])
+    );
+    expect(await repo.goals.list()).toEqual(
+      expect.arrayContaining([expect.objectContaining({ category: "Groceries", monthly_limit: 500 })])
+    );
+    expect((await otherRepo.transactions.list()).total).toBe(1);
   });
 
   it("destroy() hard-deletes every app table + view (account deletion)", async () => {

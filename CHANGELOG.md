@@ -10,6 +10,10 @@ contracts, on-disk and crypto formats) may change between minor versions — see
 
 ## [Unreleased]
 
+### Fixed
+
+- **Wipe all data** now works on hosted accounts and preserves category rules and spending goals ([#156]).
+
 ### Added
 
 - **Disconnect Claude** — hosted accounts get a DISCONNECT CLAUDE button on the
@@ -416,3 +420,4 @@ server exposing the local data to MCP clients. Ships open-source repo scaffoldin
 [#128]: https://github.com/itsgotpower/pare/pull/128
 [#129]: https://github.com/itsgotpower/pare/pull/129
 [#137]: https://github.com/itsgotpower/pare/pull/137
+[#156]: https://github.com/itsgotpower/pare/pull/156
